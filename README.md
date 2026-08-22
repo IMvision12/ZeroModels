@@ -5,6 +5,10 @@
 <h1 align="center">KerasFormers</h1>
 
 <div align="center">
+  <a href="https://www.producthunt.com/products/kerasformers?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-kerasformers" target="_blank" rel="noopener noreferrer"><img alt="KerasFormers - Keras 3 collection of pretrained models | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1228026&amp;theme=light&amp;t=1787429070944"></a>
+
+</div>
+<div align="center">
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Keras](https://img.shields.io/badge/keras-v3.5.0+-success.svg)](https://github.com/keras-team/keras)
