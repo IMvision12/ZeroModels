@@ -187,6 +187,7 @@ nav:
           - SAM: sam.md
           - SAM 2: sam2.md
           - SegFormer: segformer.md
+          - TIPSv2-DPT: tipsv2_dpt.md
       - Audio models:
           - Granite Speech: granite_speech.md
           - Granite Speech Plus: granite_speech_plus.md
@@ -222,6 +223,7 @@ nav:
           - SAM 3: sam3.md
           - SigLIP: siglip.md
           - SigLIP 2: siglip2.md
+          - TIPSv2: tipsv2.md
 
   - Loading Weights: loading_weights.md
 

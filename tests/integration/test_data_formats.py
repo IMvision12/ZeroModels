@@ -37,6 +37,10 @@ SKIP_DATA_FORMAT = {
     "GraniteSpeechPlusConditionalGenerate",
     "MaskFormerUniversalSegment",
     "Mask2FormerUniversalSegment",
+    # DPT reassemble reshapes tokens to a channels-last grid -> channels_last only.
+    "Tipsv2DptDensePredict",
+    "Tipsv2DptDepthEstimation",
+    "Tipsv2DptSemanticSegment",
     # Qwen-VL inputs are pre-patchified (no spatial axes) -> layout-agnostic.
     "Qwen2VLModel",
     "Qwen2_5VLModel",

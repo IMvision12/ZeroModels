@@ -133,6 +133,13 @@ def siglip_input(batch_size=2, image_size=64, max_seq_len=64):
     }
 
 
+def tips_v2_text_input(batch_size=2, max_seq_len=16):
+    return {
+        "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "padding_mask": ops.ones((batch_size, max_seq_len), dtype="int32"),
+    }
+
+
 def sam_input(batch_size=2, image_size=64, num_prompts=1, num_points=1):
     return {
         "pixel_values": ops.ones((batch_size, image_size, image_size, 3)),

@@ -116,6 +116,8 @@ from kerasformers.models import (
     swin,
     swinv2,
     t5,
+    tipsv2,
+    tipsv2_dpt,
     vgg,
     vit,
     whisper,
