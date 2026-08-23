@@ -28,9 +28,14 @@ class RFDETRChannelLayerNorm(layers.Layer):
     def __init__(self, epsilon=1e-6, **kwargs):
         super().__init__(**kwargs)
         self.epsilon = epsilon
+        self.data_format = keras.config.image_data_format()
 
     def build(self, input_shape):
-        dim = input_shape[-1]
+        if self.data_format == "channels_first" and len(input_shape) == 4:
+            self.channels_axis = 1
+        else:
+            self.channels_axis = -1
+        dim = input_shape[self.channels_axis]
         self.gamma = self.add_weight(
             name="gamma",
             shape=(dim,),
@@ -43,9 +48,14 @@ class RFDETRChannelLayerNorm(layers.Layer):
         )
 
     def call(self, x):
-        mean = ops.mean(x, axis=-1, keepdims=True)
-        variance = ops.var(x, axis=-1, keepdims=True)
+        axis = self.channels_axis
+        mean = ops.mean(x, axis=axis, keepdims=True)
+        variance = ops.var(x, axis=axis, keepdims=True)
         x_norm = (x - mean) / ops.sqrt(variance + self.epsilon)
+        if axis == 1:
+            gamma = ops.reshape(self.gamma, (1, -1, 1, 1))
+            beta = ops.reshape(self.beta, (1, -1, 1, 1))
+            return x_norm * gamma + beta
         return x_norm * self.gamma + self.beta
 
     def get_config(self):

@@ -348,6 +348,8 @@ class DinoV3ViTModel(FunctionalBaseModel):
             data_format=data_format,
             name="patch_embed",
         )(x)
+        if data_format == "channels_first":
+            x = keras.ops.transpose(x, (0, 2, 3, 1))
         x = layers.Reshape((-1, embed_dim))(x)
         x = DinoV3CLSToken(name="cls_token")(x)
         if num_register_tokens > 0:

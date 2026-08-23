@@ -292,6 +292,8 @@ def depth_anything_v1_dino_backbone(
         data_format=data_format,
         name=f"{name}_patch_embed",
     )(pixel_values)
+    if data_format == "channels_first":
+        x = ops.transpose(x, (0, 2, 3, 1))
     x = layers.Reshape((-1, backbone_dim))(x)
     x = ViTClassDistToken(use_distillation=False, name=f"{name}_cls_token")(x)
     x = ViTAddPositionEmbs(

@@ -16,9 +16,6 @@ from .tipsv2_layers import (
     tipsv2_text_encoder_layer,
 )
 
-# The full Tipsv2Model plus the standalone towers load from one repo per variant,
-# whose kf_config.json declares the canonical Tipsv2Model. Listing them as siblings
-# lets either tower load that repo.
 TIPSV2_HUB_SIBLINGS = frozenset({"Tipsv2Model", "Tipsv2VisionModel", "Tipsv2TextModel"})
 
 
@@ -48,6 +45,8 @@ def tipsv2_vision_features(
         data_format=data_format,
         name="conv1",
     )(inputs)
+    if data_format == "channels_first":
+        x = keras.ops.transpose(x, (0, 2, 3, 1))
     x = layers.Reshape((-1, embed_dim))(x)
     x = ViTClassDistToken(use_distillation=False, name="cls_token")(x)
     x = ViTAddPositionEmbs(

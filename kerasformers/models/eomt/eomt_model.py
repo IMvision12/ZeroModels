@@ -637,11 +637,9 @@ class EoMTUniversalSegment(FunctionalBaseModel):
         )
 
         query_mask_tokens = eomt_mask_head(query_output, hidden_dim)
-
+        patch_spatial = ops.reshape(patch_output, (-1, grid_h, grid_w, hidden_dim))
         if data_format == "channels_first":
-            patch_spatial = ops.reshape(patch_output, (-1, hidden_dim, grid_h, grid_w))
-        else:
-            patch_spatial = ops.reshape(patch_output, (-1, grid_h, grid_w, hidden_dim))
+            patch_spatial = ops.transpose(patch_spatial, (0, 3, 1, 2))
 
         upscaled_features = eomt_scale_block(
             patch_spatial, hidden_dim, num_upscale_blocks, data_format=data_format
