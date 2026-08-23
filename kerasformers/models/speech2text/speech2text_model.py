@@ -4,7 +4,7 @@ import keras
 import numpy as np
 from keras import layers, ops
 
-from kerasformers.base import BaseSeq2SeqGeneration, FunctionalBaseModel
+from kerasformers.base import BaseModel, BaseSeq2SeqGeneration
 
 from .speech2text_config import Speech2TextConfig
 from .speech2text_layers import (
@@ -254,7 +254,7 @@ def speech2text_decoder(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Speech2TextModel(FunctionalBaseModel):
+class Speech2TextModel(BaseModel):
     """Speech2Text (S2T) conv-Transformer encoder-decoder for ASR / ST.
 
     Wires :func:`speech2text_encoder` and :func:`speech2text_decoder`

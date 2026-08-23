@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.models.resnet.resnet_model import (
     bottleneck_block,
     resnet_backbone_feature,
@@ -14,7 +14,7 @@ from .dino_config import DinoResNetConfig, DinoViTConfig
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DinoViTModel(FunctionalBaseModel):
+class DinoViTModel(BaseModel):
     """DINO Vision Transformer model.
 
     Standard ViT pretrained with the DINO self-supervised method.
@@ -169,7 +169,7 @@ class DinoViTModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DinoResNetModel(FunctionalBaseModel):
+class DinoResNetModel(BaseModel):
     """DINO ResNet model.
 
     ResNet-50 pretrained with the DINO self-supervised method.

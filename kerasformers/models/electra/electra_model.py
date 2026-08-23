@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import CheckpointSource, FunctionalBaseModel
+from kerasformers.base import BaseModel, CheckpointSource
 
 from .electra_config import ElectraConfig
 from .electra_layers import (
@@ -198,7 +198,7 @@ def encoder_inputs(seq_shape=(None,)):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ElectraModel(FunctionalBaseModel):
+class ElectraModel(BaseModel):
     """Instantiates the ELECTRA encoder backbone.
 
     ELECTRA embeds tokens (word / absolute-position / token-type) at
@@ -325,7 +325,7 @@ class ElectraModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ElectraMaskedLM(FunctionalBaseModel):
+class ElectraMaskedLM(BaseModel):
     """ELECTRA generator with the masked-language-modeling head.
 
     Wraps an :class:`ElectraModel` backbone and attaches ELECTRA's generator head:
@@ -437,7 +437,7 @@ class ElectraMaskedLM(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ElectraSequenceClassify(FunctionalBaseModel):
+class ElectraSequenceClassify(BaseModel):
     """ELECTRA sentence/sequence classifier.
 
     Wraps an :class:`ElectraModel` backbone and attaches ELECTRA's classification
@@ -560,7 +560,7 @@ class ElectraSequenceClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ElectraTokenClassify(FunctionalBaseModel):
+class ElectraTokenClassify(BaseModel):
     """ELECTRA token classifier (e.g. NER / POS tagging).
 
     Wraps an :class:`ElectraModel` backbone and attaches dropout plus a dense head
@@ -678,7 +678,7 @@ class ElectraTokenClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ElectraQnA(FunctionalBaseModel):
+class ElectraQnA(BaseModel):
     """ELECTRA extractive question-answering head.
 
     Wraps an :class:`ElectraModel` backbone and attaches a dense span head that
@@ -786,7 +786,7 @@ class ElectraQnA(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ElectraMultipleChoice(FunctionalBaseModel):
+class ElectraMultipleChoice(BaseModel):
     """ELECTRA multiple-choice head (e.g. SWAG).
 
     Takes a dict of ``(B, num_choices, seq)`` int tensors, flattens the choices

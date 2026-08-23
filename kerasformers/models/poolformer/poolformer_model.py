@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -213,7 +213,7 @@ def poolformer_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class PoolFormerModel(FunctionalBaseModel):
+class PoolFormerModel(BaseModel):
     """Instantiates the PoolFormer backbone.
 
     PoolFormer is a MetaFormer instantiation where the token-mixing
@@ -385,7 +385,7 @@ class PoolFormerModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class PoolFormerImageClassify(FunctionalBaseModel):
+class PoolFormerImageClassify(BaseModel):
     """Instantiates the PoolFormer classifier.
 
     This classifier wraps a :class:`PoolFormerModel` backbone and

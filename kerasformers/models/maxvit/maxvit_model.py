@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -378,7 +378,7 @@ def maxvit_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MaxViTModel(FunctionalBaseModel):
+class MaxViTModel(BaseModel):
     """Instantiates the MaxViT backbone.
 
     MaxViT introduces multi-axis attention by interleaving three block
@@ -561,7 +561,7 @@ class MaxViTModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MaxViTImageClassify(FunctionalBaseModel):
+class MaxViTImageClassify(BaseModel):
     """Instantiates the MaxViT classifier.
 
     This classifier wraps a :class:`MaxViTModel` backbone and attaches a

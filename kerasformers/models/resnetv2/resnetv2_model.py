@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.resnetv2.resnetv2_layers import (
     ResNetV2StdConv2D,
@@ -244,7 +244,7 @@ def resnetv2_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ResNetV2Model(FunctionalBaseModel):
+class ResNetV2Model(BaseModel):
     """Instantiates the ResNetV2 (Pre-activation ResNet / BiT) backbone.
 
     ResNetV2 is the pre-activation variant of ResNet: it moves
@@ -408,7 +408,7 @@ class ResNetV2Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ResNetV2ImageClassify(FunctionalBaseModel):
+class ResNetV2ImageClassify(BaseModel):
     """Instantiates the ResNetV2 (Pre-activation ResNet / BiT) classifier.
 
     This classifier wraps a :class:`ResNetV2Model` backbone and attaches

@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import CheckpointSource, FunctionalBaseModel
+from kerasformers.base import BaseModel, CheckpointSource
 
 from .deberta_v2_config import (
     DebertaV2Config,
@@ -164,7 +164,7 @@ def deberta_v2_backbone(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV2Model(FunctionalBaseModel):
+class DebertaV2Model(BaseModel):
     """Instantiates the DeBERTa-v2 encoder backbone.
 
     DeBERTa-v2 extends DeBERTa's disentangled attention with log-bucketed
@@ -365,7 +365,7 @@ class DebertaV2Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV2MaskedLM(FunctionalBaseModel):
+class DebertaV2MaskedLM(BaseModel):
     """DeBERTa-v2 with the masked-language-modeling head.
 
     Wraps a :class:`DebertaV2Model` backbone and attaches DeBERTa's MLM head, a
@@ -449,7 +449,7 @@ class DebertaV2MaskedLM(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV2SequenceClassify(FunctionalBaseModel):
+class DebertaV2SequenceClassify(BaseModel):
     """DeBERTa-v2 sentence/sequence classifier.
 
     Wraps a :class:`DebertaV2Model` backbone and attaches DeBERTa's context pooler
@@ -567,7 +567,7 @@ class DebertaV2SequenceClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV2TokenClassify(FunctionalBaseModel):
+class DebertaV2TokenClassify(BaseModel):
     """DeBERTa-v2 token classifier (e.g. NER / POS tagging).
 
     Wraps a :class:`DebertaV2Model` backbone and attaches dropout plus a per-token
@@ -676,7 +676,7 @@ class DebertaV2TokenClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV2QnA(FunctionalBaseModel):
+class DebertaV2QnA(BaseModel):
     """DeBERTa-v2 extractive question-answering head.
 
     Wraps a :class:`DebertaV2Model` backbone and attaches a dense span head that
@@ -757,7 +757,7 @@ class DebertaV2QnA(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV2MultipleChoice(FunctionalBaseModel):
+class DebertaV2MultipleChoice(BaseModel):
     """DeBERTa-v2 multiple-choice head (e.g. SWAG).
 
     Takes a dict of ``(B, num_choices, seq)`` int tensors, flattens the choices

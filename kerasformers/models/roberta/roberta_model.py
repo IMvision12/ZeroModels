@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import CheckpointSource, FunctionalBaseModel
+from kerasformers.base import BaseModel, CheckpointSource
 
 from .roberta_config import (
     RobertaConfig,
@@ -154,7 +154,7 @@ def roberta_backbone(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class RobertaModel(FunctionalBaseModel):
+class RobertaModel(BaseModel):
     """Instantiates the RoBERTa encoder backbone.
 
     RoBERTa embeds tokens with summed word / absolute-position / token-type
@@ -325,7 +325,7 @@ class RobertaModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class RobertaMaskedLM(FunctionalBaseModel):
+class RobertaMaskedLM(BaseModel):
     """RoBERTa with the masked-language-modeling head.
 
     Wraps a :class:`RobertaModel` backbone (no pooler) and attaches RoBERTa's
@@ -463,7 +463,7 @@ class RobertaMaskedLM(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class RobertaSequenceClassify(FunctionalBaseModel):
+class RobertaSequenceClassify(BaseModel):
     """RoBERTa sentence/sequence classifier.
 
     Wraps a :class:`RobertaModel` backbone (no pooler) and attaches RoBERTa's
@@ -612,7 +612,7 @@ class RobertaSequenceClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class RobertaTokenClassify(FunctionalBaseModel):
+class RobertaTokenClassify(BaseModel):
     """RoBERTa token classifier (e.g. NER / POS tagging).
 
     Wraps a :class:`RobertaModel` backbone (no pooler) and attaches dropout plus
@@ -753,7 +753,7 @@ class RobertaTokenClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class RobertaQnA(FunctionalBaseModel):
+class RobertaQnA(BaseModel):
     """RoBERTa extractive question-answering head.
 
     Wraps a :class:`RobertaModel` backbone (no pooler) and attaches a dense span
@@ -875,7 +875,7 @@ class RobertaQnA(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class RobertaMultipleChoice(FunctionalBaseModel):
+class RobertaMultipleChoice(BaseModel):
     """RoBERTa multiple-choice head (e.g. SWAG).
 
     Takes a dict of ``(B, num_choices, seq)`` int tensors, flattens the choices

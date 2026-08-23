@@ -16,7 +16,7 @@ class Qwen3Model(SubclassedBaseModel):
     ``token_embedding -> num_layers x Qwen3DecoderLayer -> final RMSNorm``, with
     grouped-query attention, per-head QK-norm (the reshaped query/key are RMSNorm'd
     before rotary), bias-free qkv projections, and 1D rotary positions. This is a
-    subclassed (imperative) :class:`FunctionalBaseModel`: the sequence length and decode-step
+    subclassed (imperative) :class:`BaseModel`: the sequence length and decode-step
     count are data dependent, so the forward pass runs eagerly with ``keras.ops``
     rather than as a static graph. Returns raw features; use :class:`Qwen3TextGenerate`
     for logits / text.

@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.base.base_model import hf_num_classes
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
@@ -353,7 +353,7 @@ def eomt_functional(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class EoMTModel(FunctionalBaseModel):
+class EoMTModel(BaseModel):
     """EoMT encoder backbone with query injection (no task heads).
 
     Builds the plain DINOv2-style ViT encoder used by EoMT, including
@@ -523,7 +523,7 @@ class EoMTModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class EoMTUniversalSegment(FunctionalBaseModel):
+class EoMTUniversalSegment(BaseModel):
     """EoMT full universal-segmentation model (encoder + class + mask heads).
 
     Composes :class:`EoMTModel` and adds the class-prediction head, the

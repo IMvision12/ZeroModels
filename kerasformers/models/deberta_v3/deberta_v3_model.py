@@ -1,7 +1,7 @@
 import keras
 from keras import layers
 
-from kerasformers.base import CheckpointSource, FunctionalBaseModel
+from kerasformers.base import BaseModel, CheckpointSource
 from kerasformers.models.deberta_v2.deberta_v2_layers import (
     DebertaV2FlattenChoices,
     DebertaV2UnflattenChoices,
@@ -30,7 +30,7 @@ DEBERTA_V3_HUB_SIBLINGS = frozenset(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV3Model(FunctionalBaseModel):
+class DebertaV3Model(BaseModel):
     """Instantiates the DeBERTa-v3 encoder backbone.
 
     DeBERTa-v3 keeps DeBERTa-v2's architecture (log-bucketed disentangled
@@ -208,7 +208,7 @@ class DebertaV3Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV3MaskedLM(FunctionalBaseModel):
+class DebertaV3MaskedLM(BaseModel):
     """DeBERTa-v3 with the masked-language-modeling head.
 
     Wraps a :class:`DebertaV3Model` backbone and attaches DeBERTa's MLM head, a
@@ -293,7 +293,7 @@ class DebertaV3MaskedLM(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV3SequenceClassify(FunctionalBaseModel):
+class DebertaV3SequenceClassify(BaseModel):
     """DeBERTa-v3 sentence/sequence classifier.
 
     Wraps a :class:`DebertaV3Model` backbone and attaches DeBERTa's context pooler
@@ -412,7 +412,7 @@ class DebertaV3SequenceClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV3TokenClassify(FunctionalBaseModel):
+class DebertaV3TokenClassify(BaseModel):
     """DeBERTa-v3 token classifier (e.g. NER / POS tagging).
 
     Wraps a :class:`DebertaV3Model` backbone and attaches dropout plus a per-token
@@ -520,7 +520,7 @@ class DebertaV3TokenClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV3QnA(FunctionalBaseModel):
+class DebertaV3QnA(BaseModel):
     """DeBERTa-v3 extractive question-answering head.
 
     Wraps a :class:`DebertaV3Model` backbone and attaches a dense span head that
@@ -599,7 +599,7 @@ class DebertaV3QnA(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaV3MultipleChoice(FunctionalBaseModel):
+class DebertaV3MultipleChoice(BaseModel):
     """DeBERTa-v3 multiple-choice head (e.g. SWAG).
 
     Takes a dict of ``(B, num_choices, seq)`` int tensors, flattens the choices

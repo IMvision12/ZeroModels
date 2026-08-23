@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.utils import standardize_input_shape
 
 from .owlv2_config import Owlv2Config
@@ -429,7 +429,7 @@ def owlv2_detection_head(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Owlv2VisionModel(FunctionalBaseModel):
+class Owlv2VisionModel(BaseModel):
     """OWLv2 vision tower as a standalone model.
 
     Patch + position + CLS
@@ -560,7 +560,7 @@ class Owlv2VisionModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Owlv2TextModel(FunctionalBaseModel):
+class Owlv2TextModel(BaseModel):
     """OWLv2 text tower as a standalone model.
 
     Token + position
@@ -684,7 +684,7 @@ class Owlv2TextModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Owlv2Model(FunctionalBaseModel):
+class Owlv2Model(BaseModel):
     """OWLv2 vision + text encoder (no detection heads).
 
     Composes
@@ -849,7 +849,7 @@ class Owlv2Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Owlv2Detect(FunctionalBaseModel):
+class Owlv2Detect(BaseModel):
     """OWLv2 object detection model (encoder + class/box/objectness heads).
 
     Produces

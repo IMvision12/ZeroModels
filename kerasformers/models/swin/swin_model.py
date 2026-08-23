@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.swin.swin_layers import (
     SwinRollLayer,
@@ -457,7 +457,7 @@ def swin_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class SwinModel(FunctionalBaseModel):
+class SwinModel(BaseModel):
     """Instantiates the Swin Transformer backbone.
 
     Swin is a hierarchical vision transformer that computes self-attention
@@ -634,7 +634,7 @@ class SwinModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class SwinImageClassify(FunctionalBaseModel):
+class SwinImageClassify(BaseModel):
     """Instantiates the Swin Transformer classifier.
 
     This classifier wraps a :class:`SwinModel` backbone and attaches a

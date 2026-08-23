@@ -22,7 +22,7 @@ class Qwen3NextModel(SubclassedBaseModel):
     attention* (conv1d + delta-rule recurrence), and every ``full_attention_interval``
     -th layer is *gated full attention* (GQA, QK-norm, partial rotary, sigmoid
     output gate). RMSNorm is zero-centered. This is a subclassed (imperative)
-    :class:`FunctionalBaseModel`: the forward pass runs eagerly with ``keras.ops``. Returns
+    :class:`BaseModel`: the forward pass runs eagerly with ``keras.ops``. Returns
     raw features; use :class:`Qwen3NextTextGenerate` for logits / text.
 
         model = Qwen3NextModel.from_weights("hf:Qwen/Qwen3.5-...")

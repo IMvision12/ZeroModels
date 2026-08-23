@@ -57,15 +57,23 @@ def hf_num_classes(hf_config):
     )
 
 
-class FunctionalBaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
-    """Base for *functional* kerasformers models (CLIP, ViT, detectors, …) that
-    build themselves with ``super().__init__(inputs=..., outputs=...)``."""
+class BaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
+    """Canonical kerasformers model base.
+
+    Models build themselves functionally with
+    ``super().__init__(inputs=..., outputs=...)``. This is the peer of
+    :class:`BaseConfig` / :class:`BaseTokenizer` / :class:`BaseProcessor` and the
+    single base every model migrates onto (formerly ``FunctionalBaseModel``).
+    Generative families that still need an imperative KV-cache decode temporarily
+    remain on :class:`SubclassedBaseModel` until they move to a functional
+    backbone + task-side cached decode.
+    """
 
 
 class SubclassedBaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
     """Base for *imperative / subclassed* kerasformers models (Qwen LLMs & VLMs).
 
-    Deliberately a **separate** ``keras.Model`` subclass from :class:`FunctionalBaseModel`,
+    Deliberately a **separate** ``keras.Model`` subclass from :class:`BaseModel`,
     not a subclass of it. When a functional model is built, Keras runs
     ``inject_functional_model_class`` and rewrites the functional base's
     ``__bases__`` from ``keras.Model`` to ``Functional`` (functional models rely

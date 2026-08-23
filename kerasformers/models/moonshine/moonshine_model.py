@@ -4,7 +4,7 @@ import keras
 import numpy as np
 from keras import layers, ops
 
-from kerasformers.base import BaseSeq2SeqGeneration, FunctionalBaseModel
+from kerasformers.base import BaseModel, BaseSeq2SeqGeneration
 
 from .moonshine_config import MoonshineConfig
 from .moonshine_layers import (
@@ -270,7 +270,7 @@ def moonshine_decoder(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MoonshineModel(FunctionalBaseModel):
+class MoonshineModel(BaseModel):
     """Moonshine encoder-decoder transformer for automatic speech recognition.
 
     Wires :func:`moonshine_encoder` and :func:`moonshine_decoder` into a single

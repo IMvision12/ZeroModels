@@ -2,7 +2,7 @@ import keras
 from keras import layers, utils
 from keras.src.utils.argument_validation import standardize_tuple
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -602,7 +602,7 @@ def inceptionv4_backbone_feature(inputs, *, data_format, return_stages=False):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class InceptionV4Model(FunctionalBaseModel):
+class InceptionV4Model(BaseModel):
     """Instantiates the Inception V4 backbone.
 
     Inception V4 streamlines the Inception family with three uniform
@@ -733,7 +733,7 @@ class InceptionV4Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class InceptionV4ImageClassify(FunctionalBaseModel):
+class InceptionV4ImageClassify(BaseModel):
     """Instantiates the Inception V4 classifier.
 
     This classifier wraps an :class:`InceptionV4Model` backbone and

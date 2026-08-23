@@ -395,9 +395,9 @@ def _dequantize_layer(layer):
 
 def _is_functional(model):
     try:
-        from kerasformers.base import FunctionalBaseModel
+        from kerasformers.base import BaseModel
 
-        if isinstance(model, FunctionalBaseModel):
+        if isinstance(model, BaseModel):
             return True
     except Exception:
         pass

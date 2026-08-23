@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.convnext.convnext_layers import (
     ConvNeXtGlobalResponseNorm,
@@ -193,7 +193,7 @@ def convnext_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ConvNeXtModel(FunctionalBaseModel):
+class ConvNeXtModel(BaseModel):
     """Instantiates the ConvNeXt backbone.
 
     ConvNeXt is a modernized ConvNet that adapts ViT design principles to
@@ -362,7 +362,7 @@ class ConvNeXtModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ConvNeXtImageClassify(FunctionalBaseModel):
+class ConvNeXtImageClassify(BaseModel):
     """Instantiates the ConvNeXt classifier.
 
     This classifier wraps a :class:`ConvNeXtModel` backbone and attaches

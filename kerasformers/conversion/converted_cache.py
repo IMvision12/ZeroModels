@@ -125,11 +125,11 @@ def cache_supported(cls, quantization):
     as float: their built graph can't be re-quantized from a skeleton, so
     functional + quantization is bypassed.
     """
-    from kerasformers.base import FunctionalBaseModel, SubclassedBaseModel
+    from kerasformers.base import BaseModel, SubclassedBaseModel
 
     if issubclass(cls, SubclassedBaseModel):
         return True
-    if issubclass(cls, FunctionalBaseModel):
+    if issubclass(cls, BaseModel):
         return quantization is None
     return False
 

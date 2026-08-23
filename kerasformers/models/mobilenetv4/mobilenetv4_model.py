@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -346,7 +346,7 @@ def mobilenetv4_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MobileNetV4Model(FunctionalBaseModel):
+class MobileNetV4Model(BaseModel):
     """Instantiates the MobileNetV4 backbone.
 
     MobileNetV4 (MNv4) is built from the Universal Inverted Bottleneck (UIB) block,
@@ -497,7 +497,7 @@ class MobileNetV4Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MobileNetV4ImageClassify(FunctionalBaseModel):
+class MobileNetV4ImageClassify(BaseModel):
     """Instantiates the MobileNetV4 classifier.
 
     Wraps a :class:`MobileNetV4Model` backbone and attaches the MobileNetV4 head:

@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.mobilevit.mobilevit_layers import (
     MobileViTImageToPatchesLayer,
@@ -433,7 +433,7 @@ def mobilevitv2_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MobileViTV2Model(FunctionalBaseModel):
+class MobileViTV2Model(BaseModel):
     """Instantiates the MobileViTV2 backbone.
 
     MobileViTV2 builds on MobileViT by replacing the standard quadratic
@@ -596,7 +596,7 @@ class MobileViTV2Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MobileViTV2ImageClassify(FunctionalBaseModel):
+class MobileViTV2ImageClassify(BaseModel):
     """Instantiates the MobileViTV2 classifier.
 
     This classifier wraps a :class:`MobileViTV2Model` backbone and
@@ -740,7 +740,7 @@ class MobileViTV2ImageClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MobileViTV2SemanticSegment(FunctionalBaseModel):
+class MobileViTV2SemanticSegment(BaseModel):
     """MobileViTV2 + DeepLabV3 semantic segmentation head.
 
     Composes :class:`MobileViTV2Model` with ASPP and a 1x1 classifier conv to

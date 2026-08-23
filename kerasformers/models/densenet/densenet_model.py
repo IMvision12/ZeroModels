@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -215,7 +215,7 @@ def densenet_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DenseNetModel(FunctionalBaseModel):
+class DenseNetModel(BaseModel):
     """Instantiates the DenseNet backbone.
 
     DenseNet introduces dense connectivity within each block: every
@@ -366,7 +366,7 @@ class DenseNetModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DenseNetImageClassify(FunctionalBaseModel):
+class DenseNetImageClassify(BaseModel):
     """Instantiates the DenseNet classifier.
 
     This classifier wraps a :class:`DenseNetModel` backbone and attaches

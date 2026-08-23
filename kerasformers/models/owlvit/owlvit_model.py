@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.utils import standardize_input_shape
 
 from .owlvit_config import OwlViTConfig
@@ -409,7 +409,7 @@ def owlvit_detection_head(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class OwlViTVisionModel(FunctionalBaseModel):
+class OwlViTVisionModel(BaseModel):
     """OWL-ViT vision tower as a standalone model.
 
     Patch + position + CLS
@@ -536,7 +536,7 @@ class OwlViTVisionModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class OwlViTTextModel(FunctionalBaseModel):
+class OwlViTTextModel(BaseModel):
     """OWL-ViT text tower as a standalone model.
 
     Token + position
@@ -660,7 +660,7 @@ class OwlViTTextModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class OwlViTModel(FunctionalBaseModel):
+class OwlViTModel(BaseModel):
     """OWL-ViT vision + text encoder (no detection heads).
 
     Composes
@@ -824,7 +824,7 @@ class OwlViTModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class OwlViTDetect(FunctionalBaseModel):
+class OwlViTDetect(BaseModel):
     """OWL-ViT object detection model (encoder + class/box heads).
 
     Produces

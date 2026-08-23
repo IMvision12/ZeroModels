@@ -148,7 +148,7 @@ def inference_scope():
 class WeightLoadingMixin:
     """Unified pretrained-weight loading API shared by all kerasformers models.
 
-    Mixed into :class:`FunctionalBaseModel` (functional models) and
+    Mixed into :class:`BaseModel` (functional models) and
     :class:`SubclassedBaseModel` (imperative / subclassed models). Kept as a
     plain mixin, **not** a ``keras.Model`` subclass, so those two bases stay
     independent ``keras.Model`` subclasses (see :class:`SubclassedBaseModel`
@@ -170,7 +170,7 @@ class WeightLoadingMixin:
 
     .. code-block:: python
 
-        class OwlViTDetect(FunctionalBaseModel):
+        class OwlViTDetect(BaseModel):
             config_class = OwlViTConfig
 
             @classmethod

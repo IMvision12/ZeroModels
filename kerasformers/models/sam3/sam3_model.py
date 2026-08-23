@@ -2,7 +2,7 @@ import keras
 import numpy as np
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.utils import standardize_input_shape
 
 from .sam3_clip_tokenizer import SAM3_VOCAB_SIZE
@@ -923,7 +923,7 @@ def sam3_mask_decoder(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class SAM3Model(FunctionalBaseModel):
+class SAM3Model(BaseModel):
     """SAM3: unified open-vocabulary detector, segmenter, and promptable model.
 
     Builds the complete detection pipeline as a functional graph:

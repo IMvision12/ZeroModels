@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.vit.vit_layers import ViTAddPositionEmbs, ViTClassDistToken
 from kerasformers.models.vit.vit_model import transformer_block
@@ -122,7 +122,7 @@ def l2_normalize(x):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Tipsv2VisionModel(FunctionalBaseModel):
+class Tipsv2VisionModel(BaseModel):
     """TIPSv2 vision tower (DINOv2-style ViT with register tokens).
 
     Output dict: ``last_hidden_state`` ``(B, 1 + R + num_patches, hidden_dim)`` and
@@ -250,7 +250,7 @@ class Tipsv2VisionModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Tipsv2TextModel(FunctionalBaseModel):
+class Tipsv2TextModel(BaseModel):
     """TIPSv2 text tower (bidirectional transformer with masked-mean pooling).
 
     Inputs dict ``{"token_ids", "padding_mask"}``. Output dict: ``last_hidden_state``
@@ -376,7 +376,7 @@ class Tipsv2TextModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Tipsv2Model(FunctionalBaseModel):
+class Tipsv2Model(BaseModel):
     """TIPSv2 dual encoder with a temperature-scaled contrastive head.
 
     Composes :class:`Tipsv2VisionModel` and :class:`Tipsv2TextModel`, L2-normalizes

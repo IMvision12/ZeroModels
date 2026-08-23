@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -127,7 +127,7 @@ def convmixer_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ConvMixerModel(FunctionalBaseModel):
+class ConvMixerModel(BaseModel):
     """Instantiates the ConvMixer backbone.
 
     ConvMixer is a patch-based mixer that alternates depthwise and
@@ -289,7 +289,7 @@ class ConvMixerModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ConvMixerImageClassify(FunctionalBaseModel):
+class ConvMixerImageClassify(BaseModel):
     """Instantiates the ConvMixer classifier.
 
     This classifier wraps a :class:`ConvMixerModel` backbone and

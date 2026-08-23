@@ -465,7 +465,7 @@ class Qwen3VLModel(Qwen2VLModel):
     ):
         # Skip Qwen2VLModel.__init__ (it builds the 2-VL layers); run only the
         # base keras init via this model's actual base (SubclassedBaseModel),
-        # not the functional FunctionalBaseModel (whose `__bases__` get rewritten to
+        # not the functional BaseModel (whose `__bases__` get rewritten to
         # `Functional` once any functional model is built).
         SubclassedBaseModel.__init__(self, **kwargs)
         self.vocab_size = vocab_size
