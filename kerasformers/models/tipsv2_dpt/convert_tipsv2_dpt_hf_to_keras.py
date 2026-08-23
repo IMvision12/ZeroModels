@@ -13,9 +13,11 @@ WEIGHT_NAME_MAPPING: Dict[str, str] = {
     "layernorm.2": "norm2",
     "dense.1": "mlp.fc1",
     "dense.2": "mlp.fc2",
-    # SwiGLU FFN leaves (DINOv2-giant / g14 backbone)
-    "weights.in": "mlp.weights_in",
-    "weights.out": "mlp.weights_out",
+    # SwiGLU FFN leaves (DINOv2-giant / g14 backbone). The raw checkpoint keeps
+    # the original DINOv2 names w12 (fused gate+value) / w3, not the HF-refactored
+    # weights_in / weights_out.
+    "weights.in": "mlp.w12",
+    "weights.out": "mlp.w3",
     "layerscale.1": "ls1",
     "layerscale.2": "ls2",
     "cls.token.cls.token": "vision_encoder.cls_token",
