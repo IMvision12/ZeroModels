@@ -12,8 +12,6 @@ from kerasformers.utils.image_util import normalize_image_for_classify_models
 
 from .mit_config import MiTConfig
 
-# The backbone (MiTModel) and classifier (MiTImageClassify) share the variant's
-# weights repo, whose kf_config.json declares MiTImageClassify.
 MIT_HUB_SIBLINGS = frozenset({"MiTModel", "MiTImageClassify"})
 
 
@@ -33,11 +31,9 @@ def mlp_block(x, H, W, channels, mid_channels, data_format, name_prefix):
         Tensor of shape ``(B, H*W, channels)``.
     """
     x = layers.Dense(mid_channels, name=f"{name_prefix}_dense_1")(x)
-
+    x = layers.Reshape((H, W, mid_channels))(x)
     if data_format == "channels_first":
-        x = layers.Reshape((mid_channels, H, W))(x)
-    else:
-        x = layers.Reshape((H, W, mid_channels))(x)
+        x = keras.ops.transpose(x, (0, 3, 1, 2))
 
     x = layers.DepthwiseConv2D(
         kernel_size=3,
@@ -47,6 +43,8 @@ def mlp_block(x, H, W, channels, mid_channels, data_format, name_prefix):
         name=f"{name_prefix}_dwconv",
     )(x)
 
+    if data_format == "channels_first":
+        x = keras.ops.transpose(x, (0, 2, 3, 1))
     x = layers.Reshape((H * W, mid_channels))(x)
     x = layers.Activation("gelu")(x)
     x = layers.Dense(channels, name=f"{name_prefix}_dense_2")(x)
@@ -92,6 +90,7 @@ def overlap_patch_embedding_block(
     )(x)
     if data_format == "channels_first":
         H, W = x.shape[2], x.shape[3]
+        x = keras.ops.transpose(x, (0, 2, 3, 1))
     else:
         H, W = x.shape[1], x.shape[2]
     x = layers.Reshape((-1, out_channels))(x)
@@ -249,10 +248,9 @@ def mit_backbone_feature(
         x = layers.LayerNormalization(
             name=f"final_layernorm_{i}", axis=-1, epsilon=1e-5
         )(x)
+        x = layers.Reshape((H, W, embed_dim[i]))(x)
         if data_format == "channels_first":
-            x = layers.Reshape((embed_dim[i], H, W))(x)
-        else:
-            x = layers.Reshape((H, W, embed_dim[i]))(x)
+            x = keras.ops.transpose(x, (0, 3, 1, 2))
         features.append(x)
 
     if return_stages:

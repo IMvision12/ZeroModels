@@ -38,6 +38,7 @@ def sam_vision_neck(
     Reference:
         - `Segment Anything <https://arxiv.org/abs/2304.02643>`_
     """
+    cf = data_format == "channels_first"
     x = layers.Conv2D(
         output_channels,
         kernel_size=1,
@@ -45,7 +46,11 @@ def sam_vision_neck(
         data_format=data_format,
         name=f"{name}_conv1",
     )(inputs)
+    if cf:
+        x = layers.Permute((2, 3, 1), name=f"{name}_ln1_pre_permute")(x)
     x = layers.LayerNormalization(epsilon=1e-6, name=f"{name}_layer_norm1")(x)
+    if cf:
+        x = layers.Permute((3, 1, 2), name=f"{name}_ln1_post_permute")(x)
     x = layers.Conv2D(
         output_channels,
         kernel_size=3,
@@ -54,7 +59,11 @@ def sam_vision_neck(
         data_format=data_format,
         name=f"{name}_conv2",
     )(x)
+    if cf:
+        x = layers.Permute((2, 3, 1), name=f"{name}_ln2_pre_permute")(x)
     x = layers.LayerNormalization(epsilon=1e-6, name=f"{name}_layer_norm2")(x)
+    if cf:
+        x = layers.Permute((3, 1, 2), name=f"{name}_ln2_post_permute")(x)
     return x
 
 

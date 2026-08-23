@@ -18,11 +18,6 @@ MODEL_IDS = list(MODEL_TEST_CONFIGS.keys())
 # Models that don't support runtime channels_first/channels_last switching:
 # - Whisper* / Speech2Text* / Moonshine*: audio models, no spatial image
 #   dim; the channels_first conversion doesn't apply.
-# - MaskFormerUniversalSegment / Mask2FormerUniversalSegment: the HF-aligned Swin backbone
-#   port works in channels_last only (the conv → reshape → flatten path
-#   assumes (B, H, W, C)). HF MaskFormer / Mask2Former checkpoints are
-#   only released for channels_last; supporting channels_first would
-#   require an alternate code path in the backbone.
 SKIP_DATA_FORMAT = {
     "WhisperModel",
     "WhisperConditionalGenerate",
@@ -35,8 +30,6 @@ SKIP_DATA_FORMAT = {
     "GraniteSpeechConditionalGenerate",
     "GraniteSpeechPlusModel",
     "GraniteSpeechPlusConditionalGenerate",
-    "MaskFormerUniversalSegment",
-    "Mask2FormerUniversalSegment",
     # DPT reassemble reshapes tokens to a channels-last grid -> channels_last only.
     "Tipsv2DptDensePredict",
     "Tipsv2DptDepthEstimation",
@@ -165,6 +158,145 @@ def test_channels_first(model_name):
         else:
             assert not bool(ops.any(ops.isnan(output))), (
                 f"{model_name} has NaNs in channels_first"
+            )
+    finally:
+        keras.config.set_image_data_format(original)
+
+
+def _flatten_outputs(output):
+    if isinstance(output, dict):
+        return list(output.values())
+    if isinstance(output, (list, tuple)):
+        return list(output)
+    return [output]
+
+
+def _output_rel(a, b):
+    """Smallest relative diff over the plausible channels_first interpretations.
+
+    A channels_first output can be either a spatial feature map (NCHW, which
+    must be transposed back to NHWC to line up with the channels_last output) or
+    format-invariant (a mask / query map ``(B, Q, H, W)``, a token sequence, or a
+    pooled vector, which is identical in both layouts and compared as-is). Return
+    the smallest relative error across whichever interpretations match ``a``'s
+    shape, or ``None`` if none do. A format-correct model matches under one of
+    them (rel ~1e-4 float noise); a scrambled reshape misses both (rel ~1).
+    """
+    candidates = [b]
+    if b.ndim == 4:
+        candidates.append(np.transpose(b, (0, 2, 3, 1)))
+    peak = float(np.abs(a).max()) + 1e-6
+    rels = [float(np.abs(a - c).max()) / peak for c in candidates if c.shape == a.shape]
+    return min(rels) if rels else None
+
+
+def _has_image_input(config):
+    """True if the model's test input carries a 4D spatial image tensor.
+
+    channels_first only affects models that consume a spatial ``(B, H, W, C)`` /
+    ``(B, C, H, W)`` image. Text LLMs, generative VLMs (pre-patchified /
+    token-id inputs), and ASR have nothing to transpose, so the parity check
+    does not apply to them and they are skipped.
+    """
+    try:
+        x = create_test_input(config)
+    except Exception:
+        return False
+    tensors = list(x.values()) if isinstance(x, dict) else [x]
+    return any(hasattr(t, "shape") and len(t.shape) == 4 for t in tensors)
+
+
+@pytest.mark.data_format
+@pytest.mark.parametrize("model_name", MODEL_IDS)
+def test_channels_first_matches_channels_last(model_name):
+    """channels_first must be numerically equivalent to channels_last.
+
+    The NaN checks above only prove the channels_first path *runs*. A bare
+    ``Reshape`` at a token<->grid boundary silently scrambles the data (it stays
+    finite and keeps the right shape), so equivalence needs a direct comparison:
+    build one model per format with the *same* weights (conv kernels are
+    ``(kh, kw, in, out)`` regardless of format) and assert the outputs match
+    after transposing the channels_first result back to channels_last.
+
+    Scoped to models with a spatial image input (vision backbones, detection,
+    segmentation, depth, DINO, SAM, and the CLIP / SigLIP / MetaCLIP 2 / TIPS
+    dual encoders); text LLMs and generative VLMs are skipped by
+    :func:`_has_image_input`.
+    """
+    if model_name in SKIP_DATA_FORMAT:
+        pytest.skip(f"{model_name} doesn't support data format switching")
+
+    config = MODEL_TEST_CONFIGS[model_name]
+    if not _has_image_input(config):
+        pytest.skip(f"{model_name}: no spatial image input; channels_first is a no-op")
+
+    if BACKEND == "tensorflow":
+        try:
+            import tensorflow as tf
+
+            if not tf.config.list_physical_devices("GPU"):
+                pytest.skip("TF channels_first conv2d requires GPU (cuDNN)")
+        except ImportError:
+            pytest.skip("TensorFlow not installed")
+
+    original = keras.config.image_data_format()
+    try:
+        model_cls = import_model_class(config)
+
+        keras.config.set_image_data_format("channels_last")
+        model_cl = model_cls(**config["init_kwargs"])
+        input_data = create_test_input(config)
+        out_cl = [
+            ops.convert_to_numpy(t) for t in _flatten_outputs(model_cl(input_data))
+        ]
+        # Snapshot the channels_last weights by path, then clear the session so
+        # the channels_first build gets identical layer names. (Keras appends a
+        # global dedup counter to *auto-named* layers when two models coexist in
+        # one process, which would otherwise break exact-path matching.)
+        cl_weights = {w.path: ops.convert_to_numpy(w) for w in model_cl.weights}
+        del model_cl
+        keras.backend.clear_session()
+
+        keras.config.set_image_data_format("channels_first")
+        model_cf = model_cls(
+            **_adapt_input_shape_for_format(config["init_kwargs"], "channels_first")
+        )
+        # Same weights (conv kernels are (kh, kw, in, out) in either layout):
+        # assign by exact path. A missing or shape-mismatched weight means a
+        # format-dependent weight shape -- itself a channels_first bug.
+        skipped = []
+        for w in model_cf.weights:
+            v = cl_weights.get(w.path)
+            if v is not None and tuple(v.shape) == tuple(w.shape):
+                w.assign(v)
+            else:
+                skipped.append(w.path)
+        assert not skipped, (
+            f"{model_name}: {len(skipped)} weight(s) unmatched or format-dependent "
+            f"across layouts (should be format-independent): {skipped[:5]}"
+        )
+        out_cf = [
+            ops.convert_to_numpy(t)
+            for t in _flatten_outputs(
+                model_cf(_transpose_input(input_data, "channels_first"))
+            )
+        ]
+
+        assert len(out_cl) == len(out_cf), (
+            f"{model_name}: output count differs across formats"
+        )
+        for i, (a, b) in enumerate(zip(out_cl, out_cf)):
+            rel = _output_rel(a, b)
+            assert rel is not None, (
+                f"{model_name}[{i}]: no shape-compatible channels_first "
+                f"interpretation (cl={a.shape}, cf={b.shape})"
+            )
+            # Float noise from NCHW-vs-NHWC conv/resize is ~1e-4; a scrambled
+            # reshape is O(1). 2% relative cleanly separates the two.
+            assert rel < 2e-2, (
+                f"{model_name}[{i}]: channels_first diverges from channels_last "
+                f"(rel={rel:.3e}) -- a token<->grid reshape likely assumes "
+                f"channels_last"
             )
     finally:
         keras.config.set_image_data_format(original)

@@ -32,31 +32,24 @@ class SAMAbsolutePositionEmbedding(layers.Layer):
         self.data_format = data_format
 
     def build(self, input_shape):
-        cf = self.data_format == "channels_first"
-        if cf:
-            shape = (
-                1,
-                self.hidden_dim,
-                self.image_embedding_size,
-                self.image_embedding_size,
-            )
-        else:
-            shape = (
-                1,
-                self.image_embedding_size,
-                self.image_embedding_size,
-                self.hidden_dim,
-            )
         self.pos_embed = self.add_weight(
             name="pos_embed",
-            shape=shape,
+            shape=(
+                1,
+                self.image_embedding_size,
+                self.image_embedding_size,
+                self.hidden_dim,
+            ),
             initializer="zeros",
             trainable=True,
         )
         super().build(input_shape)
 
     def call(self, hidden_states):
-        return hidden_states + self.pos_embed
+        pos_embed = self.pos_embed
+        if self.data_format == "channels_first":
+            pos_embed = ops.transpose(pos_embed, (0, 3, 1, 2))
+        return hidden_states + pos_embed
 
     def save_own_variables(self, store):
         super().save_own_variables(store)
@@ -69,23 +62,13 @@ class SAMAbsolutePositionEmbedding(layers.Layer):
             self.pos_embed.assign(store["0"])
             return
 
-        pos_embed = store["0"]
-        pos_embed = ops.cast(pos_embed, dtype="float32")
-
-        cf = self.data_format == "channels_first"
-        if cf:
-            pos_embed = ops.transpose(pos_embed, (0, 2, 3, 1))
-
+        pos_embed = ops.cast(store["0"], dtype="float32")
         pos_embed = ops.image.resize(
             pos_embed,
             size=(self.image_embedding_size, self.image_embedding_size),
             interpolation="bilinear",
             antialias=True,
         )
-
-        if cf:
-            pos_embed = ops.transpose(pos_embed, (0, 3, 1, 2))
-
         self.pos_embed.assign(pos_embed)
 
     def get_config(self):

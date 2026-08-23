@@ -16,8 +16,6 @@ from kerasformers.utils.image_util import normalize_image_for_classify_models
 
 from .cait_config import CaiTConfig
 
-# The backbone (CaiTModel) and classifier (CaiTImageClassify) share the variant's
-# weights repo, whose kf_config.json declares CaiTImageClassify.
 CAIT_HUB_SIBLINGS = frozenset({"CaiTModel", "CaiTImageClassify"})
 
 
@@ -199,6 +197,7 @@ def cait_backbone_feature(
     if data_format == "channels_first":
         grid_h = inputs.shape[2] // patch_size
         grid_w = inputs.shape[3] // patch_size
+        x = ops.transpose(x, (0, 2, 3, 1))
     else:
         grid_h = inputs.shape[1] // patch_size
         grid_w = inputs.shape[2] // patch_size

@@ -553,15 +553,21 @@ class InceptionNextLayerScale(layers.Layer):
     def __init__(self, layer_scale_init, **kwargs):
         super().__init__(**kwargs)
         self.layer_scale_init = layer_scale_init
+        self.data_format = keras.config.image_data_format()
 
     def build(self, input_shape):
+        self.scale_axis = (
+            1 if self.data_format == "channels_first" and len(input_shape) == 4 else -1
+        )
         self.gamma = self.add_weight(
-            shape=(input_shape[-1],),
+            shape=(input_shape[self.scale_axis],),
             initializer=keras.initializers.Constant(self.layer_scale_init),
             trainable=True,
         )
 
     def call(self, x):
+        if self.scale_axis == 1:
+            return x * keras.ops.reshape(self.gamma, (1, -1, 1, 1))
         return x * self.gamma
 
     def get_config(self):

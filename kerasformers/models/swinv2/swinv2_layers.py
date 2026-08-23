@@ -237,10 +237,12 @@ class SwinV2WindowReverse(layers.Layer):
                 ],
             )
             outputs = ops.transpose(outputs, [0, 1, 3, 2, 4, 5])
+            # buffer is now (B, H, W, C) ordered; reshape to that grid, then
+            # transpose to (B, C, H, W) for channels_first (a direct reshape to
+            # (C, H, W) would scramble channels with spatial).
+            outputs = ops.reshape(outputs, [-1, height, width, channels])
             if cf:
-                outputs = ops.reshape(outputs, [-1, channels, height, width])
-            else:
-                outputs = ops.reshape(outputs, [-1, height, width, channels])
+                outputs = ops.transpose(outputs, [0, 3, 1, 2])
 
         else:
             if len(inputs.shape) != 4:

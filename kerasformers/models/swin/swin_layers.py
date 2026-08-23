@@ -65,7 +65,9 @@ class SwinWindowPartition(layers.Layer):
                         self.window_size,
                     ],
                 )
-                x = ops.transpose(x, [0, 2, 4, 1, 3, 5])
+                # (B, C, wh, ws, ww, ws) -> (B, wh, ww, ws, ws, C): channels must
+                # end up last so the flatten groups (window_size**2, channels).
+                x = ops.transpose(x, [0, 2, 4, 3, 5, 1])
                 outputs = ops.reshape(x, [-1, self.window_size**2, channels])
             else:
                 x = ops.reshape(
@@ -213,10 +215,12 @@ class SwinWindowReverse(layers.Layer):
                 ],
             )
             x = ops.transpose(x, [0, 1, 3, 2, 4, 5])
+            # buffer is now (B, H, W, C) ordered; reshape to that grid, then
+            # transpose to (B, C, H, W) for channels_first (a direct reshape to
+            # (C, H, W) would scramble channels with spatial).
+            x = ops.reshape(x, [-1, height, width, channels])
             if cf:
-                x = ops.reshape(x, [-1, channels, height, width])
-            else:
-                x = ops.reshape(x, [-1, height, width, channels])
+                x = ops.transpose(x, [0, 3, 1, 2])
             outputs = x
         else:
             if len(inputs.shape) != 4:

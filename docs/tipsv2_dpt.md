@@ -156,8 +156,8 @@ proc = Tipsv2DptImageProcessor(image_resolution=model.image_size)
 pixel_values = proc("assets/data/coco_bear.jpg")["pixel_values"]
 out = model(pixel_values)
 
-depth = keras.ops.convert_to_numpy(out["predicted_depth"])         # (1, 256, 256)
-seg = keras.ops.convert_to_numpy(out["segmentation_logits"])       # (1, 256, 256, 150)
+depth = keras.ops.convert_to_numpy(out["predicted_depth"])  # (1, 256, 256)
+seg = keras.ops.convert_to_numpy(out["segmentation_logits"])  # (1, 256, 256, 150)
 print("depth", depth.shape, f"[{depth.min():.3f}, {depth.max():.3f}] m")
 print("seg  ", seg.shape)
 ```

@@ -203,26 +203,25 @@ def swinv2_patch_merging(
         paddings = [[0, 0], [0, hpad], [0, wpad], [0, 0]]
     x = ops.pad(inputs, paddings)
 
-    h = ops.shape(x)[h_ax] // 2
-    w = ops.shape(x)[w_ax] // 2
-
+    # Do the 2x2 merge in channels_last, converting channels_first at the
+    # boundaries. The merged 4*C dim must be grouped (2, 2, C) for the timm
+    # channel permutation below to line up; the channels_last reshape produces
+    # exactly that, whereas a direct NCHW reshape would scramble the grouping.
     if cf:
-        x = ops.reshape(x, (-1, channels, h, 2, w, 2))
-        x = ops.transpose(x, (0, 1, 2, 4, 3, 5))
-        x = ops.reshape(x, (-1, 4 * channels, h, w))
-    else:
-        x = ops.reshape(x, (-1, h, 2, w, 2, channels))
-        x = ops.transpose(x, (0, 1, 3, 2, 4, 5))
-        x = ops.reshape(x, (-1, h, w, 4 * channels))
+        x = ops.transpose(x, (0, 2, 3, 1))
+
+    h = ops.shape(x)[1] // 2
+    w = ops.shape(x)[2] // 2
+
+    x = ops.reshape(x, (-1, h, 2, w, 2, channels))
+    x = ops.transpose(x, (0, 1, 3, 2, 4, 5))
+    x = ops.reshape(x, (-1, h, w, 4 * channels))
 
     perm = ops.reshape(ops.arange(channels * 4), (4, -1))
     perm = ops.convert_to_numpy(perm)
     perm[[1, 2]] = perm[[2, 1]]
     perm = perm.ravel()
 
-    # Permute channels to channels_last for matmul + Dense + LayerNorm
-    if cf:
-        x = ops.transpose(x, (0, 2, 3, 1))
     x_reshaped = ops.reshape(x, (-1, 4 * channels))
     perm_matrix = ops.zeros((4 * channels, 4 * channels), dtype="float32")
     perm_matrix = ops.convert_to_numpy(perm_matrix)
