@@ -230,6 +230,10 @@ unlike COCO panoptic, so names are bare.
 | Processors | A `data_format` kwarg on the image processor. `None` (the default) resolves to `keras.config.image_data_format()`. |
 | Models | Read `keras.config.image_data_format()` when they are **constructed**. There is no `data_format` argument. |
 
+The Swin backbone works in `channels_last` internally: a `channels_first` image is
+transposed to `channels_last` at the model's entry (the "door"), so the window attention
+and convolutions all run in `channels_last`. The output is identical under either layout.
+
 The post-processors emit `(H, W)` label maps and segment metadata, so they take no
 `data_format` kwarg.
 

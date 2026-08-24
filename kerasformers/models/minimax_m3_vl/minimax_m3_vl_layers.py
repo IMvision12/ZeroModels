@@ -602,6 +602,20 @@ class MiniMaxM3VLDecoderLayer(layers.Layer):
         hidden_states = residual + self.mlp(self.mlp_norm(hidden_states))
         return (hidden_states, new_kv) if use_cache else hidden_states
 
+    def compute_output_spec(
+        self,
+        hidden_states,
+        cos,
+        sin,
+        attention_mask=None,
+        position_ids=None,
+        use_cache=False,
+    ):
+        # The residual stream keeps its shape; an explicit spec stops the
+        # functional builder from tracing the sparse-indexer / dynamic-reshape
+        # ops in attention (they resolve only at run time).
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(

@@ -558,6 +558,17 @@ class MiniMaxDecoderLayer(layers.Layer):
         h = self.run_mlp(h)
         return h, new_cache
 
+    def compute_output_spec(
+        self,
+        hidden_states,
+        cos,
+        sin,
+        attention_mask=None,
+        padding_mask=None,
+        use_cache=False,
+    ):
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(

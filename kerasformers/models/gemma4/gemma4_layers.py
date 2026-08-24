@@ -543,6 +543,25 @@ class Gemma4DecoderLayer(layers.Layer):
         hidden_states = hidden_states * ops.cast(self.layer_scalar, hidden_states.dtype)
         return hidden_states, cache_k, cache_v
 
+    def compute_output_spec(
+        self,
+        hidden_states,
+        cos,
+        sin,
+        attention_mask=None,
+        shared_kv=None,
+        per_layer_input=None,
+    ):
+        # ``call`` returns (hidden, (k, v)); k/v are (batch, num_kv_heads, seq,
+        # head_dim). An explicit spec lets the functional builder skip tracing the
+        # dynamic-shape attention on backends that can't infer it.
+        b, s = hidden_states.shape[0], hidden_states.shape[1]
+        kv_shape = (b, self.num_kv_heads, s, self.head_dim)
+        k = keras.KerasTensor(kv_shape, dtype=self.compute_dtype)
+        v = keras.KerasTensor(kv_shape, dtype=self.compute_dtype)
+        out = keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+        return out, (k, v)
+
     def get_config(self):
         config = super().get_config()
         config.update(

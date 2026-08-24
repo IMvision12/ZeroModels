@@ -4,7 +4,8 @@ import keras
 import numpy as np
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
+from kerasformers.base.base_mixin import inference_scope
 
 from .deepseek_v4_config import DEEPSEEK_V4_CONFIG, DEEPSEEK_V4_WEIGHTS_URLS
 from .deepseek_v4_layers import (
@@ -20,6 +21,49 @@ COMPRESS_RATIO_TO_LAYER_TYPE = {
     4: "compressed_sparse_attention",
     128: "heavily_compressed_attention",
 }
+
+
+def deepseek_v4_rope(position_ids, inv_freq, compute_dtype):
+    inv_freq = ops.convert_to_tensor(inv_freq)
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    return (
+        ops.cast(ops.cos(freqs), compute_dtype),
+        ops.cast(ops.sin(freqs), compute_dtype),
+    )
+
+
+def deepseek_v4_backbone_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    decoder_layers,
+    hc_head,
+    final_norm,
+    sliding_mask_layer,
+    main_inv_freq,
+    compress_inv_freq,
+    hc_mult,
+    compute_dtype,
+):
+    hidden = token_embedding(input_ids)
+    streams = ops.repeat(hidden[:, :, None, :], hc_mult, axis=2)
+    position_ids = ops.cumsum(ops.ones_like(input_ids), axis=-1) - 1
+    cos, sin = deepseek_v4_rope(position_ids, main_inv_freq, compute_dtype)
+    cos_c, sin_c = deepseek_v4_rope(position_ids, compress_inv_freq, compute_dtype)
+    sliding_mask = sliding_mask_layer(input_ids, attention_mask)
+    for layer in decoder_layers:
+        streams = layer(
+            streams,
+            cos if layer.layer_type == "sliding_attention" else cos_c,
+            sin if layer.layer_type == "sliding_attention" else sin_c,
+            cos_c,
+            sin_c,
+            position_ids=position_ids,
+            sliding_mask=sliding_mask,
+            input_ids=input_ids,
+        )
+    return final_norm(hc_head(streams))
 
 
 def yarn_inv_freq(dim, base, factor, original_max, beta_fast=32, beta_slow=1):
@@ -50,7 +94,7 @@ DEFAULT_ROPE_SCALING = {
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DeepseekV4Model(SubclassedBaseModel):
+class DeepseekV4Model(BaseModel):
     """DeepSeek-V4 decoder (V4-Flash / V4-Pro).
 
     Shared-KV MQA with per-head attention sinks and a 128-token sliding
@@ -86,6 +130,7 @@ class DeepseekV4Model(SubclassedBaseModel):
     HF_MODEL_TYPE = "deepseek_v4"
     BASE_MODEL_CONFIG = DEEPSEEK_V4_CONFIG
     BASE_WEIGHT_CONFIG = DEEPSEEK_V4_WEIGHTS_URLS
+    output_logits = False
 
     def __init__(
         self,
@@ -119,9 +164,11 @@ class DeepseekV4Model(SubclassedBaseModel):
         rope_scaling=DEFAULT_ROPE_SCALING,
         norm_eps=1e-6,
         tie_embeddings=False,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
         if layer_types is None:
             interleave = [
                 "compressed_sparse_attention"
@@ -136,6 +183,113 @@ class DeepseekV4Model(SubclassedBaseModel):
             mlp_layer_types = ["hash_moe"] * min(num_layers, 3) + ["moe"] * max(
                 0, num_layers - 3
             )
+        layer_types = tuple(layer_types)
+        mlp_layer_types = tuple(mlp_layer_types)
+        rope_scaling = dict(rope_scaling) if rope_scaling else None
+
+        rd = qk_rope_head_dim
+        main_inv_freq = 1.0 / (
+            rope_theta ** (np.arange(0, rd, 2, dtype="float32") / rd)
+        )
+        scaling = rope_scaling or {}
+        if scaling.get("rope_type", scaling.get("type", "default")) == "yarn":
+            compress_inv_freq = yarn_inv_freq(
+                rd,
+                compress_rope_theta,
+                scaling.get("factor", 16),
+                scaling.get("original_max_position_embeddings", 65536),
+                scaling.get("beta_fast") or 32,
+                scaling.get("beta_slow") or 1,
+            )
+        else:
+            compress_inv_freq = 1.0 / (
+                compress_rope_theta ** (np.arange(0, rd, 2, dtype="float32") / rd)
+            )
+
+        token_embedding = layers.Embedding(
+            vocab_size, embed_dim, name="token_embedding"
+        )
+        decoder_layers = [
+            DeepseekV4DecoderLayer(
+                embed_dim,
+                num_heads,
+                head_dim,
+                q_lora_rank,
+                qk_rope_head_dim,
+                o_groups,
+                o_lora_rank,
+                layer_types[i],
+                sliding_window,
+                compress_rate_hca
+                if layer_types[i] == "heavily_compressed_attention"
+                else compress_rate_csa,
+                index_n_heads,
+                index_head_dim,
+                index_topk,
+                num_experts,
+                num_experts_per_tok,
+                moe_mlp_dim,
+                routed_scaling_factor,
+                mlp_layer_types[i] == "hash_moe",
+                vocab_size,
+                swiglu_limit,
+                hc_mult,
+                hc_sinkhorn_iters,
+                hc_eps,
+                compress_inv_freq=compress_inv_freq,
+                norm_eps=norm_eps,
+                name=f"decoder_layer_{i}",
+            )
+            for i in range(num_layers)
+        ]
+        hc_head = DeepseekV4HyperHead(hc_mult, embed_dim, hc_eps, name="hc_head")
+        final_norm = DeepseekV4RMSNorm(eps=norm_eps, name="final_norm")
+        sliding_mask_layer = CausalMask(
+            sliding_window=sliding_window, name="sliding_mask"
+        )
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        hidden = deepseek_v4_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            decoder_layers=decoder_layers,
+            hc_head=hc_head,
+            final_norm=final_norm,
+            sliding_mask_layer=sliding_mask_layer,
+            main_inv_freq=main_inv_freq,
+            compress_inv_freq=compress_inv_freq,
+            hc_mult=hc_mult,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.hc_head = hc_head
+        self.final_norm = final_norm
+        self.sliding_mask_layer = sliding_mask_layer
+        self.lm_head = lm_head
+        self.main_inv_freq = main_inv_freq
+        self.compress_inv_freq = compress_inv_freq
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.num_layers = num_layers
@@ -145,8 +299,8 @@ class DeepseekV4Model(SubclassedBaseModel):
         self.qk_rope_head_dim = qk_rope_head_dim
         self.o_groups = o_groups
         self.o_lora_rank = o_lora_rank
-        self.layer_types = tuple(layer_types)
-        self.mlp_layer_types = tuple(mlp_layer_types)
+        self.layer_types = layer_types
+        self.mlp_layer_types = mlp_layer_types
         self.num_experts = num_experts
         self.num_experts_per_tok = num_experts_per_tok
         self.moe_mlp_dim = moe_mlp_dim
@@ -163,67 +317,21 @@ class DeepseekV4Model(SubclassedBaseModel):
         self.hc_eps = hc_eps
         self.rope_theta = rope_theta
         self.compress_rope_theta = compress_rope_theta
-        self.rope_scaling = dict(rope_scaling) if rope_scaling else None
+        self.rope_scaling = rope_scaling
         self.norm_eps = norm_eps
         self.tie_embeddings = tie_embeddings
 
-        rd = qk_rope_head_dim
-        self.main_inv_freq = 1.0 / (
-            rope_theta ** (np.arange(0, rd, 2, dtype="float32") / rd)
-        )
-        scaling = self.rope_scaling or {}
-        if scaling.get("rope_type", scaling.get("type", "default")) == "yarn":
-            self.compress_inv_freq = yarn_inv_freq(
-                rd,
-                compress_rope_theta,
-                scaling.get("factor", 16),
-                scaling.get("original_max_position_embeddings", 65536),
-                scaling.get("beta_fast") or 32,
-                scaling.get("beta_slow") or 1,
+        # V4's attention (sinks + compressor branch) trips Keras' symbolic
+        # auto-build trace on some backends, leaving sublayers unbuilt after
+        # __init__; a concrete dummy forward materializes every weight so
+        # from_weights (which loads before any forward) has a complete model.
+        with inference_scope():
+            self(
+                {
+                    "input_ids": ops.zeros((1, 4), dtype="int32"),
+                    "attention_mask": ops.ones((1, 4), dtype="int32"),
+                }
             )
-        else:
-            self.compress_inv_freq = 1.0 / (
-                compress_rope_theta ** (np.arange(0, rd, 2, dtype="float32") / rd)
-            )
-
-        self.token_embedding = layers.Embedding(
-            vocab_size, embed_dim, name="token_embedding"
-        )
-        self.decoder_layers = [
-            DeepseekV4DecoderLayer(
-                embed_dim,
-                num_heads,
-                head_dim,
-                q_lora_rank,
-                qk_rope_head_dim,
-                o_groups,
-                o_lora_rank,
-                self.layer_types[i],
-                sliding_window,
-                compress_rate_hca
-                if self.layer_types[i] == "heavily_compressed_attention"
-                else compress_rate_csa,
-                index_n_heads,
-                index_head_dim,
-                index_topk,
-                num_experts,
-                num_experts_per_tok,
-                moe_mlp_dim,
-                routed_scaling_factor,
-                self.mlp_layer_types[i] == "hash_moe",
-                vocab_size,
-                swiglu_limit,
-                hc_mult,
-                hc_sinkhorn_iters,
-                hc_eps,
-                compress_inv_freq=self.compress_inv_freq,
-                norm_eps=norm_eps,
-                name=f"decoder_layer_{i}",
-            )
-            for i in range(num_layers)
-        ]
-        self.hc_head = DeepseekV4HyperHead(hc_mult, embed_dim, hc_eps, name="hc_head")
-        self.final_norm = DeepseekV4RMSNorm(eps=norm_eps, name="final_norm")
 
     def rope_tables_main(self, position_ids):
         inv_freq = ops.convert_to_tensor(self.main_inv_freq)
@@ -251,33 +359,6 @@ class DeepseekV4Model(SubclassedBaseModel):
             am = ops.cast(ops.convert_to_tensor(attention_mask), "float32")
             mask = mask + (1.0 - am)[:, None, None, :] * MASK_NEG
         return mask
-
-    def forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        hidden = self.token_embedding(input_ids)
-        streams = ops.repeat(hidden[:, :, None, :], self.hc_mult, axis=2)
-        position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        cos, sin = self.rope_tables_main(position_ids)
-        cos_c, sin_c = self.rope_tables_compress(position_ids)
-        sliding_mask = self.sliding_causal_mask(seq, inputs.get("attention_mask"))
-        for layer in self.decoder_layers:
-            streams = layer(
-                streams,
-                cos if layer.layer_type == "sliding_attention" else cos_c,
-                sin if layer.layer_type == "sliding_attention" else sin_c,
-                cos_c,
-                sin_c,
-                position_ids=position_ids,
-                sliding_mask=sliding_mask,
-                input_ids=input_ids,
-            )
-        return self.final_norm(self.hc_head(streams))
-
-    def call(self, inputs):
-        return {"last_hidden_state": self.forward_features(inputs)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -375,6 +456,7 @@ class DeepseekV4Model(SubclassedBaseModel):
                 "rope_scaling": self.rope_scaling,
                 "norm_eps": self.norm_eps,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -395,23 +477,12 @@ class DeepseekV4TextGenerate(DeepseekV4Model, BaseGeneration):
 
     # DeepSeek-V4 end-of-sentence id (1). Explicit generate() args override.
     eos_token_id = (1,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = self.forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def entry_capacity(self, rate, max_len):
         return max(max_len // rate, 1)

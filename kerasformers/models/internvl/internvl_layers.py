@@ -77,11 +77,12 @@ class InternVLVisionEmbeddings(layers.Layer):
         self.image_size = image_size
         self.patch_size = patch_size
         self.num_positions = (image_size // patch_size) ** 2 + 1
+        self.data_format = keras.config.image_data_format()
         self.patch_embed = layers.Conv2D(
             embed_dim,
             kernel_size=patch_size,
             strides=patch_size,
-            data_format="channels_last",
+            data_format=self.data_format,
             name="patch_embed",
         )
 
@@ -139,20 +140,19 @@ class InternVLVisionEmbeddings(layers.Layer):
         return ops.concatenate([cls_pos, ops.cast(patch_pos, cls_pos.dtype)], axis=1)
 
     def call(self, pixel_values):
-        shape = ops.shape(pixel_values)
-        if (
-            pixel_values.shape[1] is not None
-            and int(pixel_values.shape[1]) == 3
-            and (pixel_values.shape[-1] is None or int(pixel_values.shape[-1]) != 3)
-        ):
-            pixel_values = ops.transpose(pixel_values, (0, 2, 3, 1))
-            shape = ops.shape(pixel_values)
-        grid_h = int(pixel_values.shape[1]) // self.patch_size
-        grid_w = int(pixel_values.shape[2]) // self.patch_size
-        x = self.patch_embed(pixel_values)  # (B, gh, gw, D)
-        x = ops.reshape(x, (shape[0], grid_h * grid_w, self.embed_dim))
+        b = ops.shape(pixel_values)[0]
+        if self.data_format == "channels_first":
+            grid_h = int(pixel_values.shape[2]) // self.patch_size
+            grid_w = int(pixel_values.shape[3]) // self.patch_size
+        else:
+            grid_h = int(pixel_values.shape[1]) // self.patch_size
+            grid_w = int(pixel_values.shape[2]) // self.patch_size
+        x = self.patch_embed(pixel_values)
+        if self.data_format == "channels_first":
+            x = ops.transpose(x, (0, 2, 3, 1))  # -> (B, gh, gw, D)
+        x = ops.reshape(x, (b, grid_h * grid_w, self.embed_dim))
         cls = ops.broadcast_to(
-            ops.cast(self.cls_token, x.dtype), (shape[0], 1, self.embed_dim)
+            ops.cast(self.cls_token, x.dtype), (b, 1, self.embed_dim)
         )
         x = ops.concatenate([cls, x], axis=1)
         return x + ops.cast(self.interpolated_pos_embed(grid_h, grid_w), x.dtype)

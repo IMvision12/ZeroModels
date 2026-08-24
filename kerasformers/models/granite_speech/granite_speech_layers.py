@@ -377,6 +377,18 @@ class GraniteSpeechDecoderLayer(layers.Layer):
         hidden_states = residual + self.mlp(hidden_states) * self.residual_multiplier
         return (hidden_states, new_key_value) if use_cache else hidden_states
 
+    def compute_output_spec(
+        self,
+        hidden_states,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_value=None,
+        use_cache=False,
+        apply_lora=False,
+    ):
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+
     def decode_step(
         self,
         hidden_states,

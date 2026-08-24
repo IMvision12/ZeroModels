@@ -55,7 +55,8 @@ convert on the fly via `from_weights("hf:openai/<variant>")`.
 ### `GptOssModel`
 
 The decoder backbone, no LM head. Returns `{"last_hidden_state": (batch, seq, embed_dim)}`.
-A subclassed (imperative) model whose forward runs eagerly with `keras.ops`.
+A functional model built over `{input_ids, attention_mask}`; the imperative KV-cache decode
+autoregressive generation needs lives on the generation head.
 
 | Arg | Default | Meaning |
 |---|---|---|

@@ -22,9 +22,11 @@ WEIGHT_NAME_MAPPING = {
 
 def transfer_glm_weights(keras_model, hf_state_dict):
     if not keras_model.built or not keras_model.weights:
-        keras_model({"input_ids": np.array([[0, 1, 2, 3]], dtype="int64")})
+        ids = np.array([[0, 1, 2, 3]], dtype="int32")
+        keras_model({"input_ids": ids, "attention_mask": np.ones_like(ids)})
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        name = weight.path.split("/", 1)[1].replace("/", ".")
+        # Functional model weight paths are flat (no model-name root to strip).
+        name = weight.path.replace("/", ".")
         for old, new in WEIGHT_NAME_MAPPING.items():
             name = name.replace(old, new)
         if name not in hf_state_dict:

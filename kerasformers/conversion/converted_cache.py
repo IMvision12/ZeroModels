@@ -120,31 +120,15 @@ def is_cached(directory):
 def cache_supported(cls, quantization):
     """Whether ``cls`` can be cache-reloaded from a serialized skeleton.
 
-    Subclassed models rebuild from their constructor config in any precision
-    (skeleton → build_for_transfer → stream). Functional models round-trip only
-    as float: their built graph can't be re-quantized from a skeleton, so
-    functional + quantization is bypassed.
+    Functional models round-trip only as float: their built graph can't be
+    re-quantized from a serialized skeleton, so functional + quantization is
+    bypassed.
     """
-    from kerasformers.base import BaseModel, SubclassedBaseModel
+    from kerasformers.base import BaseModel
 
-    if issubclass(cls, SubclassedBaseModel):
-        return True
     if issubclass(cls, BaseModel):
         return quantization is None
     return False
-
-
-def weight_key(model, w):
-    """Structural weight path with the model's own top-level name stripped.
-
-    A freshly built model carries the model name in ``w.path``
-    (``qwen3_generate/decoder_layers/0/...``) while a deserialized one may not,
-    so stripping ``model.name/`` normalizes both to the same stable, unique
-    sublayer path: robust to the ``model.weights`` reordering an in-place
-    Dense→QuantizedDense swap causes.
-    """
-    prefix = f"{model.name}/"
-    return w.path[len(prefix) :] if w.path.startswith(prefix) else w.path
 
 
 def save_converted(model, directory, quantization, load_dtype=None):
@@ -152,24 +136,16 @@ def save_converted(model, directory, quantization, load_dtype=None):
 
     Stores ``model.weights`` as index-keyed sharded safetensors (≤512 MB shards)
     plus ``meta.json`` (serialized config, quant id, per-weight keys + shapes).
-    Subclassed models key weights by structural path; functional models by
-    position (their auto-numbered layer names differ across a reload). Written
+    Weights are keyed by position: a functional model's auto-numbered layer names
+    can differ across a reload, so index order is the stable key. Written
     meta.json last so a partial write is never seen as a cache hit.
     """
     from safetensors.numpy import save_file
 
-    from kerasformers.base import SubclassedBaseModel
-
     os.makedirs(directory, exist_ok=True)
     weights = list(model.weights)
 
-    keying = "path" if isinstance(model, SubclassedBaseModel) else "index"
-    if keying == "path":
-        keys = [weight_key(model, w) for w in weights]
-        if len(set(keys)) != len(keys):
-            keying = "index"
-    if keying == "index":
-        keys = [f"{i:06d}" for i in range(len(weights))]
+    keys = [f"{i:06d}" for i in range(len(weights))]
 
     shards = []
     current, current_bytes, shard_idx = {}, 0, 0
@@ -191,12 +167,6 @@ def save_converted(model, directory, quantization, load_dtype=None):
     shards.append(name)
 
     config = keras.saving.serialize_keras_object(model)
-    if isinstance(model, SubclassedBaseModel):
-        # Drop the build recipe so the model deserializes UNBUILT: a quantized
-        # reload must rebuild the integer skeleton (quantize_skeleton +
-        # build_for_transfer), which only swaps not-yet-built Dense/Embedding.
-        # A built-from-config reload would come back float and never match.
-        config.pop("build_config", None)
 
     meta = {
         "cache_format": CACHE_FORMAT_VERSION,
@@ -208,7 +178,7 @@ def save_converted(model, directory, quantization, load_dtype=None):
         "config": config,
         "architecture_hash": _json_hash(config),
         "quantization": quant_id(quantization),
-        "keying": keying,
+        "keying": "index",
         "keys": keys,
         "shapes": [list(w.shape) for w in weights],
         "count": len(weights),
@@ -221,10 +191,9 @@ def save_converted(model, directory, quantization, load_dtype=None):
 def load_converted(directory, quantization, load_dtype):
     """Rebuild a model from a cache directory and stream its weights back.
 
-    Deserializes the config to a skeleton, re-applies the quantization skeleton
-    (subclassed), builds it, then streams each cached tensor onto its weight:
-    by structural key (subclassed) or position (functional). Raises on any
-    count / shape / key mismatch so the caller can fall back to the source.
+    Deserializes the config to the model, then streams each cached tensor onto
+    its weight by position. Raises on any count / shape / keying mismatch so the
+    caller can fall back to the source.
     """
     from kerasformers.base.base_mixin import build_dtype_scope
 
@@ -265,11 +234,12 @@ def load_converted(directory, quantization, load_dtype):
         )
 
     shapes = meta["shapes"]
-    if meta["keying"] == "index":
-        order = list(range(len(weights)))
-    else:
-        index_of = {key: i for i, key in enumerate(meta["keys"])}
-        order = [index_of[weight_key(model, w)] for w in weights]
+    if meta.get("keying") != "index":
+        raise ValueError(
+            f"Converted cache keying {meta.get('keying')!r} is unsupported "
+            f"(only 'index'); rebuilding from source."
+        )
+    order = list(range(len(weights)))
 
     paths = [os.path.join(directory, s) for s in meta["shards"]]
     state = LazyStateDict.from_files(paths)

@@ -281,6 +281,16 @@ class KimiK25VisionModel(layers.Layer):
             outputs.append(self.temporal_patch_merge(x, frames, height, width))
         return ops.concatenate(outputs, axis=0)  # (total_merged, kh*kw, embed_dim)
 
+    def compute_output_spec(self, pixel_values, grid_thw):
+        # ``call`` iterates the concrete grid (Python int(t/h/w)), so it cannot be
+        # traced symbolically; an explicit spec makes the tower a functional-graph
+        # node whose ``call`` runs at (eager) runtime with the real grid. The
+        # merged-token count is data-dependent -> leave the leading axis dynamic.
+        kh, kw = self.merge_kernel
+        return keras.KerasTensor(
+            (None, kh * kw, self.embed_dim), dtype=self.compute_dtype
+        )
+
     def get_config(self):
         config = super().get_config()
         config.update(

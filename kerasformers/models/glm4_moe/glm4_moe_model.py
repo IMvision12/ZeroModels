@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
 from .glm4_moe_config import Glm4MoeConfig
 from .glm4_moe_layers import Glm4MoeDecoderLayer, Glm4MoeRMSNorm
@@ -9,8 +9,40 @@ from .glm4_moe_layers import Glm4MoeDecoderLayer, Glm4MoeRMSNorm
 MASK_NEG = -1e9
 
 
+def glm4_moe_rope_tables(position_ids, rotary_dim, rope_theta, compute_dtype):
+    # Partial NeoX rope: cos/sin over ``cat((freqs, freqs))`` on the rotary slice.
+    inv_freq = 1.0 / ops.power(
+        rope_theta, ops.arange(0, rotary_dim, 2, dtype="float32") / rotary_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def glm4_moe_backbone_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    decoder_layers,
+    final_norm,
+    causal_mask,
+    rotary_dim,
+    rope_theta,
+    compute_dtype,
+):
+    hidden = token_embedding(input_ids)
+    # Plain arange positions (padding-unaware), matching build_cache.
+    position_ids = ops.cumsum(ops.ones_like(input_ids), axis=-1) - 1
+    cos, sin = glm4_moe_rope_tables(position_ids, rotary_dim, rope_theta, compute_dtype)
+    mask = causal_mask(input_ids, attention_mask)
+    for layer in decoder_layers:
+        hidden = layer(hidden, cos, sin, attention_mask=mask)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Glm4MoeModel(SubclassedBaseModel):
+class Glm4MoeModel(BaseModel):
     """GLM-4.5 MoE decoder backbone (no LM head).
 
     Pre-norm decoder with grouped-query attention (partial *NeoX* rotary,
@@ -18,8 +50,8 @@ class Glm4MoeModel(SubclassedBaseModel):
     scores plus a learned ``e_score_correction_bias`` for group-limited top-k
     selection, unbiased gathered weights renormalized and scaled by
     ``routed_scaling_factor``, with a shared-expert SwiGLU. The first
-    ``first_k_dense`` layers are dense. Returns raw features; use
-    :class:`Glm4MoeTextGenerate` for logits / text.
+    ``first_k_dense`` layers are dense. A functional model; returns
+    ``last_hidden_state``: use :class:`Glm4MoeTextGenerate` for logits / text.
 
     Args:
         vocab_size / embed_dim / num_layers / num_heads / num_kv_heads /
@@ -39,6 +71,7 @@ class Glm4MoeModel(SubclassedBaseModel):
 
     HF_MODEL_TYPE = "glm4_moe"
     config_class = Glm4MoeConfig
+    output_logits = False
 
     def __init__(
         self,
@@ -64,43 +97,24 @@ class Glm4MoeModel(SubclassedBaseModel):
         rope_theta=10000.0,
         attention_bias=False,
         tie_embeddings=False,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.vocab_size = vocab_size
-        self.embed_dim = embed_dim
-        self.num_layers = num_layers
-        self.num_heads = num_heads
-        self.num_kv_heads = num_kv_heads
-        self.head_dim = head_dim or embed_dim // num_heads
-        self.mlp_dim = mlp_dim
-        self.moe_mlp_dim = moe_mlp_dim
-        self.num_experts = num_experts
-        self.num_experts_per_tok = num_experts_per_tok
-        self.n_shared_experts = n_shared_experts
-        self.n_group = n_group
-        self.topk_group = topk_group
-        self.norm_topk_prob = norm_topk_prob
-        self.routed_scaling_factor = routed_scaling_factor
-        self.first_k_dense = first_k_dense
-        self.partial_rotary_factor = partial_rotary_factor
-        self.use_qk_norm = use_qk_norm
-        self.norm_eps = norm_eps
-        self.rope_theta = rope_theta
-        self.attention_bias = attention_bias
-        self.tie_embeddings = tie_embeddings
-        self.rotary_dim = int(self.head_dim * partial_rotary_factor)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = head_dim or embed_dim // num_heads
+        rotary_dim = int(head_dim * partial_rotary_factor)
 
-        self.token_embedding = layers.Embedding(
+        token_embedding = layers.Embedding(
             vocab_size, embed_dim, name="token_embedding"
         )
-        self.decoder_layers = [
+        decoder_layers = [
             Glm4MoeDecoderLayer(
                 embed_dim,
                 num_heads,
                 num_kv_heads,
-                self.head_dim,
-                self.rotary_dim,
+                head_dim,
+                rotary_dim,
                 use_moe=i >= first_k_dense,
                 mlp_dim=mlp_dim,
                 moe_mlp_dim=moe_mlp_dim,
@@ -118,19 +132,73 @@ class Glm4MoeModel(SubclassedBaseModel):
             )
             for i in range(num_layers)
         ]
-        self.final_norm = Glm4MoeRMSNorm(eps=norm_eps, name="final_norm")
+        final_norm = Glm4MoeRMSNorm(eps=norm_eps, name="final_norm")
+        causal_mask = CausalMask(name="causal_mask")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        hidden = glm4_moe_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            causal_mask=causal_mask,
+            rotary_dim=rotary_dim,
+            rope_theta=rope_theta,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.causal_mask_layer = causal_mask
+        self.lm_head = lm_head
+        self.vocab_size = vocab_size
+        self.embed_dim = embed_dim
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = head_dim
+        self.mlp_dim = mlp_dim
+        self.moe_mlp_dim = moe_mlp_dim
+        self.num_experts = num_experts
+        self.num_experts_per_tok = num_experts_per_tok
+        self.n_shared_experts = n_shared_experts
+        self.n_group = n_group
+        self.topk_group = topk_group
+        self.norm_topk_prob = norm_topk_prob
+        self.routed_scaling_factor = routed_scaling_factor
+        self.first_k_dense = first_k_dense
+        self.partial_rotary_factor = partial_rotary_factor
+        self.use_qk_norm = use_qk_norm
+        self.norm_eps = norm_eps
+        self.rope_theta = rope_theta
+        self.attention_bias = attention_bias
+        self.tie_embeddings = tie_embeddings
+        self.rotary_dim = rotary_dim
 
     def rope_tables(self, position_ids):
-        # Partial NeoX rope: cos/sin over ``cat((freqs, freqs))``.
-        rd = self.rotary_dim
-        inv_freq = 1.0 / ops.power(
-            self.rope_theta, ops.arange(0, rd, 2, dtype="float32") / rd
-        )
-        freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
-        emb = ops.concatenate([freqs, freqs], axis=-1)
-        return (
-            ops.cast(ops.cos(emb), self.compute_dtype),
-            ops.cast(ops.sin(emb), self.compute_dtype),
+        return glm4_moe_rope_tables(
+            position_ids, self.rotary_dim, self.rope_theta, self.compute_dtype
         )
 
     def causal_mask(self, seq, attention_mask=None):
@@ -141,22 +209,6 @@ class Glm4MoeModel(SubclassedBaseModel):
             am = ops.cast(ops.convert_to_tensor(attention_mask), "float32")
             mask = mask + (1.0 - am)[:, None, None, :] * MASK_NEG
         return mask
-
-    def forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        hidden = self.token_embedding(input_ids)
-        position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        cos, sin = self.rope_tables(position_ids)
-        attn_mask = self.causal_mask(seq, inputs.get("attention_mask"))
-        for layer in self.decoder_layers:
-            hidden = layer(hidden, cos, sin, attention_mask=attn_mask)
-        return self.final_norm(hidden)
-
-    def call(self, inputs):
-        return {"last_hidden_state": self.forward_features(inputs)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -223,6 +275,7 @@ class Glm4MoeModel(SubclassedBaseModel):
                 "rope_theta": self.rope_theta,
                 "attention_bias": self.attention_bias,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -233,23 +286,12 @@ class Glm4MoeTextGenerate(Glm4MoeModel, BaseGeneration):
     """GLM-4.5 MoE with an LM head + fast ``.generate()``."""
 
     eos_token_id = (151329,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = self.forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(self, token_ids, padding_mask, max_len):
         batch = int(token_ids.shape[0])

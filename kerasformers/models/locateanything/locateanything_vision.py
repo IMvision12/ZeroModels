@@ -280,6 +280,14 @@ class LocateAnythingVisionModel(layers.Layer):
             outputs.append(self.merge(x, height, width))
         return ops.concatenate(outputs, axis=0)  # (total_merged, embed_dim*merge)
 
+    def compute_output_spec(self, pixel_values, grid_hws):
+        # Merged-token count is grid-dependent (dynamic); the grid-iterating call
+        # runs eagerly at runtime.
+        merge = self.merge_kernel[0] * self.merge_kernel[1]
+        return keras.KerasTensor(
+            (None, self.embed_dim * merge), dtype=self.compute_dtype
+        )
+
     def get_config(self):
         config = super().get_config()
         config.update(

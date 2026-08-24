@@ -141,6 +141,13 @@ class GptBlock(layers.Layer):
         h = self.ln_2(n + self.mlp(n))
         return h, cache_k, cache_v
 
+    def compute_output_spec(
+        self, hidden_states, attention_mask=None, past_key_value=None, use_cache=False
+    ):
+        # Residual stream keeps its shape; an explicit spec keeps the functional
+        # builder from tracing the dynamic-shape reshapes in attention.
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(

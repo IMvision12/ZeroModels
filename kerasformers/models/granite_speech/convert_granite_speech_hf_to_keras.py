@@ -57,7 +57,7 @@ def transfer_granite_speech_weights(keras_model, hf_state_dict):
         keras_model.build_dummy()
 
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        keras_dotted = weight.path.split("/", 1)[1].replace("/", ".")
+        keras_dotted = weight.path.replace("/", ".")
         if keras_dotted == "token_embedding.embeddings":
             name = "language_model.model.embed_tokens.weight"
         else:

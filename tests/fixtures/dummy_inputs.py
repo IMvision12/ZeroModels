@@ -30,6 +30,15 @@ def qwen_text_input(batch_size=2, seq_len=6, vocab_size=128):
     return {"input_ids": ops.convert_to_tensor(ids)}
 
 
+def causal_lm_input(batch_size=2, seq_len=6, vocab_size=128):
+    """Token-id + attention-mask input for functional causal LMs (e.g. GPT-2)."""
+    ids = np.tile(np.arange(seq_len, dtype="int32") % vocab_size, (batch_size, 1))
+    return {
+        "input_ids": ops.convert_to_tensor(ids),
+        "attention_mask": ops.ones((batch_size, seq_len), dtype="int32"),
+    }
+
+
 def bert_input(batch_size=2, seq_len=16):
     """Token-id / mask / segment input for the BERT encoder models."""
     return {
@@ -200,12 +209,32 @@ def granite_speech_input(
     ids[:, -1] = 11
     return {
         "input_ids": ops.convert_to_tensor(ids),
+        "attention_mask": ops.convert_to_tensor(
+            np.ones((batch_size, seq), dtype="int32")
+        ),
         "input_features": ops.convert_to_tensor(
             np.full((batch_size, frames, input_dim), 0.01, dtype="float32")
         ),
         "input_features_mask": ops.convert_to_tensor(
             np.ones((batch_size, n_audio), dtype=bool)
         ),
+    }
+
+
+def grounding_dino_input(batch_size=2, image_size=224):
+    """Image + grounding-text input for Grounding DINO: pixel values plus a short
+    tokenized prompt whose special tokens ([CLS] . [SEP]) drive the block mask."""
+    ids = np.tile(
+        np.array([[101, 500, 1012, 800, 102, 102]], dtype="int32"), (batch_size, 1)
+    )
+    return {
+        "pixel_values": ops.convert_to_tensor(
+            np.random.RandomState(0)
+            .rand(batch_size, image_size, image_size, 3)
+            .astype("float32")
+        ),
+        "input_ids": ops.convert_to_tensor(ids),
+        "attention_mask": ops.ones((batch_size, ids.shape[1]), dtype="int32"),
     }
 
 

@@ -7,7 +7,7 @@ from kerasformers.models.gemma4.convert_gemma4_hf_to_keras import TEXT_MAP
 
 
 def resolve_hf_name(keras_path):
-    path = keras_path.split("/", 1)[1].replace("/", ".")
+    path = keras_path.replace("/", ".")
     if path.startswith("embed_vision."):
         rest = path[len("embed_vision.") :]
         if rest.startswith("multimodal_embedder."):

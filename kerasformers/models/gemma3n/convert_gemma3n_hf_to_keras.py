@@ -112,7 +112,7 @@ _FUSION_PREFIXES = (
 
 def is_fusion_model(keras_model):
     return any(
-        w.path.split("/", 1)[1].replace("/", ".").startswith(_FUSION_PREFIXES)
+        w.path.replace("/", ".").startswith(_FUSION_PREFIXES)
         for w in keras_model.weights
     )
 
@@ -141,7 +141,7 @@ def transfer_gemma3n_weights(keras_model, hf_state_dict):
     text_prefix = "model." if any(k.startswith("model.") for k in hf_state_dict) else ""
 
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        rel = weight.path.split("/", 1)[1].replace("/", ".")
+        rel = weight.path.replace("/", ".")
         if fusion:
             name = resolve_fusion_name(rel)
             # A tied lm_head has no own tensor; skip if absent (it reuses embeddings).

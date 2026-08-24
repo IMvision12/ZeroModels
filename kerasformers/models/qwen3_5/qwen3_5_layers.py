@@ -596,6 +596,20 @@ class Qwen3_5DecoderLayer(layers.Layer):
         hidden_states = residual + self.mlp(hidden_states)
         return (hidden_states, new_state) if use_cache else hidden_states
 
+    def compute_output_spec(
+        self,
+        hidden_states,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_value=None,
+        use_cache=False,
+        pad_mask=None,
+    ):
+        # Residual stream keeps its shape; an explicit spec stops the functional
+        # builder from tracing the conv1d / delta-rule recurrence.
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+
     def decode_step(self, hidden_states, cos, sin, state, write_pos, key_mask):
         # One decode step; ``state`` is the per-layer cache: (cache_k, cache_v) for a
         # full-attention layer (fixed-slot KV), or (conv_state, recurrent_state) for a

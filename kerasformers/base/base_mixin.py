@@ -148,12 +148,10 @@ def inference_scope():
 class WeightLoadingMixin:
     """Unified pretrained-weight loading API shared by all kerasformers models.
 
-    Mixed into :class:`BaseModel` (functional models) and
-    :class:`SubclassedBaseModel` (imperative / subclassed models). Kept as a
-    plain mixin, **not** a ``keras.Model`` subclass, so those two bases stay
-    independent ``keras.Model`` subclasses (see :class:`SubclassedBaseModel`
-    for why that independence matters). Subclasses share a single entry
-    point for loading pretrained weights, regardless of source:
+    Mixed into :class:`BaseModel`. Kept as a plain mixin, **not** a
+    ``keras.Model`` subclass, so the model base stays a clean ``keras.Model``
+    subclass. Subclasses share a single entry point for loading pretrained
+    weights, regardless of source:
 
     1. **Hub repo (self-describing)**: an ``"org/repo"`` id whose repo carries a
        ``kf_config.json``. The model is rebuilt from that flat config (via
@@ -269,22 +267,14 @@ class WeightLoadingMixin:
             attn_implementation: ``"sdpa"`` (portable manual math, the default)
                 or ``"flash"`` (``keras.ops.dot_product_attention`` with the
                 flash kernel; needs a flash-capable GPU/TPU and fp16/bf16). Set
-                before the model is built, so it applies to both functional and
-                subclassed models.
+                before the model is built.
             quantization: ``None`` (default), ``"int8"``, ``"int4"`` or
                 ``"fp8"`` (or a :class:`~kerasformers.quantization.\
 QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                 Dense/Embedding weights become int8 / float8-e4m3 (~4x) or
                 block-wise packed int4 (~8x), and the float weights are freed. fp8
-                is torch/jax only. For subclassed (LLM-style) models the weights
-                stream straight into int storage as they load, so the full float
-                model is never built and a checkpoint larger than device memory can
-                still be loaded quantized
-                (:func:`~kerasformers.quantization.quantize_and_load`). That
-                no-float path is automatic and needs no flag, mirroring the forced
-                ``low_cpu_mem_usage`` transformers applies to quantized loads;
-                functional models and the release-``.h5`` / timm paths build then
-                quantize via :func:`kerasformers.quantization.quantize_model`.
+                is torch/jax only. The model builds (in ``load_dtype``) then
+                quantizes via :func:`kerasformers.quantization.quantize_model`.
             load_dtype: ``None`` resolves, highest priority first, to the repo's
                 recorded ``weight_dtype`` (from a kerasformers Hub repo's
                 ``kf_config.json`` -- the checkpoint's real precision), then to
@@ -302,15 +292,14 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                 (and optionally quantized) model under
                 ``$KERASFORMERS_HOME/converted`` on first load, and on later
                 identical calls rebuild straight from that cache, skipping the
-                download **and** the re-conversion (and re-quantization). The
-                cache stores weights-only + a rebuild recipe, so it round-trips
-                every precision (unlike a full ``.keras`` save, which can't
-                reconstruct a quantized graph). Cache keys include the Hub commit
-                SHA, converter/cache layout, backend/dtype and quantization recipe.
-                Applies to subclassed models in any precision and to functional
-                models when float; a cache miss / failure silently falls back to
-                the source path. Best on a persistent disk: set
-                ``KERASFORMERS_HOME`` on ephemeral boxes.
+                download **and** the re-conversion. The cache stores weights-only
+                + a rebuild recipe. Cache keys include the Hub commit SHA,
+                converter/cache layout, backend/dtype and quantization recipe.
+                Applies to models loaded as float (a built functional graph can't
+                be re-quantized from a serialized skeleton, so quantized loads are
+                not cached); a cache miss / failure silently falls back to the
+                source path. Best on a persistent disk: set ``KERASFORMERS_HOME``
+                on ephemeral boxes.
             **kwargs: Forwarded to the model constructor (or to
                 ``from_hf`` when applicable).
 
@@ -417,12 +406,11 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
     def _quantized_transfer(cls, model, state_dict, quantization, skip_mismatch=False):
         """Apply ``cls.transfer_from_hf``; stream into int storage when quantizing.
 
-        With ``quantization`` set on an unbuilt subclassed model, weights are
-        quantized as they transfer (no full float model is ever built). This is
-        automatic, matching the forced low-memory path transformers uses for
-        quantized loads. Otherwise a plain float transfer runs and the caller
-        quantizes afterwards. Returns ``True`` if the no-float path quantized in
-        place.
+        Functional models are built at construction, so this runs a plain float
+        transfer and the caller applies any quantization afterwards (gated on
+        ``model._quantization_config``). A model whose sublayers build lazily (a
+        VLM/ASR tower that does not auto-build) is materialized first via
+        ``build_for_transfer`` so every weight exists before the stream.
 
         On a strict load (``skip_mismatch=False``) the build runs under
         :func:`~kerasformers.conversion.weight_transfer_util.zeros_init` so an
@@ -430,24 +418,13 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
         overwrite; with ``skip_mismatch`` a mismatched weight may be left at its
         initializer, so that optimization is disabled.
         """
-        from kerasformers.base import SubclassedBaseModel
         from kerasformers.conversion.weight_transfer_util import zeros_init
 
         build_init = contextlib.nullcontext() if skip_mismatch else zeros_init()
-        if (
-            quantization is not None
-            and isinstance(model, SubclassedBaseModel)
-            and not model.built
-        ):
-            from kerasformers.quantization import quantize_and_load
-
-            with build_init:
-                quantize_and_load(model, quantization, cls.transfer_from_hf, state_dict)
-            return True
         with build_init:
-            # Subclassed models build lazily, so an `hf:` / safetensors load transfers
-            # into a model with no weights yet. Materialize them first (matching the
-            # CHECKPOINT_SOURCE path); functional models are already built and skip this.
+            # A model whose sublayers build lazily (a VLM/ASR tower that does not
+            # auto-build) transfers into weights that don't exist yet; materialize
+            # them first. Functional models are already built and skip this.
             if hasattr(model, "build_for_transfer") and not model.built:
                 model.build_for_transfer()
             cls.transfer_from_hf(model, state_dict)

@@ -33,7 +33,7 @@ TEXT_MAP = {
 
 
 def resolve_hf_name(keras_path, nested):
-    path = keras_path.split("/", 1)[1].replace("/", ".")
+    path = keras_path.replace("/", ".")
     if path.startswith("vision_tower."):
         path = path.replace("layers_", "encoder.layers.")
         if "patch_embedder.input_proj.kernel" in path:

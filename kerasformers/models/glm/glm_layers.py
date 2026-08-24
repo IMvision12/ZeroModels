@@ -268,6 +268,13 @@ class GlmDecoderLayer(layers.Layer):
         )
         return (hidden_states, new_kv) if use_cache else hidden_states
 
+    def compute_output_spec(
+        self, hidden_states, cos, sin, attention_mask=None, use_cache=False
+    ):
+        # Residual stream keeps its shape; an explicit spec stops the functional
+        # builder from tracing the dynamic-shape reshapes / rope in attention.
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+
     def decode_step(
         self, hidden_states, cos, sin, cache_k, cache_v, write_pos, key_mask
     ):

@@ -434,6 +434,20 @@ class Gemma3nDecoderLayer(layers.Layer):
             predictions, active, attn, laurel_output, per_layer_input
         ), kv
 
+    def compute_output_spec(
+        self, hidden, cos, sin, per_layer_input, attention_mask=None, shared_kv=None
+    ):
+        # Isolate the eager ``int(shape)`` / symbolic-dim comparisons in attention
+        # from the functional-graph trace; the 4-stream state keeps its shape and
+        # the layer emits its own (k, v) at (b, num_kv_heads, s, head_dim). k and v
+        # MUST be distinct KerasTensors -- reusing one object aliases them in the
+        # graph, silently mis-wiring KV-shared layers.
+        b, s = hidden.shape[1], hidden.shape[2]
+        kv_shape = (b, self.attention.num_kv_heads, s, self.attention.head_dim)
+        k = keras.KerasTensor(kv_shape, dtype=self.compute_dtype)
+        v = keras.KerasTensor(kv_shape, dtype=self.compute_dtype)
+        return keras.KerasTensor(hidden.shape, dtype=hidden.dtype), (k, v)
+
     def decode_step(
         self,
         hidden,
@@ -1573,16 +1587,32 @@ class MobileNetV5MSFA(layers.Layer):
                     img = ops.repeat(img, high[0] // ih, axis=1)
                     img = ops.repeat(img, high[1] // iw, axis=2)
                 else:
-                    img = ops.image.resize(img, high, interpolation="nearest")
+                    img = ops.image.resize(
+                        img,
+                        high,
+                        interpolation="nearest",
+                        data_format="channels_last",
+                    )
             resized.append(img)
         x = ops.concatenate(resized, axis=-1)
         x = self.ffn(x)
         if high != self.out_res:
             if high[0] % self.out_res[0] == 0 and high[1] % self.out_res[1] == 0:
                 sh, sw = high[0] // self.out_res[0], high[1] // self.out_res[1]
-                x = ops.nn.average_pool(x, (sh, sw), (sh, sw), padding="valid")
+                x = ops.nn.average_pool(
+                    x,
+                    (sh, sw),
+                    (sh, sw),
+                    padding="valid",
+                    data_format="channels_last",
+                )
             else:
-                x = ops.image.resize(x, self.out_res, interpolation="bilinear")
+                x = ops.image.resize(
+                    x,
+                    self.out_res,
+                    interpolation="bilinear",
+                    data_format="channels_last",
+                )
         return self.norm(x)
 
     def get_config(self):

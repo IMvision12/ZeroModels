@@ -1,7 +1,14 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, CheckpointSource, SubclassedBaseModel
+from kerasformers.base import (
+    BaseGeneration,
+    CausalMask,
+    CheckpointSource,
+    MediaMerge,
+    TiedHead,
+)
+from kerasformers.base.base_mixin import inference_scope
 from kerasformers.models.qwen2_vl.qwen2_vl_model import (
     Qwen2VLModel,
     vision_rotary_cos_sin,
@@ -215,6 +222,16 @@ class Qwen3VLVisionModel(layers.Layer):
         merged = self.merger(hidden)
         return merged, deepstack
 
+    def compute_output_spec(self, pixel_values, grid_thw):
+        # Merged-token count is grid-dependent (dynamic); the grid-iterating call
+        # runs eagerly at runtime. Returns (merged, [deepstack maps]).
+        spec = keras.KerasTensor((None, self.out_hidden_size), dtype=self.compute_dtype)
+        ds = [
+            keras.KerasTensor((None, self.out_hidden_size), dtype=self.compute_dtype)
+            for _ in self.deepstack_visual_indexes
+        ]
+        return spec, ds
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -340,6 +357,18 @@ class Qwen3VLTextModel(layers.Layer):
         hidden = self.final_norm(hidden)
         return (hidden, new_cache) if use_cache else hidden
 
+    def compute_output_spec(
+        self,
+        inputs_embeds,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_values=None,
+        use_cache=False,
+        deepstack_full=None,
+    ):
+        return keras.KerasTensor(inputs_embeds.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -355,6 +384,73 @@ class Qwen3VLTextModel(layers.Layer):
             }
         )
         return config
+
+
+def qwen3_vl_multimodal_features(
+    input_ids,
+    attention_mask,
+    position_ids,
+    pixel_values,
+    image_grid_thw,
+    pixel_values_videos,
+    video_grid_thw,
+    *,
+    token_embedding,
+    visual,
+    language_model,
+    image_merge,
+    video_merge,
+    causal_mask,
+    head_dim,
+    rope_theta,
+    mrope_section,
+    image_token_id,
+    video_token_id,
+    n_deepstack,
+):
+    # KerasHub-style always-media multimodal graph with DeepStack. Vision runs
+    # unconditionally (no-op merge when a stream's token is absent); each DeepStack
+    # map is scattered into a zeros tensor at the image/video slots (reusing the
+    # weightless MediaMerge) and summed, matching the imperative _deepstack_full.
+    media = ops.logical_or(
+        ops.equal(input_ids, image_token_id), ops.equal(input_ids, video_token_id)
+    )
+    hidden = token_embedding(ops.where(media, 0, input_ids))
+    image_embeds, image_ds = visual(pixel_values, image_grid_thw)
+    hidden = image_merge(hidden, input_ids, image_embeds)
+    video_embeds, video_ds = visual(pixel_values_videos, video_grid_thw)
+    hidden = video_merge(hidden, input_ids, video_embeds)
+    zeros = ops.zeros_like(hidden)
+    deepstack_full = [
+        image_merge(zeros, input_ids, image_ds[i])
+        + video_merge(zeros, input_ids, video_ds[i])
+        for i in range(n_deepstack)
+    ]
+    pos = ops.transpose(position_ids, (1, 0, 2))  # (batch, 3, seq) -> (3, batch, seq)
+    cos, sin = qwen3_text_cos_sin(pos, head_dim, rope_theta, mrope_section)
+    mask = causal_mask(input_ids, attention_mask)
+    return language_model(
+        hidden, cos, sin, attention_mask=mask, deepstack_full=deepstack_full
+    )
+
+
+def qwen3_vl_text_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    language_model,
+    causal_mask,
+    head_dim,
+    rope_theta,
+    mrope_section,
+):
+    hidden = token_embedding(input_ids)
+    pos1 = ops.cumsum(ops.ones_like(input_ids), axis=-1) - 1
+    pos = ops.stack([pos1, pos1, pos1], axis=0)  # (3, batch, seq)
+    cos, sin = qwen3_text_cos_sin(pos, head_dim, rope_theta, mrope_section)
+    mask = causal_mask(input_ids, attention_mask)
+    return language_model(hidden, cos, sin, attention_mask=mask)
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
@@ -461,13 +557,133 @@ class Qwen3VLModel(Qwen2VLModel):
         vision_start_token_id=QWEN3_VL_TOKENS["vision_start_token_id"],
         vision_end_token_id=QWEN3_VL_TOKENS["vision_end_token_id"],
         build_vision=True,
+        name=None,
         **kwargs,
     ):
-        # Skip Qwen2VLModel.__init__ (it builds the 2-VL layers); run only the
-        # base keras init via this model's actual base (SubclassedBaseModel),
-        # not the functional BaseModel (whose `__bases__` get rewritten to
-        # `Functional` once any functional model is built).
-        SubclassedBaseModel.__init__(self, **kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        vision_out_dim = vision_out_dim or embed_dim
+        patch_dim = in_channels * temporal_patch_size * patch_size * patch_size
+        n_deepstack = len(deepstack_visual_indexes)
+
+        visual = (
+            Qwen3VLVisionModel(
+                embed_dim=vision_embed_dim,
+                depth=vision_depth,
+                num_heads=vision_num_heads,
+                intermediate_size=vision_mlp_dim,
+                out_hidden_size=vision_out_dim,
+                num_position_embeddings=num_position_embeddings,
+                deepstack_visual_indexes=deepstack_visual_indexes,
+                hidden_act=vision_act,
+                patch_size=patch_size,
+                spatial_merge_size=spatial_merge_size,
+                name="visual",
+            )
+            if build_vision
+            else None
+        )
+        language_model = Qwen3VLTextModel(
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            mlp_dim=mlp_dim,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            num_kv_heads=num_kv_heads,
+            head_dim=head_dim,
+            norm_eps=norm_eps,
+            name="language_model",
+        )
+        causal_mask = CausalMask(name="causal_mask")
+        image_merge = video_merge = None
+        if build_vision:
+            image_merge = MediaMerge(image_token_id, embed_dim, name="image_merge")
+            video_merge = MediaMerge(video_token_id, embed_dim, name="video_merge")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        def text_input():
+            return {
+                "input_ids": layers.Input(
+                    shape=(None,), dtype="int32", name="input_ids"
+                ),
+                "attention_mask": layers.Input(
+                    shape=(None,), dtype="int32", name="attention_mask"
+                ),
+            }
+
+        if build_vision:
+            inputs = text_input()
+            inputs["position_ids"] = layers.Input(
+                shape=(3, None), dtype="int32", name="position_ids"
+            )
+            inputs["pixel_values"] = layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values"
+            )
+            inputs["image_grid_thw"] = layers.Input(
+                shape=(3,), dtype="int32", name="image_grid_thw"
+            )
+            inputs["pixel_values_videos"] = layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values_videos"
+            )
+            inputs["video_grid_thw"] = layers.Input(
+                shape=(3,), dtype="int32", name="video_grid_thw"
+            )
+            hidden = qwen3_vl_multimodal_features(
+                inputs["input_ids"],
+                inputs["attention_mask"],
+                inputs["position_ids"],
+                inputs["pixel_values"],
+                inputs["image_grid_thw"],
+                inputs["pixel_values_videos"],
+                inputs["video_grid_thw"],
+                token_embedding=language_model.token_embedding,
+                visual=visual,
+                language_model=language_model,
+                image_merge=image_merge,
+                video_merge=video_merge,
+                causal_mask=causal_mask,
+                head_dim=head_dim,
+                rope_theta=rope_theta,
+                mrope_section=tuple(mrope_section),
+                image_token_id=image_token_id,
+                video_token_id=video_token_id,
+                n_deepstack=n_deepstack,
+            )
+        else:
+            inputs = text_input()
+            hidden = qwen3_vl_text_features(
+                inputs["input_ids"],
+                inputs["attention_mask"],
+                token_embedding=language_model.token_embedding,
+                language_model=language_model,
+                causal_mask=causal_mask,
+                head_dim=head_dim,
+                rope_theta=rope_theta,
+                mrope_section=tuple(mrope_section),
+            )
+
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(language_model.token_embedding, name="lm_head")(hidden)
+            )
+
+        # Skip Qwen2VLModel.__init__ (it builds the 2-VL graph); go straight to the
+        # functional keras init after Qwen2VLModel in the MRO (BaseModel).
+        super(Qwen2VLModel, self).__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.visual = visual
+        self.language_model = language_model
+        self.causal_mask_layer = causal_mask
+        self.image_merge = image_merge
+        self.video_merge = video_merge
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
@@ -483,7 +699,7 @@ class Qwen3VLModel(Qwen2VLModel):
         self.vision_embed_dim = vision_embed_dim
         self.vision_mlp_dim = vision_mlp_dim
         self.vision_num_heads = vision_num_heads
-        self.vision_out_dim = vision_out_dim or embed_dim
+        self.vision_out_dim = vision_out_dim
         self.vision_act = vision_act
         self.num_position_embeddings = num_position_embeddings
         self.deepstack_visual_indexes = tuple(deepstack_visual_indexes)
@@ -495,43 +711,12 @@ class Qwen3VLModel(Qwen2VLModel):
         self.video_token_id = video_token_id
         self.vision_start_token_id = vision_start_token_id
         self.vision_end_token_id = vision_end_token_id
-        self.patch_dim = in_channels * temporal_patch_size * patch_size * patch_size
+        self.patch_dim = patch_dim
         self.tokens_per_second = 1
         self.build_vision = build_vision
 
-        self.visual = (
-            Qwen3VLVisionModel(
-                embed_dim=vision_embed_dim,
-                depth=vision_depth,
-                num_heads=vision_num_heads,
-                intermediate_size=vision_mlp_dim,
-                out_hidden_size=self.vision_out_dim,
-                num_position_embeddings=num_position_embeddings,
-                deepstack_visual_indexes=deepstack_visual_indexes,
-                hidden_act=vision_act,
-                patch_size=patch_size,
-                spatial_merge_size=spatial_merge_size,
-                name="visual",
-            )
-            if build_vision
-            else None
-        )
-        self.language_model = Qwen3VLTextModel(
-            vocab_size=vocab_size,
-            embed_dim=embed_dim,
-            mlp_dim=mlp_dim,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            num_kv_heads=num_kv_heads,
-            head_dim=head_dim,
-            norm_eps=norm_eps,
-            name="language_model",
-        )
-        self.lm_head = (
-            None
-            if tie_embeddings
-            else layers.Dense(vocab_size, use_bias=False, name="lm_head")
-        )
+        with inference_scope():
+            self.materialize_build()
 
     def _merged_cos_sin(self, position_ids):
         return qwen3_text_cos_sin(
@@ -710,17 +895,7 @@ class Qwen3VLConditionalGenerate(Qwen3VLModel, BaseGeneration):
 
     # Qwen's <|im_end|> stop id. Explicit generate() args override this.
     eos_token_id = (151645,)
-
-    def call(self, inputs):
-        hidden = self._forward_features(inputs)
-        logits = (
-            self.lm_head(hidden)
-            if self.lm_head is not None
-            else ops.matmul(
-                hidden, ops.transpose(self.language_model.token_embedding.embeddings)
-            )
-        )
-        return {"logits": logits, "last_hidden_state": hidden}
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:

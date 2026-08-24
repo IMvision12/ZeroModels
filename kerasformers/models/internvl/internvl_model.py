@@ -1,7 +1,15 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import (
+    BaseGeneration,
+    BaseModel,
+    CausalMask,
+    MediaMerge,
+    TiedHead,
+    merge_media,
+)
+from kerasformers.base.base_mixin import inference_scope
 
 from .internvl_config import InternVLConfig
 from .internvl_layers import (
@@ -107,6 +115,16 @@ class InternVLVisionModel(layers.Layer):
         if self.vision_norm is not None:
             hidden = self.vision_norm(hidden)
         return hidden
+
+    def compute_output_spec(self, pixel_values):
+        # (num_tiles, num_patches + 1 CLS, embed_dim); num_tiles is dynamic. The
+        # grid-dependent conv patch-embed runs eagerly at runtime; the symbolic
+        # build uses this spec so the tower's sublayers still materialize.
+        num_patches = (self.image_size // self.patch_size) ** 2
+        return keras.KerasTensor(
+            (pixel_values.shape[0], num_patches + 1, self.embed_dim),
+            dtype=self.compute_dtype,
+        )
 
     def get_config(self):
         config = super().get_config()
@@ -262,6 +280,17 @@ class InternVLTextModel(layers.Layer):
         hidden = self.final_norm(hidden)
         return (hidden, new_cache) if use_cache else hidden
 
+    def compute_output_spec(
+        self,
+        inputs_embeds,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_values=None,
+        use_cache=False,
+    ):
+        return keras.KerasTensor(inputs_embeds.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -287,8 +316,87 @@ class InternVLTextModel(layers.Layer):
         return config
 
 
+def internvl_pixel_shuffle(vision_features, scale):
+    # Port of HF InternVLModel.pixel_shuffle on (B, W, H, C) feature maps: fuse
+    # each (1/scale x 1/scale) patch group channel-wise. ``-1`` carries the
+    # dynamic tile-count batch so the reshapes trace symbolically.
+    w = int(vision_features.shape[1])
+    h = int(vision_features.shape[2])
+    c = int(vision_features.shape[3])
+    x = ops.reshape(vision_features, (-1, w, int(h * scale), int(c / scale)))
+    x = ops.transpose(x, (0, 2, 1, 3))
+    x = ops.reshape(x, (-1, int(h * scale), int(w * scale), int(c / (scale**2))))
+    return ops.transpose(x, (0, 2, 1, 3))
+
+
+def internvl_image_features(
+    pixel_values,
+    vision_tower,
+    multi_modal_projector,
+    downsample_ratio,
+    vision_embed_dim,
+    projector_input_dim,
+):
+    # Vision tower -> drop CLS -> spatial grid -> pixel shuffle -> project.
+    features = vision_tower(pixel_values)[:, 1:, :]
+    n = int(features.shape[1])
+    fs = int(round(n**0.5))
+    features = ops.reshape(features, (-1, fs, fs, vision_embed_dim))
+    features = internvl_pixel_shuffle(features, downsample_ratio)
+    features = ops.reshape(features, (-1, projector_input_dim))
+    return multi_modal_projector(features)
+
+
+def internvl_rope_tables(position_ids, head_dim, rope_theta, compute_dtype):
+    inv_freq = 1.0 / ops.power(
+        rope_theta, ops.arange(0, head_dim, 2, dtype="float32") / head_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def internvl_backbone_features(
+    input_ids,
+    attention_mask,
+    pixel_values,
+    *,
+    language_model,
+    vision_tower,
+    multi_modal_projector,
+    image_merge,
+    causal_mask,
+    head_dim,
+    rope_theta,
+    downsample_ratio,
+    vision_embed_dim,
+    projector_input_dim,
+    image_token_id,
+    compute_dtype,
+):
+    # Zero the image placeholder ids before the lookup (they may sit outside the
+    # embedding range) -- those slots are overwritten by the merge anyway.
+    safe_ids = ops.where(ops.equal(input_ids, image_token_id), 0, input_ids)
+    inputs_embeds = language_model.token_embedding(safe_ids)
+    image_embeds = internvl_image_features(
+        pixel_values,
+        vision_tower,
+        multi_modal_projector,
+        downsample_ratio,
+        vision_embed_dim,
+        projector_input_dim,
+    )
+    inputs_embeds = image_merge(inputs_embeds, input_ids, image_embeds)
+    position_ids = ops.where(
+        attention_mask == 0, 1, ops.cumsum(attention_mask, axis=-1) - 1
+    )
+    cos, sin = internvl_rope_tables(position_ids, head_dim, rope_theta, compute_dtype)
+    mask = causal_mask(input_ids, attention_mask)
+    return language_model(inputs_embeds, cos, sin, attention_mask=mask)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class InternVLModel(SubclassedBaseModel):
+class InternVLModel(BaseModel):
     """InternVL3 multimodal backbone: InternViT tower + pixel-shuffle projector
     + Qwen2-style decoder.
 
@@ -297,21 +405,10 @@ class InternVLModel(SubclassedBaseModel):
     so 4 neighbouring patches fuse channel-wise into one of 256 tokens per
     tile), projected to the text width, and scattered into the
     ``image_token_id`` (``<IMG_CONTEXT>``) placeholder slots of the decoder
-    input. Standard 1D rotary positions. The forward pass runs eagerly with
-    ``keras.ops``. Returns raw features; use :class:`InternVLConditionalGenerate` for
-    logits / text.
-
-    Output dict:
-
-    .. code-block:: python
-
-        out = model({
-            "input_ids": ...,      # (B, L) int, <IMG_CONTEXT> placeholders
-            "pixel_values": ...,   # (num_tiles, 448, 448, 3) image tiles
-        })
-        out["last_hidden_state"]   # (B, L, embed_dim)
-
-    ``pixel_values`` is optional: text-only inputs work unchanged.
+    input. Standard 1D rotary positions. A functional model: the vision tower +
+    merge run inside the graph over ``{input_ids, attention_mask, pixel_values}``
+    (image inputs always present; an absent image token merges as a no-op). Use
+    :class:`InternVLConditionalGenerate` for logits / text.
 
     Construction:
 
@@ -345,6 +442,7 @@ class InternVLModel(SubclassedBaseModel):
 
     HF_MODEL_TYPE = "internvl"
     config_class = InternVLConfig
+    output_logits = False
 
     def __init__(
         self,
@@ -378,44 +476,18 @@ class InternVLModel(SubclassedBaseModel):
         vision_layer_scale_init=0.1,
         downsample_ratio=0.5,
         image_token_id=151667,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.vocab_size = vocab_size
-        self.embed_dim = embed_dim
-        self.mlp_dim = mlp_dim
-        self.num_layers = num_layers
-        self.num_heads = num_heads
-        self.num_kv_heads = num_kv_heads
-        self.head_dim = head_dim or embed_dim // num_heads
-        self.text_backbone = text_backbone
-        self.qk_norm = text_backbone in ("qwen3", "qwen3_moe")
-        self.attention_bias = text_backbone == "qwen2"
-        self.norm_eps = norm_eps
-        self.rope_theta = rope_theta
-        self.tie_embeddings = tie_embeddings
-        self.num_experts = num_experts
-        self.num_experts_per_tok = num_experts_per_tok
-        self.moe_mlp_dim = moe_mlp_dim
-        self.norm_topk_prob = norm_topk_prob
-        self.decoder_sparse_step = decoder_sparse_step
-        self.mlp_only_layers = tuple(mlp_only_layers)
-        self.vision_embed_dim = vision_embed_dim
-        self.vision_mlp_dim = vision_mlp_dim
-        self.vision_num_layers = vision_num_layers
-        self.vision_num_heads = vision_num_heads
-        self.image_size = image_size
-        self.patch_size = patch_size
-        self.vision_attention_bias = vision_attention_bias
-        self.vision_qk_norm = vision_qk_norm
-        self.vision_norm_type = vision_norm_type
-        self.vision_norm_eps = vision_norm_eps
-        self.vision_layer_scale_init = vision_layer_scale_init
-        self.downsample_ratio = downsample_ratio
-        self.image_token_id = image_token_id
-        self.projector_input_dim = vision_embed_dim * int(1 / downsample_ratio) ** 2
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = head_dim or embed_dim // num_heads
+        qk_norm = text_backbone in ("qwen3", "qwen3_moe")
+        attention_bias = text_backbone == "qwen2"
+        projector_input_dim = vision_embed_dim * int(1 / downsample_ratio) ** 2
+        mlp_only_layers = tuple(mlp_only_layers)
 
-        self.vision_tower = InternVLVisionModel(
+        vision_tower = InternVLVisionModel(
             embed_dim=vision_embed_dim,
             mlp_dim=vision_mlp_dim,
             num_layers=vision_num_layers,
@@ -429,20 +501,20 @@ class InternVLModel(SubclassedBaseModel):
             layer_scale_init=vision_layer_scale_init,
             name="vision_tower",
         )
-        self.multi_modal_projector = InternVLMultiModalProjector(
-            self.projector_input_dim, embed_dim, name="multi_modal_projector"
+        multi_modal_projector = InternVLMultiModalProjector(
+            projector_input_dim, embed_dim, name="multi_modal_projector"
         )
-        self.language_model = InternVLTextModel(
+        language_model = InternVLTextModel(
             vocab_size=vocab_size,
             embed_dim=embed_dim,
             mlp_dim=mlp_dim,
             num_layers=num_layers,
             num_heads=num_heads,
             num_kv_heads=num_kv_heads,
-            head_dim=self.head_dim,
+            head_dim=head_dim,
             norm_eps=norm_eps,
-            attention_bias=self.attention_bias,
-            qk_norm=self.qk_norm,
+            attention_bias=attention_bias,
+            qk_norm=qk_norm,
             num_experts=num_experts,
             num_experts_per_tok=num_experts_per_tok,
             moe_mlp_dim=moe_mlp_dim,
@@ -451,42 +523,138 @@ class InternVLModel(SubclassedBaseModel):
             mlp_only_layers=mlp_only_layers,
             name="language_model",
         )
+        causal_mask = CausalMask(name="causal_mask")
+        image_merge = MediaMerge(image_token_id, embed_dim, name="image_merge")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
 
-    def pixel_shuffle(self, vision_features):
-        # Port of HF InternVLModel.pixel_shuffle on (B, W, H, C) feature maps:
-        # fuse each (1/scale x 1/scale) patch group channel-wise.
-        scale = self.downsample_ratio
-        b = ops.shape(vision_features)[0]
-        w = int(vision_features.shape[1])
-        h = int(vision_features.shape[2])
-        c = int(vision_features.shape[3])
-        x = ops.reshape(vision_features, (b, w, int(h * scale), int(c / scale)))
-        x = ops.transpose(x, (0, 2, 1, 3))
-        x = ops.reshape(x, (b, int(h * scale), int(w * scale), int(c / (scale**2))))
-        return ops.transpose(x, (0, 2, 1, 3))
+        img_shape = (
+            (3, image_size, image_size)
+            if keras.config.image_data_format() == "channels_first"
+            else (image_size, image_size, 3)
+        )
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+            "pixel_values": layers.Input(
+                shape=img_shape, dtype="float32", name="pixel_values"
+            ),
+        }
+        hidden = internvl_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            inputs["pixel_values"],
+            language_model=language_model,
+            vision_tower=vision_tower,
+            multi_modal_projector=multi_modal_projector,
+            image_merge=image_merge,
+            causal_mask=causal_mask,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            downsample_ratio=downsample_ratio,
+            vision_embed_dim=vision_embed_dim,
+            projector_input_dim=projector_input_dim,
+            image_token_id=image_token_id,
+            compute_dtype=language_model.token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(language_model.token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.vision_tower = vision_tower
+        self.multi_modal_projector = multi_modal_projector
+        self.language_model = language_model
+        self.causal_mask_layer = causal_mask
+        self.image_merge = image_merge
+        self.lm_head = lm_head
+        self.vocab_size = vocab_size
+        self.embed_dim = embed_dim
+        self.mlp_dim = mlp_dim
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = head_dim
+        self.text_backbone = text_backbone
+        self.qk_norm = qk_norm
+        self.attention_bias = attention_bias
+        self.norm_eps = norm_eps
+        self.rope_theta = rope_theta
+        self.tie_embeddings = tie_embeddings
+        self.num_experts = num_experts
+        self.num_experts_per_tok = num_experts_per_tok
+        self.moe_mlp_dim = moe_mlp_dim
+        self.norm_topk_prob = norm_topk_prob
+        self.decoder_sparse_step = decoder_sparse_step
+        self.mlp_only_layers = mlp_only_layers
+        self.vision_embed_dim = vision_embed_dim
+        self.vision_mlp_dim = vision_mlp_dim
+        self.vision_num_layers = vision_num_layers
+        self.vision_num_heads = vision_num_heads
+        self.image_size = image_size
+        self.patch_size = patch_size
+        self.vision_attention_bias = vision_attention_bias
+        self.vision_qk_norm = vision_qk_norm
+        self.vision_norm_type = vision_norm_type
+        self.vision_norm_eps = vision_norm_eps
+        self.vision_layer_scale_init = vision_layer_scale_init
+        self.downsample_ratio = downsample_ratio
+        self.image_token_id = image_token_id
+        self.projector_input_dim = projector_input_dim
+
+        # The vision tower's grid-dependent call is skipped by the symbolic
+        # auto-build, so its blocks stay unbuilt; a concrete dummy forward
+        # materializes every weight for from_weights (which loads before a call).
+        with inference_scope():
+            self(self.dummy_media_inputs())
+
+    def dummy_media_inputs(self):
+        n = int((self.image_size // self.patch_size * self.downsample_ratio) ** 2)
+        return {
+            "input_ids": ops.concatenate(
+                [
+                    ops.zeros((1, 1), dtype="int32"),
+                    ops.full((1, n), self.image_token_id, dtype="int32"),
+                    ops.ones((1, 1), dtype="int32"),
+                ],
+                axis=1,
+            ),
+            "attention_mask": ops.ones((1, n + 2), dtype="int32"),
+            "pixel_values": ops.zeros(
+                (1, 3, self.image_size, self.image_size)
+                if keras.config.image_data_format() == "channels_first"
+                else (1, self.image_size, self.image_size, 3),
+                dtype="float32",
+            ),
+        }
+
+    def build_for_transfer(self):
+        with inference_scope():
+            self(self.dummy_media_inputs())
 
     def get_image_features(self, pixel_values):
-        # Vision tower -> drop CLS -> spatial grid -> pixel shuffle -> project.
-        features = self.vision_tower(pixel_values)[:, 1:, :]
-        n = int(features.shape[1])
-        fs = int(round(n**0.5))
-        features = ops.reshape(features, (-1, fs, fs, self.vision_embed_dim))
-        features = self.pixel_shuffle(features)
-        features = ops.reshape(
-            features, (ops.shape(features)[0], -1, self.projector_input_dim)
+        return internvl_image_features(
+            pixel_values,
+            self.vision_tower,
+            self.multi_modal_projector,
+            self.downsample_ratio,
+            self.vision_embed_dim,
+            self.projector_input_dim,
         )
-        return self.multi_modal_projector(features)
 
     def rope_tables(self, position_ids):
-        hd = self.head_dim
-        inv_freq = 1.0 / ops.power(
-            self.rope_theta, ops.arange(0, hd, 2, dtype="float32") / hd
-        )
-        freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
-        emb = ops.concatenate([freqs, freqs], axis=-1)
-        return (
-            ops.cast(ops.cos(emb), self.compute_dtype),
-            ops.cast(ops.sin(emb), self.compute_dtype),
+        return internvl_rope_tables(
+            position_ids, self.head_dim, self.rope_theta, self.compute_dtype
         )
 
     def causal_mask(self, seq, attention_mask=None):
@@ -499,63 +667,26 @@ class InternVLModel(SubclassedBaseModel):
         return mask
 
     def prepare_inputs(self, input_ids, pixel_values, attention_mask):
+        # Imperative fuse for the KV-cache prefill: handles absent media (None).
         input_ids = ops.cast(ops.convert_to_tensor(input_ids), "int32")
         batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        inputs_embeds = self.language_model.token_embedding(input_ids)
+        safe_ids = ops.where(ops.equal(input_ids, self.image_token_id), 0, input_ids)
+        inputs_embeds = self.language_model.token_embedding(safe_ids)
         if pixel_values is not None:
             image_embeds = self.get_image_features(pixel_values)
-            image_embeds = ops.reshape(image_embeds, (-1, self.embed_dim))
-            ids_flat = ops.convert_to_numpy(ops.reshape(input_ids, (-1,))).tolist()
-            idx = [j for j, v in enumerate(ids_flat) if v == self.image_token_id]
-            embeds_flat = ops.reshape(inputs_embeds, (batch * seq, self.embed_dim))
-            embeds_flat = ops.scatter_update(
-                embeds_flat,
-                ops.reshape(ops.convert_to_tensor(idx, dtype="int32"), (-1, 1)),
-                ops.cast(image_embeds, embeds_flat.dtype),
+            inputs_embeds = merge_media(
+                inputs_embeds,
+                input_ids,
+                image_embeds,
+                self.image_token_id,
+                self.embed_dim,
             )
-            inputs_embeds = ops.reshape(embeds_flat, (batch, seq, self.embed_dim))
         if attention_mask is not None:
             am = ops.cast(ops.convert_to_tensor(attention_mask), "int32")
             position_ids = ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
         else:
             position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
         return inputs_embeds, position_ids
-
-    def forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            raise ValueError(f"{type(self).__name__} expects a dict of inputs.")
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        seq = int(input_ids.shape[1])
-        inputs_embeds, position_ids = self.prepare_inputs(
-            input_ids, inputs.get("pixel_values"), inputs.get("attention_mask")
-        )
-        cos, sin = self.rope_tables(position_ids)
-        attn_mask = self.causal_mask(seq, inputs.get("attention_mask"))
-        return self.language_model(inputs_embeds, cos, sin, attention_mask=attn_mask)
-
-    def call(self, inputs):
-        return {"last_hidden_state": self.forward_features(inputs)}
-
-    def build_for_transfer(self):
-        # Multimodal lazy build: mirror the conversion feed so the vision tower +
-        # projector weights exist before a weight stream (the base text-only
-        # build would leave them uncreated). from_hub_repo / converted cache.
-        n = int((self.image_size // self.patch_size * self.downsample_ratio) ** 2)
-        self(
-            {
-                "input_ids": ops.concatenate(
-                    [
-                        ops.zeros((1, 1), dtype="int32"),
-                        ops.full((1, n), self.image_token_id, dtype="int32"),
-                        ops.ones((1, 1), dtype="int32"),
-                    ],
-                    axis=1,
-                ),
-                "pixel_values": ops.zeros(
-                    (1, self.image_size, self.image_size, 3), dtype="float32"
-                ),
-            }
-        )
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -646,6 +777,7 @@ class InternVLModel(SubclassedBaseModel):
                 "vision_layer_scale_init": self.vision_layer_scale_init,
                 "downsample_ratio": self.downsample_ratio,
                 "image_token_id": self.image_token_id,
+                "name": self.name,
             }
         )
         return config
@@ -657,8 +789,8 @@ class InternVLConditionalGenerate(InternVLModel, BaseGeneration):
 
     Adds a vocabulary projection on top of :class:`InternVLModel` (a separate
     bias-free ``lm_head`` when ``tie_embeddings`` is ``False``: every
-    InternVL3-hf checkpoint: else the tied token embedding). ``call`` returns
-    both ``logits`` and ``last_hidden_state``. Fast generation comes from
+    InternVL3-hf checkpoint: else the tied token embedding). The forward graph
+    returns both ``logits`` and ``last_hidden_state``. Fast generation comes from
     :class:`~kerasformers.base.BaseGeneration`'s multimodal path:
     ``build_cache`` runs the vision tower + projector + fused prefill ONCE
     (consuming ``pixel_values``) into a fixed KV cache, then
@@ -670,14 +802,7 @@ class InternVLConditionalGenerate(InternVLModel, BaseGeneration):
 
     # Qwen's <|im_end|> stop id. Explicit generate() args override this.
     eos_token_id = (151645,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
@@ -686,12 +811,8 @@ class InternVLConditionalGenerate(InternVLModel, BaseGeneration):
             hidden, ops.transpose(self.language_model.token_embedding.embeddings)
         )
 
-    def call(self, inputs):
-        hidden = self.forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
-
     def build_cache(self, token_ids, padding_mask, max_len, pixel_values=None):
-        # Multimodal prefill: vision tower + projector + placeholder scatter,
+        # Multimodal prefill: vision tower + projector + placeholder merge,
         # then the text decoder writes each layer's K/V into a fixed
         # (B, num_layers, 2, num_kv_heads, max_len, head_dim) cache.
         batch = int(token_ids.shape[0])

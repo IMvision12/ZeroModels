@@ -422,6 +422,11 @@ class Glm4vVisionModel(layers.Layer):
         hidden = ops.reshape(hidden, (-1, self.out_hidden_size))
         return self.merger(hidden)
 
+    def compute_output_spec(self, pixel_values, grid_thw):
+        # Merged-token count is grid-dependent (dynamic); the grid-iterating call
+        # runs eagerly at runtime while the functional build uses this spec.
+        return keras.KerasTensor((None, self.out_hidden_size), dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(

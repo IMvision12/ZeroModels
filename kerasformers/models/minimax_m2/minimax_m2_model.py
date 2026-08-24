@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
 from .minimax_m2_config import MINIMAX_M2_CONFIG, MINIMAX_M2_WEIGHTS_URLS
 from .minimax_m2_layers import MiniMaxM2DecoderLayer, MiniMaxM2RMSNorm
@@ -9,14 +9,49 @@ from .minimax_m2_layers import MiniMaxM2DecoderLayer, MiniMaxM2RMSNorm
 MASK_NEG = -1e9
 
 
+def minimax_m2_rope_tables(position_ids, rotary_dim, rope_theta, compute_dtype):
+    inv_freq = 1.0 / ops.power(
+        rope_theta, ops.arange(0, rotary_dim, 2, dtype="float32") / rotary_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def minimax_m2_backbone_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    decoder_layers,
+    final_norm,
+    causal_mask,
+    rotary_dim,
+    rope_theta,
+    compute_dtype,
+):
+    hidden = token_embedding(input_ids)
+    # Plain arange positions (matches the imperative build_cache path), via cumsum
+    # of ones so the functional graph needs no dynamic-length arange.
+    position_ids = ops.cumsum(ops.ones_like(input_ids), axis=-1) - 1
+    cos, sin = minimax_m2_rope_tables(
+        position_ids, rotary_dim, rope_theta, compute_dtype
+    )
+    mask = causal_mask(input_ids, attention_mask)
+    for layer in decoder_layers:
+        hidden = layer(hidden, cos, sin, attention_mask=mask)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MiniMaxM2Model(SubclassedBaseModel):
+class MiniMaxM2Model(BaseModel):
     """MiniMax-M2 MoE decoder (230B-A10B).
 
     Standard pre-norm GQA transformer with full-width QK RMSNorm and a
     sigmoid-scored top-8-of-256 MoE on every layer (DeepSeek-style aux-free
     selection bias; the gathered weights stay the unbiased sigmoid scores).
-    Returns raw features; use :class:`MiniMaxM2TextGenerate` for logits / text.
+    A functional model; returns ``last_hidden_state``: use
+    :class:`MiniMaxM2TextGenerate` for logits / text.
 
     Args:
         vocab_size: Token vocabulary size (200064).
@@ -36,6 +71,7 @@ class MiniMaxM2Model(SubclassedBaseModel):
     HF_MODEL_TYPE = "minimax_m2"
     BASE_MODEL_CONFIG = MINIMAX_M2_CONFIG
     BASE_WEIGHT_CONFIG = MINIMAX_M2_WEIGHTS_URLS
+    output_logits = False
 
     def __init__(
         self,
@@ -52,34 +88,24 @@ class MiniMaxM2Model(SubclassedBaseModel):
         rope_theta=5000000.0,
         norm_eps=1e-6,
         tie_embeddings=False,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.vocab_size = vocab_size
-        self.embed_dim = embed_dim
-        self.mlp_dim = mlp_dim
-        self.num_layers = num_layers
-        self.num_heads = num_heads
-        self.num_kv_heads = num_kv_heads
-        self.head_dim = head_dim or embed_dim // num_heads
-        self.num_experts = num_experts
-        self.num_experts_per_tok = num_experts_per_tok
-        self.partial_rotary_factor = partial_rotary_factor
-        self.rope_theta = rope_theta
-        self.norm_eps = norm_eps
-        self.tie_embeddings = tie_embeddings
-        self.rotary_dim = int(self.head_dim * partial_rotary_factor)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = head_dim or embed_dim // num_heads
+        rotary_dim = int(head_dim * partial_rotary_factor)
 
-        self.token_embedding = layers.Embedding(
+        token_embedding = layers.Embedding(
             vocab_size, embed_dim, name="token_embedding"
         )
-        self.decoder_layers = [
+        decoder_layers = [
             MiniMaxM2DecoderLayer(
                 embed_dim,
                 mlp_dim,
                 num_heads,
                 num_kv_heads,
-                self.head_dim,
+                head_dim,
                 num_experts,
                 num_experts_per_tok,
                 norm_eps,
@@ -87,18 +113,64 @@ class MiniMaxM2Model(SubclassedBaseModel):
             )
             for i in range(num_layers)
         ]
-        self.final_norm = MiniMaxM2RMSNorm(eps=norm_eps, name="final_norm")
+        final_norm = MiniMaxM2RMSNorm(eps=norm_eps, name="final_norm")
+        causal_mask = CausalMask(name="causal_mask")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        hidden = minimax_m2_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            causal_mask=causal_mask,
+            rotary_dim=rotary_dim,
+            rope_theta=rope_theta,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.causal_mask_layer = causal_mask
+        self.lm_head = lm_head
+        self.vocab_size = vocab_size
+        self.embed_dim = embed_dim
+        self.mlp_dim = mlp_dim
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = head_dim
+        self.num_experts = num_experts
+        self.num_experts_per_tok = num_experts_per_tok
+        self.partial_rotary_factor = partial_rotary_factor
+        self.rope_theta = rope_theta
+        self.norm_eps = norm_eps
+        self.tie_embeddings = tie_embeddings
+        self.rotary_dim = rotary_dim
 
     def rope_tables(self, position_ids):
-        rd = self.rotary_dim
-        inv_freq = 1.0 / ops.power(
-            self.rope_theta, ops.arange(0, rd, 2, dtype="float32") / rd
-        )
-        freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
-        emb = ops.concatenate([freqs, freqs], axis=-1)
-        return (
-            ops.cast(ops.cos(emb), self.compute_dtype),
-            ops.cast(ops.sin(emb), self.compute_dtype),
+        return minimax_m2_rope_tables(
+            position_ids, self.rotary_dim, self.rope_theta, self.compute_dtype
         )
 
     def causal_mask(self, seq, attention_mask=None):
@@ -109,22 +181,6 @@ class MiniMaxM2Model(SubclassedBaseModel):
             am = ops.cast(ops.convert_to_tensor(attention_mask), "float32")
             mask = mask + (1.0 - am)[:, None, None, :] * MASK_NEG
         return mask
-
-    def forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        hidden = self.token_embedding(input_ids)
-        position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        cos, sin = self.rope_tables(position_ids)
-        attn_mask = self.causal_mask(seq, inputs.get("attention_mask"))
-        for layer in self.decoder_layers:
-            hidden = layer(hidden, cos, sin, attention_mask=attn_mask)
-        return self.final_norm(hidden)
-
-    def call(self, inputs):
-        return {"last_hidden_state": self.forward_features(inputs)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -174,6 +230,7 @@ class MiniMaxM2Model(SubclassedBaseModel):
                 "rope_theta": self.rope_theta,
                 "norm_eps": self.norm_eps,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -185,23 +242,12 @@ class MiniMaxM2TextGenerate(MiniMaxM2Model, BaseGeneration):
 
     # MiniMax-M2 eos `[e~[`. Explicit generate() args override.
     eos_token_id = (200020,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = self.forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(self, token_ids, padding_mask, max_len):
         batch = int(token_ids.shape[0])

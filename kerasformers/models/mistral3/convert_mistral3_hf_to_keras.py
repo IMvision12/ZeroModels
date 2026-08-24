@@ -66,18 +66,21 @@ def transfer_mistral3_weights(keras_model, hf_state_dict):
         merged = keras_model.patch_size * keras_model.spatial_merge_size
         side = 2 * merged
         n_tokens = (side // merged) ** 2
+        ids = np.array(
+            [[0] + [keras_model.image_token_id] * n_tokens + [1]], dtype="int32"
+        )
         keras_model(
             {
-                "input_ids": np.array(
-                    [[0] + [keras_model.image_token_id] * n_tokens + [1]],
-                    dtype="int64",
-                ),
+                "input_ids": ids,
+                "attention_mask": np.ones_like(ids),
                 "pixel_values": np.zeros((1, side, side, 3), dtype="float32"),
-                "image_sizes": np.array([[side, side]], dtype="int64"),
+                "image_sizes": np.array([[side, side]], dtype="int32"),
             }
         )
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        name = weight.path.split("/", 1)[1].replace("/", ".")
+        # Functional model weight paths are flat (no model-name root to strip); the
+        # vision_tower / language_model sub-layer names lead the path and are kept.
+        name = weight.path.replace("/", ".")
         if name.startswith("vision_tower."):
             mapping = VISION_MAPPING
         elif name.startswith("multi_modal_projector."):

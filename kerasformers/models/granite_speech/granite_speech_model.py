@@ -4,7 +4,14 @@ import keras
 import numpy as np
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import (
+    BaseGeneration,
+    BaseModel,
+    CausalMask,
+    MediaMerge,
+    TiedHead,
+)
+from kerasformers.base.base_mixin import inference_scope
 
 from .granite_speech_config import GraniteSpeechConfig
 from .granite_speech_layers import (
@@ -15,6 +22,43 @@ from .granite_speech_layers import (
 )
 
 MASK_NEG = -1e9
+
+
+@keras.saving.register_keras_serializable(package="kerasformers")
+class GraniteSpeechAudioFeatures(layers.Layer):
+    """Weightless wrapper running the (conformer) encoder + Q-Former projector in
+    the functional graph.
+
+    Holds ``encoder`` / ``projector`` by non-tracked references (they stay tracked
+    on the model, so weight paths are unchanged) and defers their dynamic,
+    grid/length-dependent work to eager runtime via ``compute_output_spec``; the
+    projected audio embeddings are flattened to ``(num_audio_tokens, embed_dim)``
+    for the shared :class:`~kerasformers.base.MediaMerge` scatter.
+    """
+
+    def __init__(self, encoder, projector, embed_dim, **kwargs):
+        super().__init__(**kwargs)
+        object.__setattr__(self, "encoder", encoder)
+        object.__setattr__(self, "projector", projector)
+        self.embed_dim = embed_dim
+
+    def call(self, input_features, input_features_mask=None):
+        audio = self.projector(self.encoder(input_features))
+        af = ops.reshape(audio, (-1, self.embed_dim))
+        if input_features_mask is not None:
+            # Keep only the valid projected audio embeddings (row-major), matching
+            # the count of audio placeholder tokens. Runs eagerly (concrete shapes);
+            # compute_output_spec keeps the dynamic count out of the graph trace.
+            fm = ops.convert_to_numpy(
+                ops.convert_to_tensor(input_features_mask)
+            ).astype(bool)
+            keep = ops.convert_to_tensor(np.nonzero(fm.reshape(-1))[0].astype("int32"))
+            af = ops.take(af, keep, axis=0)
+        return af
+
+    def compute_output_spec(self, input_features, input_features_mask=None):
+        return keras.KerasTensor((None, self.embed_dim), dtype=self.compute_dtype)
+
 
 # GraniteSpeechModel (backbone) and GraniteSpeechConditionalGenerate (+ LM head + .generate)
 # share the variant's weights repo, whose kf_config.json declares the canonical
@@ -140,6 +184,20 @@ class GraniteSpeechTextModel(layers.Layer):
         hidden = self.final_norm(hidden)
         return (hidden, new_cache) if use_cache else hidden
 
+    def compute_output_spec(
+        self,
+        inputs_embeds,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_values=None,
+        use_cache=False,
+        apply_lora=False,
+    ):
+        # In the functional graph this is called with use_cache=False (single tensor
+        # out); isolate the decoder stack's eager int(shape) from the graph trace.
+        return keras.KerasTensor(inputs_embeds.shape, dtype=inputs_embeds.dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -162,8 +220,37 @@ class GraniteSpeechTextModel(layers.Layer):
         return config
 
 
+def granite_speech_features(
+    input_ids,
+    attention_mask,
+    input_features,
+    input_features_mask,
+    *,
+    language_model,
+    audio_features_layer,
+    audio_merge,
+    mask_layer,
+    embedding_multiplier,
+    head_dim,
+    rope_theta,
+    audio_token_id,
+):
+    # Embed text (audio slots zeroed), splice the projected audio embeddings onto
+    # the audio-token slots, then run the Granite decoder with LoRA enabled (audio
+    # is always present in a speech model).
+    llm_ids = ops.where(ops.equal(input_ids, audio_token_id), 0, input_ids)
+    inputs_embeds = language_model.token_embedding(llm_ids)
+    audio = audio_features_layer(input_features, input_features_mask)
+    inputs_embeds = audio_merge(inputs_embeds, input_ids, audio)
+    inputs_embeds = inputs_embeds * embedding_multiplier
+    position_ids = ops.cumsum(ops.ones_like(input_ids), axis=-1) - 1
+    cos, sin = rope_cos_sin(position_ids, head_dim, rope_theta)
+    mask = mask_layer(input_ids, attention_mask)
+    return language_model(inputs_embeds, cos, sin, attention_mask=mask, apply_lora=True)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class GraniteSpeechModel(SubclassedBaseModel):
+class GraniteSpeechModel(BaseModel):
     """Granite Speech multimodal backbone: conformer audio encoder + BLIP-2
     Q-Former projector + Granite decoder, fused at audio-placeholder positions.
 
@@ -206,6 +293,8 @@ class GraniteSpeechModel(SubclassedBaseModel):
     config_class = GraniteSpeechConfig
     HUB_REPO_SIBLINGS = GRANITE_SPEECH_HUB_SIBLINGS
 
+    output_logits = False
+
     def __init__(
         self,
         vocab_size=49160,
@@ -246,16 +335,115 @@ class GraniteSpeechModel(SubclassedBaseModel):
         projector_cross_attention_frequency=1,
         projector_layer_norm_eps=1e-12,
         cat_hidden_layers=None,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = embed_dim // num_heads
+        lora_rank_eff = lora_rank if has_lora_adapter else 0
+        cat_hidden_layers = list(cat_hidden_layers) if cat_hidden_layers else None
+        num_concat = (len(cat_hidden_layers) + 1) if cat_hidden_layers else 1
+        projector_encoder_hidden_size = encoder_hidden_dim * num_concat
+
+        encoder = GraniteSpeechCTCEncoder(
+            input_dim=encoder_input_dim,
+            hidden_dim=encoder_hidden_dim,
+            num_layers=encoder_num_layers,
+            feedforward_mult=encoder_feedforward_mult,
+            num_heads=encoder_num_heads,
+            dim_head=encoder_dim_head,
+            output_dim=encoder_output_dim,
+            context_size=encoder_context_size,
+            max_pos_emb=encoder_max_pos_emb,
+            conv_expansion_factor=encoder_conv_expansion_factor,
+            conv_kernel_size=encoder_conv_kernel_size,
+            cat_hidden_layers=cat_hidden_layers,
+            name="encoder",
+        )
+        projector = GraniteSpeechEncoderProjector(
+            hidden_size=projector_dim,
+            text_hidden_size=embed_dim,
+            encoder_hidden_size=projector_encoder_hidden_size,
+            num_layers=projector_num_layers,
+            num_heads=projector_num_heads,
+            intermediate_size=projector_intermediate_size,
+            cross_attention_frequency=projector_cross_attention_frequency,
+            layer_norm_eps=projector_layer_norm_eps,
+            window_size=window_size,
+            downsample_rate=downsample_rate,
+            name="projector",
+        )
+        language_model = GraniteSpeechTextModel(
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            mlp_dim=mlp_dim,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            num_kv_heads=num_kv_heads,
+            head_dim=head_dim,
+            norm_eps=norm_eps,
+            attention_multiplier=attention_multiplier,
+            residual_multiplier=residual_multiplier,
+            tie_embeddings=tie_embeddings,
+            lora_rank=lora_rank_eff,
+            lora_alpha=lora_alpha,
+            name="language_model",
+        )
+        audio_features_layer = GraniteSpeechAudioFeatures(
+            encoder, projector, embed_dim, name="audio_features"
+        )
+        audio_merge = MediaMerge(audio_token_id, embed_dim, name="audio_merge")
+        mask_layer = CausalMask(name="causal_mask")
+
+        input_ids_in = layers.Input(shape=(None,), dtype="int32", name="input_ids")
+        attn_in = layers.Input(shape=(None,), dtype="int32", name="attention_mask")
+        feat_in = layers.Input(
+            shape=(None, encoder_input_dim), dtype="float32", name="input_features"
+        )
+        feat_mask_in = layers.Input(
+            shape=(None,), dtype="bool", name="input_features_mask"
+        )
+        inputs = {
+            "input_ids": input_ids_in,
+            "attention_mask": attn_in,
+            "input_features": feat_in,
+            "input_features_mask": feat_mask_in,
+        }
+        hidden = granite_speech_features(
+            input_ids_in,
+            attn_in,
+            feat_in,
+            feat_mask_in,
+            language_model=language_model,
+            audio_features_layer=audio_features_layer,
+            audio_merge=audio_merge,
+            mask_layer=mask_layer,
+            embedding_multiplier=embedding_multiplier,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            audio_token_id=audio_token_id,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            raw = (
+                language_model.lm_head(hidden)
+                if language_model.lm_head is not None
+                else TiedHead(language_model.token_embedding, name="lm_head")(hidden)
+            )
+            outputs["logits"] = raw / logits_scaling
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
-        self.head_dim = embed_dim // num_heads
+        self.head_dim = head_dim
         self.norm_eps = norm_eps
         self.rope_theta = rope_theta
         self.embedding_multiplier = embedding_multiplier
@@ -268,7 +456,7 @@ class GraniteSpeechModel(SubclassedBaseModel):
         self.downsample_rate = downsample_rate
         self.window_size = window_size
         self.has_lora_adapter = has_lora_adapter
-        self.lora_rank = lora_rank if has_lora_adapter else 0
+        self.lora_rank = lora_rank_eff
         self.lora_alpha = lora_alpha
         self.encoder_input_dim = encoder_input_dim
         self.encoder_num_layers = encoder_num_layers
@@ -287,55 +475,20 @@ class GraniteSpeechModel(SubclassedBaseModel):
         self.projector_intermediate_size = projector_intermediate_size
         self.projector_cross_attention_frequency = projector_cross_attention_frequency
         self.projector_layer_norm_eps = projector_layer_norm_eps
-        self.cat_hidden_layers = list(cat_hidden_layers) if cat_hidden_layers else None
+        self.cat_hidden_layers = cat_hidden_layers
+        self.projector_encoder_hidden_size = projector_encoder_hidden_size
+        self.encoder = encoder
+        self.projector = projector
+        self.language_model = language_model
+        self.audio_features_layer = audio_features_layer
+        self.audio_merge = audio_merge
+        self.mask_layer = mask_layer
 
-        num_concat = (len(self.cat_hidden_layers) + 1) if self.cat_hidden_layers else 1
-        self.projector_encoder_hidden_size = encoder_hidden_dim * num_concat
-
-        self.encoder = GraniteSpeechCTCEncoder(
-            input_dim=encoder_input_dim,
-            hidden_dim=encoder_hidden_dim,
-            num_layers=encoder_num_layers,
-            feedforward_mult=encoder_feedforward_mult,
-            num_heads=encoder_num_heads,
-            dim_head=encoder_dim_head,
-            output_dim=encoder_output_dim,
-            context_size=encoder_context_size,
-            max_pos_emb=encoder_max_pos_emb,
-            conv_expansion_factor=encoder_conv_expansion_factor,
-            conv_kernel_size=encoder_conv_kernel_size,
-            cat_hidden_layers=self.cat_hidden_layers,
-            name="encoder",
-        )
-        self.projector = GraniteSpeechEncoderProjector(
-            hidden_size=projector_dim,
-            text_hidden_size=embed_dim,
-            encoder_hidden_size=self.projector_encoder_hidden_size,
-            num_layers=projector_num_layers,
-            num_heads=projector_num_heads,
-            intermediate_size=projector_intermediate_size,
-            cross_attention_frequency=projector_cross_attention_frequency,
-            layer_norm_eps=projector_layer_norm_eps,
-            window_size=window_size,
-            downsample_rate=downsample_rate,
-            name="projector",
-        )
-        self.language_model = GraniteSpeechTextModel(
-            vocab_size=vocab_size,
-            embed_dim=embed_dim,
-            mlp_dim=mlp_dim,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            num_kv_heads=num_kv_heads,
-            head_dim=self.head_dim,
-            norm_eps=norm_eps,
-            attention_multiplier=attention_multiplier,
-            residual_multiplier=residual_multiplier,
-            tie_embeddings=tie_embeddings,
-            lora_rank=self.lora_rank,
-            lora_alpha=lora_alpha,
-            name="language_model",
-        )
+        # The audio encoder / projector / LoRA sublayers don't materialize during
+        # functional graph construction (compute_output_spec skips their eager call);
+        # a concrete dummy forward builds every weight before a stream is loaded.
+        with inference_scope():
+            self.build_dummy()
 
     def get_audio_features(self, input_features):
         encoder_out = self.encoder(input_features)
@@ -396,27 +549,6 @@ class GraniteSpeechModel(SubclassedBaseModel):
         position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
         return inputs_embeds, position_ids, has_audio
 
-    def forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        seq = int(input_ids.shape[1])
-        attention_mask = inputs.get("attention_mask")
-        inputs_embeds, position_ids, has_audio = self.prepare_inputs(
-            input_ids,
-            inputs.get("input_features"),
-            inputs.get("input_features_mask"),
-            attention_mask,
-        )
-        cos, sin = rope_cos_sin(position_ids, self.head_dim, self.rope_theta)
-        mask = self.causal_mask(seq, seq, offset=0, attention_mask=attention_mask)
-        return self.language_model(
-            inputs_embeds, cos, sin, attention_mask=mask, apply_lora=has_audio
-        )
-
-    def call(self, inputs):
-        return {"last_hidden_state": self.forward_features(inputs)}
-
     @classmethod
     def config_from_hf(cls, hf_config):
         text = hf_config["text_config"]
@@ -476,14 +608,15 @@ class GraniteSpeechModel(SubclassedBaseModel):
         frames = 2 * self.window_size
         nblocks = math.ceil(frames / self.window_size)
         n_audio = nblocks * (self.window_size // self.downsample_rate)
+        ids = np.array([[1] + [self.audio_token_id] * n_audio + [2]], dtype="int64")
         self(
             {
-                "input_ids": np.array(
-                    [[1] + [self.audio_token_id] * n_audio + [2]], dtype="int64"
-                ),
+                "input_ids": ids,
+                "attention_mask": np.ones_like(ids),
                 "input_features": np.zeros(
                     (1, frames, self.encoder_input_dim), dtype="float32"
                 ),
+                "input_features_mask": np.ones((1, n_audio), dtype="bool"),
             }
         )
 
@@ -556,6 +689,8 @@ class GraniteSpeechConditionalGenerate(GraniteSpeechModel, BaseGeneration):
     ``gen.generate(input_ids, input_features=..., input_features_mask=...)``.
     """
 
+    output_logits = True
+
     def project(self, hidden):
         lm = self.language_model
         if lm.lm_head is not None:
@@ -563,10 +698,6 @@ class GraniteSpeechConditionalGenerate(GraniteSpeechModel, BaseGeneration):
         else:
             logits = ops.matmul(hidden, ops.transpose(lm.token_embedding.embeddings))
         return logits / self.logits_scaling
-
-    def call(self, inputs):
-        hidden = self.forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(
         self,

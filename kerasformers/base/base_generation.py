@@ -12,8 +12,8 @@ from kerasformers.samplers import GreedySampler
 class BaseGeneration:
     """Backend-agnostic autoregressive generation for decoder-only LMs (mirrors HF's ``GenerationMixin``).
 
-    A mixin added to a subclassed decoder backbone (e.g. :class:`Qwen3Model`, and
-    future Granite) to give it a fast ``generate``. It bundles the shared, optimized
+    A mixin added to a decoder backbone (e.g. :class:`Qwen3Model`) to give it a
+    fast ``generate``. It bundles the shared, optimized
     cross-backend decode engine with the decoder-only entry points (the prompt is the
     input token ids). :class:`BaseSeq2SeqGeneration` subclasses this and overrides
     ``generate`` / ``generate_step`` for encoder-decoder models (Whisper, Speech2Text),

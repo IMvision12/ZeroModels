@@ -32,6 +32,20 @@ feature_map = backbone(images)  # (B, H/32, W/32, 2048)
 
 The same pattern works for every classification arch - swap `ResNet` for `CaiT`, `ViT`, `ConvNeXt`, `EfficientNet`, `Swin`, `MobileNetV3`, etc.
 
+## Data Format
+
+Every backbone reads `keras.config.image_data_format()` when it is constructed and accepts
+both `channels_last` and `channels_first` input, returning its output in the same layout you
+feed it.
+
+`Swin`, `SwinV2`, and `MobileNetV4` run their spatial core in `channels_last`: a
+`channels_first` image is transposed to `channels_last` at the model's entry (the "door"),
+the window attention and convolutions run in `channels_last`, and the spatial output is
+transposed back to `channels_first` to match the input. The result is identical to passing
+`channels_last` directly. The other convolutional backbones (`ResNet`, `ConvNeXt`,
+`MobileNetV2`/`V3`, and similar) run their convolutions natively in the requested layout, and
+the ViT-family backbones work in token space, so they are layout-agnostic.
+
 ## `as_backbone=True` - multi-scale features
 
 Pass `as_backbone=True` to `XModel` (not `XImageClassify`) to get a **list of per-stage feature maps** instead of a single tensor. This is what you'd hook an FPN / segmentation neck / detection head onto.

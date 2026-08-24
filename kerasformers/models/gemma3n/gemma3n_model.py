@@ -3,10 +3,15 @@ from keras import layers, ops
 
 from kerasformers.base import (
     BaseGeneration,
+    BaseModel,
+    CausalMask,
     CheckpointSource,
-    SubclassedBaseModel,
+    MediaMerge,
     TextOnlyGeneration,
+    TiedHead,
 )
+from kerasformers.base.base_mixin import inference_scope
+from kerasformers.models.gemma4.gemma4_model import Gemma4Reshape4D
 
 from .gemma3n_config import Gemma3nConfig, Gemma3nTextConfig
 from .gemma3n_layers import (
@@ -24,8 +29,211 @@ from .gemma3n_layers import (
 MASK_NEG = -1e9
 
 
+def gemma3n_rope_tables(position_ids, head_dim, theta, compute_dtype):
+    inv_freq = 1.0 / ops.power(
+        theta, ops.arange(0, head_dim, 2, dtype="float32") / head_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return (
+        ops.cast(ops.cos(emb), compute_dtype),
+        ops.cast(ops.sin(emb), compute_dtype),
+    )
+
+
+def gemma3n_altup_expand(hidden_0, altup_projections):
+    target = ops.sqrt(ops.mean(ops.square(hidden_0), axis=-1, keepdims=True))
+    streams = [hidden_0]
+    for proj in altup_projections:
+        cur = proj(hidden_0)
+        mag = ops.sqrt(
+            ops.maximum(ops.mean(ops.square(cur), axis=-1, keepdims=True), 1e-5)
+        )
+        streams.append(cur * target / mag)
+    return ops.stack(streams, axis=0)  # (P, b, s, h)
+
+
+def gemma3n_altup_unembed(hidden, altup_unembed_projections, final_norm):
+    target = ops.sqrt(ops.mean(ops.square(hidden[0]), axis=-1, keepdims=True))
+    streams = [hidden[0]]
+    for i, proj in enumerate(altup_unembed_projections):
+        cur = proj(hidden[i + 1])
+        mag = ops.sqrt(
+            ops.maximum(ops.mean(ops.square(cur), axis=-1, keepdims=True), 1e-5)
+        )
+        streams.append(cur * target / mag)
+    return final_norm(ops.mean(ops.stack(streams, axis=0), axis=0))
+
+
+def gemma3n_project_per_layer_inputs(
+    inputs_embeds,
+    per_layer_inputs,
+    per_layer_model_projection,
+    per_layer_projection_norm,
+    reshape_4d,
+    embed_dim,
+    compute_dtype,
+):
+    proj = per_layer_model_projection(inputs_embeds) * ops.cast(
+        embed_dim**-0.5, compute_dtype
+    )
+    proj = per_layer_projection_norm(reshape_4d(proj))
+    return (proj + per_layer_inputs) * ops.cast(2.0**-0.5, compute_dtype)
+
+
+def gemma3n_run_layers(
+    hidden,
+    rope,
+    masks,
+    per_layer_inputs,
+    decoder_layers,
+    layer_types,
+    num_kv_shared_layers,
+    first_kv_shared,
+):
+    shared = {}
+    for i, layer in enumerate(decoder_layers):
+        lt = layer_types[i]
+        cos, sin = rope[lt]
+        pli = per_layer_inputs[:, :, i, :]
+        is_shared = (
+            num_kv_shared_layers > 0 and first_kv_shared > 0 and i >= first_kv_shared
+        )
+        hidden, kv = layer(
+            hidden,
+            cos,
+            sin,
+            pli,
+            attention_mask=masks[lt],
+            shared_kv=shared.get(lt) if is_shared else None,
+        )
+        if num_kv_shared_layers > 0 and not is_shared:
+            shared[lt] = kv
+    return hidden
+
+
+def gemma3n_decode_body(
+    inputs_embeds,
+    per_layer_inputs_raw,
+    attention_mask,
+    input_ids_for_mask,
+    *,
+    altup_projections,
+    altup_unembed_projections,
+    per_layer_model_projection,
+    per_layer_projection_norm,
+    reshape_4d,
+    decoder_layers,
+    final_norm,
+    full_mask_layer,
+    sliding_mask_layer,
+    layer_types,
+    embed_dim,
+    head_dim,
+    rope_theta,
+    rope_local_theta,
+    num_kv_shared_layers,
+    first_kv_shared,
+    compute_dtype,
+):
+    per_layer_inputs = gemma3n_project_per_layer_inputs(
+        inputs_embeds,
+        per_layer_inputs_raw,
+        per_layer_model_projection,
+        per_layer_projection_norm,
+        reshape_4d,
+        embed_dim,
+        compute_dtype,
+    )
+    hidden = gemma3n_altup_expand(inputs_embeds, altup_projections)
+    position_ids = ops.where(
+        attention_mask == 0, 1, ops.cumsum(attention_mask, axis=-1) - 1
+    )
+    rope = {
+        "full_attention": gemma3n_rope_tables(
+            position_ids, head_dim, rope_theta, compute_dtype
+        ),
+        "sliding_attention": gemma3n_rope_tables(
+            position_ids, head_dim, rope_local_theta, compute_dtype
+        ),
+    }
+    masks = {
+        "full_attention": full_mask_layer(input_ids_for_mask, attention_mask),
+        "sliding_attention": sliding_mask_layer(input_ids_for_mask, attention_mask),
+    }
+    hidden = gemma3n_run_layers(
+        hidden,
+        rope,
+        masks,
+        per_layer_inputs,
+        decoder_layers,
+        layer_types,
+        num_kv_shared_layers,
+        first_kv_shared,
+    )
+    return gemma3n_altup_unembed(hidden, altup_unembed_projections, final_norm)
+
+
+def gemma3n_text_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    embed_tokens_per_layer,
+    altup_projections,
+    altup_unembed_projections,
+    per_layer_model_projection,
+    per_layer_projection_norm,
+    reshape_4d,
+    decoder_layers,
+    final_norm,
+    full_mask_layer,
+    sliding_mask_layer,
+    layer_types,
+    vocab_size_per_layer_input,
+    hidden_size_per_layer_input,
+    embed_dim,
+    head_dim,
+    rope_theta,
+    rope_local_theta,
+    num_kv_shared_layers,
+    first_kv_shared,
+    compute_dtype,
+):
+    inputs_embeds = token_embedding(input_ids) * ops.cast(embed_dim**0.5, compute_dtype)
+    valid = ops.logical_and(input_ids >= 0, input_ids < vocab_size_per_layer_input)
+    ple_tokens = ops.where(valid, input_ids, ops.zeros_like(input_ids))
+    ple = embed_tokens_per_layer(ple_tokens) * ops.cast(
+        hidden_size_per_layer_input**0.5, compute_dtype
+    )
+    ple = reshape_4d(ple)
+    return gemma3n_decode_body(
+        inputs_embeds,
+        ple,
+        attention_mask,
+        input_ids,
+        altup_projections=altup_projections,
+        altup_unembed_projections=altup_unembed_projections,
+        per_layer_model_projection=per_layer_model_projection,
+        per_layer_projection_norm=per_layer_projection_norm,
+        reshape_4d=reshape_4d,
+        decoder_layers=decoder_layers,
+        final_norm=final_norm,
+        full_mask_layer=full_mask_layer,
+        sliding_mask_layer=sliding_mask_layer,
+        layer_types=layer_types,
+        embed_dim=embed_dim,
+        head_dim=head_dim,
+        rope_theta=rope_theta,
+        rope_local_theta=rope_local_theta,
+        num_kv_shared_layers=num_kv_shared_layers,
+        first_kv_shared=first_kv_shared,
+        compute_dtype=compute_dtype,
+    )
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Gemma3nTextModel(SubclassedBaseModel):
+class Gemma3nTextModel(BaseModel):
     """Gemma 3n text decoder backbone (no LM head).
 
     Google's on-device decoder: scaled embeddings feed a 4-stream **AltUp** state
@@ -54,6 +262,8 @@ class Gemma3nTextModel(SubclassedBaseModel):
     config_class = Gemma3nTextConfig
     default_load_dtype = "bfloat16"  # Google ships gemma-3n in bf16
 
+    output_logits = False
+
     def __init__(
         self,
         vocab_size=262400,
@@ -81,9 +291,154 @@ class Gemma3nTextModel(SubclassedBaseModel):
         num_kv_shared_layers=15,
         laurel_rank=64,
         activation_sparsity_pattern=None,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        first_kv_shared = num_layers - num_kv_shared_layers
+        mlp_dims = (
+            list(mlp_dim)
+            if isinstance(mlp_dim, (list, tuple))
+            else [mlp_dim] * num_layers
+        )
+        resolved_layer_types = (
+            list(layer_types)
+            if layer_types
+            else [
+                "full_attention"
+                if (i + 1) % sliding_window_pattern == 0
+                else "sliding_attention"
+                for i in range(num_layers)
+            ]
+        )
+        if activation_sparsity_pattern is not None:
+            resolved_sparsity = list(activation_sparsity_pattern)
+        else:
+            n_sparse = 10 if num_layers > 10 else 0
+            resolved_sparsity = [0.95] * n_sparse + [0.0] * (num_layers - n_sparse)
+
+        token_embedding = layers.Embedding(
+            vocab_size, embed_dim, name="token_embedding"
+        )
+        embed_tokens_per_layer = layers.Embedding(
+            vocab_size_per_layer_input,
+            num_layers * hidden_size_per_layer_input,
+            name="embed_tokens_per_layer",
+        )
+        per_layer_model_projection = layers.Dense(
+            num_layers * hidden_size_per_layer_input,
+            use_bias=False,
+            name="per_layer_model_projection",
+        )
+        per_layer_projection_norm = Gemma3nRMSNorm(
+            eps=norm_eps, name="per_layer_projection_norm"
+        )
+        altup_projections = [
+            layers.Dense(embed_dim, use_bias=False, name=f"altup_projection_{i}")
+            for i in range(altup_num_inputs - 1)
+        ]
+        altup_unembed_projections = [
+            layers.Dense(
+                embed_dim, use_bias=False, name=f"altup_unembed_projection_{i}"
+            )
+            for i in range(altup_num_inputs - 1)
+        ]
+        decoder_layers = []
+        for i in range(num_layers):
+            is_shared = (
+                num_kv_shared_layers > 0
+                and first_kv_shared > 0
+                and i >= first_kv_shared
+            )
+            decoder_layers.append(
+                Gemma3nDecoderLayer(
+                    embed_dim,
+                    mlp_dims[i],
+                    num_heads,
+                    num_kv_heads,
+                    head_dim,
+                    hidden_size_per_layer_input,
+                    laurel_rank,
+                    altup_num_inputs,
+                    altup_active_idx,
+                    altup_correct_scale,
+                    activation_sparsity=resolved_sparsity[i],
+                    is_kv_shared=is_shared,
+                    norm_eps=norm_eps,
+                    name=f"decoder_layer_{i}",
+                )
+            )
+        final_norm = Gemma3nRMSNorm(eps=norm_eps, name="final_norm")
+        reshape_4d = Gemma4Reshape4D(
+            num_layers, hidden_size_per_layer_input, name="ple_reshape"
+        )
+        full_mask_layer = CausalMask(name="full_mask")
+        sliding_mask_layer = CausalMask(
+            sliding_window=sliding_window, name="sliding_mask"
+        )
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        hidden = gemma3n_text_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            embed_tokens_per_layer=embed_tokens_per_layer,
+            altup_projections=altup_projections,
+            altup_unembed_projections=altup_unembed_projections,
+            per_layer_model_projection=per_layer_model_projection,
+            per_layer_projection_norm=per_layer_projection_norm,
+            reshape_4d=reshape_4d,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            full_mask_layer=full_mask_layer,
+            sliding_mask_layer=sliding_mask_layer,
+            layer_types=resolved_layer_types,
+            vocab_size_per_layer_input=vocab_size_per_layer_input,
+            hidden_size_per_layer_input=hidden_size_per_layer_input,
+            embed_dim=embed_dim,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            rope_local_theta=rope_local_theta,
+            num_kv_shared_layers=num_kv_shared_layers,
+            first_kv_shared=first_kv_shared,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            raw = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+            if final_logit_softcapping is not None:
+                raw = ops.tanh(raw / final_logit_softcapping) * final_logit_softcapping
+            outputs["logits"] = raw
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.embed_tokens_per_layer = embed_tokens_per_layer
+        self.per_layer_model_projection = per_layer_model_projection
+        self.per_layer_projection_norm = per_layer_projection_norm
+        self.altup_projections = altup_projections
+        self.altup_unembed_projections = altup_unembed_projections
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.reshape_4d = reshape_4d
+        self.full_mask_layer = full_mask_layer
+        self.sliding_mask_layer = sliding_mask_layer
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.num_layers = num_layers
@@ -105,84 +460,22 @@ class Gemma3nTextModel(SubclassedBaseModel):
         self.altup_correct_scale = altup_correct_scale
         self.num_kv_shared_layers = num_kv_shared_layers
         self.laurel_rank = laurel_rank
-        self.first_kv_shared = num_layers - num_kv_shared_layers
+        self.first_kv_shared = first_kv_shared
+        self.mlp_dims = mlp_dims
+        self.layer_types = resolved_layer_types
+        self.activation_sparsity_pattern = resolved_sparsity
 
-        self.mlp_dims = (
-            list(mlp_dim)
-            if isinstance(mlp_dim, (list, tuple))
-            else [mlp_dim] * num_layers
-        )
-        self.layer_types = (
-            list(layer_types)
-            if layer_types
-            else [
-                "full_attention"
-                if (i + 1) % sliding_window_pattern == 0
-                else "sliding_attention"
-                for i in range(num_layers)
-            ]
-        )
-        if activation_sparsity_pattern is not None:
-            self.activation_sparsity_pattern = list(activation_sparsity_pattern)
-        else:
-            n_sparse = 10 if num_layers > 10 else 0
-            self.activation_sparsity_pattern = [0.95] * n_sparse + [0.0] * (
-                num_layers - n_sparse
+        # AltUp streams / lazily-built LAuReL + MLP sublayers don't all materialize
+        # during functional graph construction; a concrete dummy forward under
+        # inference scope builds every weight so from_weights (loads before any
+        # forward) has a complete model.
+        with inference_scope():
+            self(
+                {
+                    "input_ids": ops.zeros((1, 4), dtype="int32"),
+                    "attention_mask": ops.ones((1, 4), dtype="int32"),
+                }
             )
-
-        self.token_embedding = layers.Embedding(
-            vocab_size, embed_dim, name="token_embedding"
-        )
-        self.embed_tokens_per_layer = layers.Embedding(
-            vocab_size_per_layer_input,
-            num_layers * hidden_size_per_layer_input,
-            name="embed_tokens_per_layer",
-        )
-        self.per_layer_model_projection = layers.Dense(
-            num_layers * hidden_size_per_layer_input,
-            use_bias=False,
-            name="per_layer_model_projection",
-        )
-        self.per_layer_projection_norm = Gemma3nRMSNorm(
-            eps=norm_eps, name="per_layer_projection_norm"
-        )
-        self.altup_projections = [
-            layers.Dense(embed_dim, use_bias=False, name=f"altup_projection_{i}")
-            for i in range(altup_num_inputs - 1)
-        ]
-        self.altup_unembed_projections = [
-            layers.Dense(
-                embed_dim, use_bias=False, name=f"altup_unembed_projection_{i}"
-            )
-            for i in range(altup_num_inputs - 1)
-        ]
-
-        self.decoder_layers = []
-        for i in range(num_layers):
-            is_shared = (
-                num_kv_shared_layers > 0
-                and self.first_kv_shared > 0
-                and i >= self.first_kv_shared
-            )
-            self.decoder_layers.append(
-                Gemma3nDecoderLayer(
-                    embed_dim,
-                    self.mlp_dims[i],
-                    num_heads,
-                    num_kv_heads,
-                    head_dim,
-                    hidden_size_per_layer_input,
-                    laurel_rank,
-                    altup_num_inputs,
-                    altup_active_idx,
-                    altup_correct_scale,
-                    activation_sparsity=self.activation_sparsity_pattern[i],
-                    is_kv_shared=is_shared,
-                    norm_eps=norm_eps,
-                    name=f"decoder_layer_{i}",
-                )
-            )
-        self.final_norm = Gemma3nRMSNorm(eps=norm_eps, name="final_norm")
 
     def is_sliding(self, layer_idx):
         return self.layer_types[layer_idx] == "sliding_attention"
@@ -195,14 +488,12 @@ class Gemma3nTextModel(SubclassedBaseModel):
     def get_per_layer_inputs(self, tokens):
         # Per-Layer Embedding lookup (the hidden**0.5 scale is applied here since the
         # Keras Embedding is unscaled). ``tokens`` must be in [0, vocab_size_per_layer).
-        b = ops.shape(tokens)[0]
-        s = ops.shape(tokens)[1]
+        # Uses reshape_4d (compute_output_spec) so this is graph-safe when reused by
+        # the multimodal fuse; eager callers (build_cache) get the same result.
         ple = self.embed_tokens_per_layer(tokens) * ops.cast(
             self.hidden_size_per_layer_input**0.5, self.compute_dtype
         )
-        return ops.reshape(
-            ple, (b, s, self.num_layers, self.hidden_size_per_layer_input)
-        )
+        return self.reshape_4d(ple)
 
     def project_per_layer_inputs(self, inputs_embeds, per_layer_inputs):
         b = ops.shape(inputs_embeds)[0]
@@ -310,33 +601,35 @@ class Gemma3nTextModel(SubclassedBaseModel):
                 shared[lt] = kv
         return hidden
 
-    def call(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        attention_mask = inputs.get("attention_mask")
-        inputs_embeds = inputs.get("inputs_embeds")
-        per_layer_inputs = inputs.get("per_layer_inputs")
-        if inputs_embeds is None:
-            input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-            inputs_embeds = self.embed_scaled(input_ids)
-            if per_layer_inputs is None:
-                per_layer_inputs = self.get_per_layer_inputs(
-                    self.mask_per_layer_tokens(input_ids)
-                )
-        batch = int(inputs_embeds.shape[0])
-        seq = int(inputs_embeds.shape[1])
-        per_layer_inputs = self.project_per_layer_inputs(
-            inputs_embeds, per_layer_inputs
+    def decode_from_embeds(
+        self, inputs_embeds, per_layer_inputs_raw, attention_mask, input_ids
+    ):
+        # Shared decode body (project PLE -> AltUp expand -> layers -> unembed),
+        # reused by the multimodal graph after it fuses soft tokens. Delegates to
+        # the same module function the text-only graph uses.
+        return gemma3n_decode_body(
+            inputs_embeds,
+            per_layer_inputs_raw,
+            attention_mask,
+            input_ids,
+            altup_projections=self.altup_projections,
+            altup_unembed_projections=self.altup_unembed_projections,
+            per_layer_model_projection=self.per_layer_model_projection,
+            per_layer_projection_norm=self.per_layer_projection_norm,
+            reshape_4d=self.reshape_4d,
+            decoder_layers=self.decoder_layers,
+            final_norm=self.final_norm,
+            full_mask_layer=self.full_mask_layer,
+            sliding_mask_layer=self.sliding_mask_layer,
+            layer_types=self.layer_types,
+            embed_dim=self.embed_dim,
+            head_dim=self.head_dim,
+            rope_theta=self.rope_theta,
+            rope_local_theta=self.rope_local_theta,
+            num_kv_shared_layers=self.num_kv_shared_layers,
+            first_kv_shared=self.first_kv_shared,
+            compute_dtype=self.compute_dtype,
         )
-        hidden = self.altup_expand(inputs_embeds)
-        position_ids = self.compute_position_ids(attention_mask, batch, seq)
-        hidden = self.run_layers(
-            hidden,
-            self.rope_for(position_ids),
-            self.build_masks(seq, attention_mask),
-            per_layer_inputs,
-        )
-        return {"last_hidden_state": self.altup_unembed(hidden)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -496,6 +789,15 @@ class Gemma3nAudioEncoder(layers.Layer):
         x = ops.where(mask[..., None], ops.zeros_like(x), x)
         return x, mask
 
+    def compute_output_spec(self, audio_mel, audio_mel_mask=None):
+        # The subsampling/reduction factor makes T' dynamic and the call does
+        # eager int(shape); keep both out of the functional-graph trace.
+        b = audio_mel.shape[0]
+        return (
+            keras.KerasTensor((b, None, self.hidden_size), dtype=self.compute_dtype),
+            keras.KerasTensor((b, None), dtype="bool"),
+        )
+
 
 @keras.saving.register_keras_serializable(package="kerasformers")
 class MobileNetV5Encoder(layers.Layer):
@@ -511,29 +813,41 @@ class MobileNetV5Encoder(layers.Layer):
         super().__init__(**kwargs)
         self.hidden_size = hidden_size
         self.eps = eps
+        self.data_format = keras.config.image_data_format()
         arch = MNV5_ARCH
         stem = arch["stem"]
-        self.conv_stem = ConvNormAct(
-            stem["out"],
-            stem["k"],
-            stem["s"],
-            False,
-            True,
-            bias=stem["b"],
-            eps=eps,
-            name="conv_stem",
-        )
-        self.stages = []
-        for si, stage in enumerate(arch["stages"]):
-            blocks = [
-                build_block(spec, eps, f"blocks_{si}_{bi}")
-                for bi, spec in enumerate(stage)
-            ]
-            self.stages.append(blocks)
-        self.msfa_indices = arch["msfa"]["indices"]
-        self.msfa = MobileNetV5MSFA(arch["msfa"], eps=eps, name="msfa")
+        # MobileNet-V5 is channels-last internally throughout (the MQA blocks read
+        # x.shape[1:3] as H,W). Build every conv/norm under a forced channels_last
+        # context so their layouts are format-independent; ``call`` transposes a
+        # channels_first input to NHWC up front and everything downstream matches.
+        _orig = keras.config.image_data_format()
+        keras.config.set_image_data_format("channels_last")
+        try:
+            self.conv_stem = ConvNormAct(
+                stem["out"],
+                stem["k"],
+                stem["s"],
+                False,
+                True,
+                bias=stem["b"],
+                eps=eps,
+                name="conv_stem",
+            )
+            self.stages = []
+            for si, stage in enumerate(arch["stages"]):
+                blocks = [
+                    build_block(spec, eps, f"blocks_{si}_{bi}")
+                    for bi, spec in enumerate(stage)
+                ]
+                self.stages.append(blocks)
+            self.msfa_indices = arch["msfa"]["indices"]
+            self.msfa = MobileNetV5MSFA(arch["msfa"], eps=eps, name="msfa")
+        finally:
+            keras.config.set_image_data_format(_orig)
 
     def call(self, pixel_values):
+        if self.data_format == "channels_first":
+            pixel_values = ops.transpose(pixel_values, (0, 2, 3, 1))
         x = self.conv_stem(pixel_values)
         # feature_info maps: index 1 = stage0 out, ..., index i+1 = stage i out.
         feats = [None]  # index 0 is the stem (unused by msfa)
@@ -544,6 +858,14 @@ class MobileNetV5Encoder(layers.Layer):
         msfa_inputs = [feats[i] for i in self.msfa_indices]
         return self.msfa(msfa_inputs)  # [B, 16, 16, hidden_size]
 
+    def compute_output_spec(self, pixel_values):
+        # The grid-conv stages run eagerly at runtime; the spatial grid is
+        # dynamic, so keep it out of the functional-graph trace.
+        return keras.KerasTensor(
+            (pixel_values.shape[0], None, None, self.hidden_size),
+            dtype=self.compute_dtype,
+        )
+
     def get_config(self):
         config = super().get_config()
         config.update({"hidden_size": self.hidden_size, "eps": self.eps})
@@ -551,7 +873,124 @@ class MobileNetV5Encoder(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Gemma3nModel(SubclassedBaseModel):
+class Gemma3nVisionReshape(layers.Layer):
+    """Weightless: flatten the vision grid ``(b, gh, gw, C)`` to soft-token rows
+    ``(b*soft, v_hidden)`` and apply the ``sqrt(v_hidden)`` scale. The dynamic
+    grid / batch flatten is isolated behind ``compute_output_spec``."""
+
+    def __init__(self, v_hidden, **kwargs):
+        super().__init__(**kwargs)
+        self.v_hidden = v_hidden
+
+    def call(self, feat):
+        feat = ops.reshape(feat, (-1, self.v_hidden))
+        return feat * ops.cast(self.v_hidden**0.5, feat.dtype)
+
+    def compute_output_spec(self, feat):
+        return keras.KerasTensor((None, self.v_hidden), dtype=feat.dtype)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({"v_hidden": self.v_hidden})
+        return config
+
+
+@keras.saving.register_keras_serializable(package="kerasformers")
+class Gemma3nAudioPad(layers.Layer):
+    """Weightless: replace padded audio frames with ``pad_emb``, pad / truncate to
+    a fixed ``soft_tokens`` count, and flatten to ``(b*soft, text_hidden)`` rows.
+    The data-dependent pad/truncate runs eagerly; ``compute_output_spec`` keeps it
+    out of the functional-graph trace."""
+
+    def __init__(self, soft_tokens, **kwargs):
+        super().__init__(**kwargs)
+        self.soft_tokens = soft_tokens
+
+    def call(self, a_feat, audio_mask, pad_emb):
+        a_feat = ops.where(audio_mask[..., None], pad_emb, a_feat)
+        b = ops.shape(a_feat)[0]
+        t_prime = int(a_feat.shape[1])
+        th = int(a_feat.shape[2])
+        extra = self.soft_tokens - t_prime
+        if extra > 0:
+            extra_feat = ops.broadcast_to(pad_emb, (b, extra, th))
+            a_feat = ops.concatenate([a_feat, extra_feat], axis=1)
+        else:
+            a_feat = a_feat[:, : self.soft_tokens]
+        return ops.reshape(a_feat, (-1, th))
+
+    def compute_output_spec(self, a_feat, audio_mask, pad_emb):
+        return keras.KerasTensor((None, a_feat.shape[-1]), dtype=a_feat.dtype)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({"soft_tokens": self.soft_tokens})
+        return config
+
+
+def gemma3n_multimodal_features(
+    input_ids,
+    attention_mask,
+    pixel_values,
+    input_features,
+    input_features_mask,
+    *,
+    language_model,
+    vision_tower,
+    embed_vision,
+    vision_reshape,
+    vision_merge,
+    audio_tower,
+    embed_audio,
+    audio_pad,
+    audio_merge,
+    vision_vocab_offset,
+    vision_vocab_size,
+    audio_vocab_offset,
+    audio_vocab_size,
+):
+    lm = language_model
+    ids = input_ids
+    inputs_embeds = lm.embed_scaled(ids)
+    ple = lm.get_per_layer_inputs(lm.mask_per_layer_tokens(ids))
+
+    # Hard multimodal token ids embedded through the projectors' own tables.
+    if embed_vision is not None:
+        vision_end = vision_vocab_offset + vision_vocab_size
+        vis_mask = ops.logical_and(ids >= vision_vocab_offset, ids < vision_end)
+        dummy = vision_vocab_offset + vision_vocab_size - 1
+        v_emb = ops.cast(
+            embed_vision(input_ids=ops.where(vis_mask, ids, dummy)),
+            inputs_embeds.dtype,
+        )
+        inputs_embeds = ops.where(vis_mask[..., None], v_emb, inputs_embeds)
+    if embed_audio is not None:
+        aud_mask = ids >= audio_vocab_offset
+        dummy_a = audio_vocab_offset + audio_vocab_size - 1
+        a_emb = ops.cast(
+            embed_audio(input_ids=ops.where(aud_mask, ids, dummy_a)),
+            inputs_embeds.dtype,
+        )
+        inputs_embeds = ops.where(aud_mask[..., None], a_emb, inputs_embeds)
+
+    # Soft tokens scattered from actual pixel / audio inputs.
+    if vision_tower is not None:
+        feat = vision_reshape(vision_tower(pixel_values))
+        img_soft = embed_vision(inputs_embeds=feat)
+        inputs_embeds = vision_merge(inputs_embeds, ids, img_soft)
+    if audio_tower is not None:
+        mel_mask = ops.logical_not(ops.cast(input_features_mask, "bool"))
+        audio_out, audio_mask = audio_tower(input_features, mel_mask)
+        pad_id = audio_vocab_offset + audio_vocab_size - 1
+        pad_emb = embed_audio(input_ids=ops.full((1, 1), pad_id, dtype="int32"))
+        a_soft = audio_pad(embed_audio(inputs_embeds=audio_out), audio_mask, pad_emb)
+        inputs_embeds = audio_merge(inputs_embeds, ids, a_soft)
+
+    return lm.decode_from_embeds(inputs_embeds, ple, attention_mask, ids)
+
+
+@keras.saving.register_keras_serializable(package="kerasformers")
+class Gemma3nModel(BaseModel):
     """Gemma 3n vision + audio + text backbone (no LM head).
 
     Composes the MobileNet-V5 vision tower, the USM audio tower
@@ -575,6 +1014,8 @@ class Gemma3nModel(SubclassedBaseModel):
     config_class = None  # set below to Gemma3nConfig
     default_load_dtype = "bfloat16"
 
+    output_logits = False
+
     def __init__(
         self,
         text_config=None,
@@ -589,12 +1030,137 @@ class Gemma3nModel(SubclassedBaseModel):
         vision_soft_tokens_per_image=256,
         audio_soft_tokens_per_image=188,
         tie_word_embeddings=True,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.text_config = dict(text_config or {})
-        self.vision_config = dict(vision_config) if vision_config else None
-        self.audio_config = dict(audio_config) if audio_config else None
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        text_config = dict(text_config or {})
+        vision_config = dict(vision_config) if vision_config else None
+        audio_config = dict(audio_config) if audio_config else None
+
+        language_model = Gemma3nTextModel(**text_config, name="language_model")
+        text_hidden = language_model.embed_dim
+
+        vision_tower = embed_vision = vision_reshape = vision_merge = None
+        vision_vocab_offset = vision_vocab_size = None
+        if vision_config is not None:
+            v = dict(vision_config)
+            vision_vocab_size = v.pop("vocab_size", 128)
+            vision_vocab_offset = v.pop("vocab_offset", 262144)
+            v_hidden = v.get("hidden_size", 2048)
+            v_eps = v.pop("rms_norm_eps", 1e-6)
+            v.pop("architecture", None)
+            v.pop("do_pooling", None)
+            vision_tower = MobileNetV5Encoder(**v, name="vision_tower")
+            embed_vision = Gemma3nMultimodalEmbedder(
+                v_hidden,
+                text_hidden,
+                vision_vocab_size,
+                vision_vocab_offset,
+                eps=v_eps,
+                name="embed_vision",
+            )
+            vision_reshape = Gemma3nVisionReshape(v_hidden, name="vision_reshape")
+            vision_merge = MediaMerge(image_token_id, text_hidden, name="vision_merge")
+
+        audio_tower = embed_audio = audio_pad = audio_merge = None
+        audio_vocab_offset = audio_vocab_size = None
+        if audio_config is not None:
+            a = dict(audio_config)
+            audio_vocab_size = a.pop("vocab_size", 128)
+            audio_vocab_offset = a.pop("vocab_offset", 262272)
+            a_hidden = a.get("hidden_size", 1536)
+            a_eps = a.get("rms_norm_eps", 1e-6)
+            audio_tower = Gemma3nAudioEncoder(**a, name="audio_tower")
+            embed_audio = Gemma3nMultimodalEmbedder(
+                a_hidden,
+                text_hidden,
+                audio_vocab_size,
+                audio_vocab_offset,
+                eps=a_eps,
+                name="embed_audio",
+            )
+            audio_pad = Gemma3nAudioPad(audio_soft_tokens_per_image, name="audio_pad")
+            audio_merge = MediaMerge(audio_token_id, text_hidden, name="audio_merge")
+
+        lm_head = None
+        if self.output_logits and not language_model.tie_embeddings:
+            lm_head = layers.Dense(
+                language_model.vocab_size, use_bias=False, name="lm_head"
+            )
+
+        input_ids_in = layers.Input(shape=(None,), dtype="int32", name="input_ids")
+        attn_in = layers.Input(shape=(None,), dtype="int32", name="attention_mask")
+        inputs = {"input_ids": input_ids_in, "attention_mask": attn_in}
+        has_towers = vision_tower is not None or audio_tower is not None
+        if has_towers:
+            pv = feat = feat_mask = None
+            if vision_tower is not None:
+                pv = layers.Input(
+                    shape=(
+                        (3, None, None)
+                        if keras.config.image_data_format() == "channels_first"
+                        else (None, None, 3)
+                    ),
+                    dtype="float32",
+                    name="pixel_values",
+                )
+                inputs["pixel_values"] = pv
+            if audio_tower is not None:
+                feat_size = audio_config.get("input_feat_size", 128)
+                feat = layers.Input(
+                    shape=(None, feat_size), dtype="float32", name="input_features"
+                )
+                feat_mask = layers.Input(
+                    shape=(None,), dtype="bool", name="input_features_mask"
+                )
+                inputs["input_features"] = feat
+                inputs["input_features_mask"] = feat_mask
+            hidden = gemma3n_multimodal_features(
+                input_ids_in,
+                attn_in,
+                pv,
+                feat,
+                feat_mask,
+                language_model=language_model,
+                vision_tower=vision_tower,
+                embed_vision=embed_vision,
+                vision_reshape=vision_reshape,
+                vision_merge=vision_merge,
+                audio_tower=audio_tower,
+                embed_audio=embed_audio,
+                audio_pad=audio_pad,
+                audio_merge=audio_merge,
+                vision_vocab_offset=vision_vocab_offset,
+                vision_vocab_size=vision_vocab_size,
+                audio_vocab_offset=audio_vocab_offset,
+                audio_vocab_size=audio_vocab_size,
+            )
+        else:
+            hidden = language_model(
+                {"input_ids": input_ids_in, "attention_mask": attn_in}
+            )["last_hidden_state"]
+
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            raw = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(language_model.token_embedding, name="lm_head")(hidden)
+            )
+            cap = language_model.final_logit_softcapping
+            if cap is not None:
+                raw = ops.tanh(raw / cap) * cap
+            outputs["logits"] = raw
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.text_config = text_config
+        self.vision_config = vision_config
+        self.audio_config = audio_config
         self.image_token_id = image_token_id
         self.audio_token_id = audio_token_id
         self.boi_token_id = boi_token_id
@@ -604,66 +1170,48 @@ class Gemma3nModel(SubclassedBaseModel):
         self.vision_soft_tokens_per_image = vision_soft_tokens_per_image
         self.audio_soft_tokens_per_image = audio_soft_tokens_per_image
         self.tie_word_embeddings = tie_word_embeddings
+        self.language_model = language_model
+        self.vision_tower = vision_tower
+        self.embed_vision = embed_vision
+        self.vision_reshape = vision_reshape
+        self.vision_merge = vision_merge
+        self.vision_vocab_offset = vision_vocab_offset
+        self.vision_vocab_size = vision_vocab_size
+        self.audio_tower = audio_tower
+        self.embed_audio = embed_audio
+        self.audio_pad = audio_pad
+        self.audio_merge = audio_merge
+        self.audio_vocab_offset = audio_vocab_offset
+        self.audio_vocab_size = audio_vocab_size
+        self.lm_head = lm_head
 
-        self.language_model = Gemma3nTextModel(
-            **self.text_config, name="language_model"
-        )
-        text_hidden = self.language_model.embed_dim
-
-        self.vision_tower = None
-        self.embed_vision = None
-        self.vision_vocab_offset = None
-        self.vision_vocab_size = None
-        if self.vision_config is not None:
-            v = dict(self.vision_config)
-            self.vision_vocab_size = v.pop("vocab_size", 128)
-            self.vision_vocab_offset = v.pop("vocab_offset", 262144)
-            v_hidden = v.get("hidden_size", 2048)
-            v_eps = v.pop("rms_norm_eps", 1e-6)
-            v.pop("architecture", None)
-            v.pop("do_pooling", None)
-            self.vision_tower = MobileNetV5Encoder(**v, name="vision_tower")
-            self.embed_vision = Gemma3nMultimodalEmbedder(
-                v_hidden,
-                text_hidden,
-                self.vision_vocab_size,
-                self.vision_vocab_offset,
-                eps=v_eps,
-                name="embed_vision",
-            )
-
-        self.audio_tower = None
-        self.embed_audio = None
-        self.audio_vocab_offset = None
-        self.audio_vocab_size = None
-        if self.audio_config is not None:
-            a = dict(self.audio_config)
-            self.audio_vocab_size = a.pop("vocab_size", 128)
-            self.audio_vocab_offset = a.pop("vocab_offset", 262272)
-            a_hidden = a.get("hidden_size", 1536)
-            a_eps = a.get("rms_norm_eps", 1e-6)
-            self.audio_tower = Gemma3nAudioEncoder(**a, name="audio_tower")
-            self.embed_audio = Gemma3nMultimodalEmbedder(
-                a_hidden,
-                text_hidden,
-                self.audio_vocab_size,
-                self.audio_vocab_offset,
-                eps=a_eps,
-                name="embed_audio",
-            )
+        # Towers / projectors don't fully materialize during functional graph
+        # construction (compute_output_spec skips their eager call); a concrete
+        # dummy forward under inference scope builds every weight. Text-only reuses
+        # the already-built language model.
+        if has_towers:
+            with inference_scope():
+                self.build_for_transfer()
 
     def build_for_transfer(self):
-        inputs = {"input_ids": None}
         ids = [0, 1]
+        inputs = {}
         if self.vision_tower is not None:
             ids += [self.vision_vocab_offset, self.image_token_id, self.image_token_id]
-            inputs["pixel_values"] = ops.zeros((1, 128, 128, 3), dtype="float32")
+            inputs["pixel_values"] = ops.zeros(
+                (1, 3, 128, 128)
+                if keras.config.image_data_format() == "channels_first"
+                else (1, 128, 128, 3),
+                dtype="float32",
+            )
         if self.audio_tower is not None:
             ids += [self.audio_vocab_offset, self.audio_token_id, self.audio_token_id]
             feat_size = self.audio_config.get("input_feat_size", 128)
             inputs["input_features"] = ops.zeros((1, 64, feat_size), dtype="float32")
             inputs["input_features_mask"] = ops.ones((1, 64), dtype="bool")
-        inputs["input_ids"] = ops.convert_to_tensor([ids], dtype="int32")
+        ids_t = ops.convert_to_tensor([ids], dtype="int32")
+        inputs["input_ids"] = ids_t
+        inputs["attention_mask"] = ops.ones_like(ids_t)
         self(inputs)
 
     def scatter_soft_tokens(self, text_embeds, slot_mask, features):
@@ -754,23 +1302,6 @@ class Gemma3nModel(SubclassedBaseModel):
                 inputs_embeds, ids == self.audio_token_id, features
             )
         return inputs_embeds, per_layer_inputs
-
-    def call(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        inputs_embeds, per_layer_inputs = self.fuse_embeds(
-            inputs["input_ids"],
-            inputs.get("pixel_values"),
-            inputs.get("input_features"),
-            inputs.get("input_features_mask"),
-        )
-        return self.language_model(
-            {
-                "inputs_embeds": inputs_embeds,
-                "per_layer_inputs": per_layer_inputs,
-                "attention_mask": inputs.get("attention_mask"),
-            }
-        )
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -875,15 +1406,7 @@ class Gemma3nConditionalGenerate(Gemma3nModel, BaseGeneration):
     default_load_dtype = "bfloat16"
 
     eos_token_id = (1, 106)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        lm = self.language_model
-        self.lm_head = (
-            None
-            if self.tie_word_embeddings
-            else layers.Dense(lm.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         lm = self.language_model
@@ -895,10 +1418,6 @@ class Gemma3nConditionalGenerate(Gemma3nModel, BaseGeneration):
             cap = lm.final_logit_softcapping
             logits = ops.tanh(logits / cap) * cap
         return logits
-
-    def call(self, inputs):
-        hidden = super().call(inputs)["last_hidden_state"]
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(
         self,

@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
 from .mixtral_config import MIXTRAL_CONFIG, MIXTRAL_WEIGHTS_URLS
 from .mixtral_layers import MixtralDecoderLayer, MixtralRMSNorm
@@ -9,20 +9,54 @@ from .mixtral_layers import MixtralDecoderLayer, MixtralRMSNorm
 MASK_NEG = -1e9
 
 
+def mixtral_rope_tables(position_ids, head_dim, rope_theta, compute_dtype):
+    # cos/sin rotary tables; ``inv_freq`` folds to a build-time constant, only the
+    # position product runs per call, so this wires directly into the graph.
+    inv_freq = 1.0 / ops.power(
+        rope_theta, ops.arange(0, head_dim, 2, dtype="float32") / head_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def mixtral_backbone_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    decoder_layers,
+    final_norm,
+    causal_mask,
+    head_dim,
+    rope_theta,
+    compute_dtype,
+):
+    hidden = token_embedding(input_ids)
+    position_ids = ops.where(
+        attention_mask == 0, 1, ops.cumsum(attention_mask, axis=-1) - 1
+    )
+    cos, sin = mixtral_rope_tables(position_ids, head_dim, rope_theta, compute_dtype)
+    mask = causal_mask(input_ids, attention_mask)
+    for layer in decoder_layers:
+        hidden = layer(hidden, cos, sin, attention_mask=mask)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MixtralModel(SubclassedBaseModel):
+class MixtralModel(BaseModel):
     """Mixtral sparse-MoE decoder-only transformer backbone (no LM head).
 
     ``token_embedding -> num_layers x MixtralDecoderLayer -> final RMSNorm``:
     a Mistral-style attention stack whose every feed-forward is an
     8-expert top-2 softmax-routed mixture of experts. (This port evaluates
     all experts densely and combines by the routing weights: mathematically
-    identical to sparse routing, compute O(num_experts).) Subclassed
-    (imperative) model; returns raw features: use :class:`MixtralTextGenerate`
-    for logits / text.
+    identical to sparse routing, compute O(num_experts).) A functional model;
+    returns ``last_hidden_state``: use :class:`MixtralTextGenerate` for
+    logits / text.
 
         model = MixtralModel.from_weights("mixtral-8x7b-instruct")
-        out = model({"input_ids": ids})["last_hidden_state"]  # (B, L, embed_dim)
+        out = model({"input_ids": ids, "attention_mask": mask})["last_hidden_state"]
 
     Args:
         vocab_size: Token vocabulary size.
@@ -45,6 +79,7 @@ class MixtralModel(SubclassedBaseModel):
     HF_MODEL_TYPE = "mixtral"
     BASE_MODEL_CONFIG = MIXTRAL_CONFIG
     BASE_WEIGHT_CONFIG = MIXTRAL_WEIGHTS_URLS
+    output_logits = False
 
     def __init__(
         self,
@@ -61,33 +96,23 @@ class MixtralModel(SubclassedBaseModel):
         rope_theta=1000000.0,
         sliding_window=None,
         tie_embeddings=False,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.vocab_size = vocab_size
-        self.embed_dim = embed_dim
-        self.mlp_dim = mlp_dim
-        self.num_layers = num_layers
-        self.num_heads = num_heads
-        self.num_kv_heads = num_kv_heads
-        self.head_dim = head_dim or embed_dim // num_heads
-        self.num_experts = num_experts
-        self.num_experts_per_tok = num_experts_per_tok
-        self.norm_eps = norm_eps
-        self.rope_theta = rope_theta
-        self.sliding_window = sliding_window
-        self.tie_embeddings = tie_embeddings
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = head_dim or embed_dim // num_heads
 
-        self.token_embedding = layers.Embedding(
+        token_embedding = layers.Embedding(
             vocab_size, embed_dim, name="token_embedding"
         )
-        self.decoder_layers = [
+        decoder_layers = [
             MixtralDecoderLayer(
                 embed_dim,
                 mlp_dim,
                 num_heads,
                 num_kv_heads,
-                self.head_dim,
+                head_dim,
                 num_experts,
                 num_experts_per_tok,
                 norm_eps,
@@ -95,18 +120,63 @@ class MixtralModel(SubclassedBaseModel):
             )
             for i in range(num_layers)
         ]
-        self.final_norm = MixtralRMSNorm(eps=norm_eps, name="final_norm")
+        final_norm = MixtralRMSNorm(eps=norm_eps, name="final_norm")
+        causal_mask = CausalMask(sliding_window=sliding_window, name="causal_mask")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        hidden = mixtral_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            causal_mask=causal_mask,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.causal_mask_layer = causal_mask
+        self.lm_head = lm_head
+        self.vocab_size = vocab_size
+        self.embed_dim = embed_dim
+        self.mlp_dim = mlp_dim
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = head_dim
+        self.num_experts = num_experts
+        self.num_experts_per_tok = num_experts_per_tok
+        self.norm_eps = norm_eps
+        self.rope_theta = rope_theta
+        self.sliding_window = sliding_window
+        self.tie_embeddings = tie_embeddings
 
     def rope_tables(self, position_ids):
-        hd = self.head_dim
-        inv_freq = 1.0 / ops.power(
-            self.rope_theta, ops.arange(0, hd, 2, dtype="float32") / hd
-        )
-        freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
-        emb = ops.concatenate([freqs, freqs], axis=-1)
-        return (
-            ops.cast(ops.cos(emb), self.compute_dtype),
-            ops.cast(ops.sin(emb), self.compute_dtype),
+        return mixtral_rope_tables(
+            position_ids, self.head_dim, self.rope_theta, self.compute_dtype
         )
 
     def causal_mask(self, seq, attention_mask=None):
@@ -120,24 +190,6 @@ class MixtralModel(SubclassedBaseModel):
             am = ops.cast(ops.convert_to_tensor(attention_mask), "float32")
             mask = mask + (1.0 - am)[:, None, None, :] * MASK_NEG
         return mask
-
-    def call(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        attention_mask = inputs.get("attention_mask")
-        hidden = self.token_embedding(input_ids)
-        if attention_mask is not None:
-            am = ops.cast(ops.convert_to_tensor(attention_mask), "int32")
-            position_ids = ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
-        else:
-            position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        cos, sin = self.rope_tables(position_ids)
-        attn_mask = self.causal_mask(seq, attention_mask)
-        for layer in self.decoder_layers:
-            hidden = layer(hidden, cos, sin, attention_mask=attn_mask)
-        return {"last_hidden_state": self.final_norm(hidden)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -182,6 +234,7 @@ class MixtralModel(SubclassedBaseModel):
                 "rope_theta": self.rope_theta,
                 "sliding_window": self.sliding_window,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -192,7 +245,7 @@ class MixtralTextGenerate(MixtralModel, BaseGeneration):
     """Mixtral backbone + a language-model head and fast ``.generate()``.
 
     Adds a bias-free ``lm_head`` on top of :class:`MixtralModel` (Mixtral does
-    not tie embeddings). ``call`` returns ``logits``
+    not tie embeddings). The forward graph returns ``logits``
     ``(batch, seq, vocab_size)`` and ``last_hidden_state``. Fast generation
     comes from :class:`~kerasformers.base.BaseGeneration`, fulfilled here by
     ``build_cache`` (parallel prefill into a fixed KV cache) and
@@ -204,23 +257,12 @@ class MixtralTextGenerate(MixtralModel, BaseGeneration):
     """
 
     eos_token_id = (2,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = super().call(inputs)["last_hidden_state"]
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(self, token_ids, padding_mask, max_len):
         batch = int(token_ids.shape[0])

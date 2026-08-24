@@ -125,17 +125,20 @@ def transfer_internvl_weights(keras_model, hf_state_dict):
         n_tokens = int(
             (size // keras_model.patch_size * keras_model.downsample_ratio) ** 2
         )
+        ids = np.array(
+            [[0] + [keras_model.image_token_id] * n_tokens + [1]], dtype="int32"
+        )
         keras_model(
             {
-                "input_ids": np.array(
-                    [[0] + [keras_model.image_token_id] * n_tokens + [1]],
-                    dtype="int64",
-                ),
+                "input_ids": ids,
+                "attention_mask": np.ones_like(ids),
                 "pixel_values": np.zeros((1, size, size, 3), dtype="float32"),
             }
         )
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        name = weight.path.split("/", 1)[1].replace("/", ".")
+        # Functional model weight paths are flat (no model-name root to strip); the
+        # vision_tower / language_model sub-layer names lead the path and are kept.
+        name = weight.path.replace("/", ".")
         if name.startswith("vision_tower."):
             mapping = VISION_MAPPING
         elif name.startswith("multi_modal_projector."):

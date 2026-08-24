@@ -32,19 +32,21 @@ def transfer_deepseek_vl_hybrid_weights(keras_model, hf_state_dict):
         size = keras_model.image_size
         hr = keras_model.high_res_image_size
         n_tokens = (size // keras_model.patch_size) ** 2
+        ids = np.array(
+            [[0] + [keras_model.image_token_id] * n_tokens + [1]], dtype="int32"
+        )
         keras_model(
             {
-                "input_ids": np.array(
-                    [[0] + [keras_model.image_token_id] * n_tokens + [1]],
-                    dtype="int64",
-                ),
+                "input_ids": ids,
+                "attention_mask": np.ones_like(ids),
                 "pixel_values": np.zeros((1, size, size, 3), dtype="float32"),
                 "high_res_pixel_values": np.zeros((1, hr, hr, 3), dtype="float32"),
             }
         )
 
     for weight in tqdm(keras_model.weights, desc="Transferring text + SigLIP"):
-        name = weight.path.split("/", 1)[1].replace("/", ".")
+        # Functional model weight paths are flat (no model-name root to strip).
+        name = weight.path.replace("/", ".")
         if name.startswith(HIGH_RES_PREFIXES):
             continue
         mapping = VISION_MAPPING if name.startswith("vision_model.") else TEXT_MAPPING
