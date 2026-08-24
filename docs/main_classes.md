@@ -93,7 +93,7 @@ The one entry point you normally use. It dispatches on `identifier`:
 - **load_weights** (`bool`, *optional*, defaults to `True`): set `False` to build the architecture with random initialization.
 - **skip_mismatch** (`bool`, *optional*, defaults to `False`): skip weights whose shapes disagree instead of raising, for partially compatible fine-tunes.
 - **attn_implementation** (`str`, *optional*): attention kernel to use, see [`fused_attention`](#fused_attention).
-- **quantization** (`str`, *optional*): quantize while loading, for example `"int8"`. For subclassed LLMs the weights stream straight into int storage (no full float model is built); this is automatic. See [Quantization](quantization.md).
+- **quantization** (`str`, *optional*): quantize while loading, for example `"int8"`. The model builds at `load_dtype` and quantizes after. See [Quantization](quantization.md).
 - **load_dtype** (`str`, *optional*): cast weights on load, typically `"bfloat16"`.
 - **cache_converted** (`bool`, *optional*, defaults to `False`): keep the converted Keras weights so the next conversion load skips work.
 - **kwargs**: forwarded to the constructor, so `image_size=448` or `as_backbone=True` go here.
@@ -272,7 +272,7 @@ quantizer.quantize(weight, axis=0)
 Base for the weight-only (tensor-level) quantizers. Helpers `normalize_axes(axis, ndim)`
 and `single_axis(axis, ndim)` resolve contraction axes. The quantized layers built on this
 (`QuantizedDense`, `QuantizedEinsumDense`, `QuantizedEmbedding`, `QuantizedExperts`) and
-the `quantize_model` / `quantize_and_load` / `dequantize_model` entry points are covered in
+the `quantize_model` / `dequantize_model` entry points are covered in
 [Quantization](quantization.md).
 
 ### KfQuantizer

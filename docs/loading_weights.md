@@ -206,7 +206,7 @@ Two independent flags, composable, for checkpoints that do not comfortably fit:
 | Flag | Trades against | Effect |
 |---|---|---|
 | `load_dtype="bfloat16"` | Device memory | Builds under a bf16 policy so a bf16 checkpoint stays ~2 bytes/param instead of being upcast to fp32. |
-| `quantization="int8"` | Device memory | Weight-only quantization of Dense and Embedding layers, roughly 4x, or 8x for `"int4"`. For subclassed LLMs the weights stream straight into int storage so the full float model is never built (automatic, no flag). See [Quantization](quantization.md). |
+| `quantization="int8"` | Device memory | Weight-only quantization of Dense and Embedding layers, roughly 4x, or 8x for `"int4"`. The model builds at `load_dtype` and quantizes after, so peak memory during the load is the float model. See [Quantization](quantization.md). |
 
 ```python
 model = Qwen3TextGenerate.from_weights(

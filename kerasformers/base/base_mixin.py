@@ -610,11 +610,16 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         an mxfp4 GPT-OSS checkpoint) swaps in its packed layers *before* the weights
         load, and stamps ``model._quantization_config`` for save round-trips. The
         model stays quantization-agnostic; this is the sole thing that packs it.
-        No-op when the repo carries no ``quantization_config`` block."""
+
+        Returns the prepared model: mxfp4 swaps experts in place and returns the same
+        object, while the generic weight-only path **clones** a functional model, so
+        the caller must use the returned value. No-op (returns ``model`` unchanged)
+        when the repo carries no ``quantization_config`` block."""
         if quantization_config:
             from kerasformers.quantization import get_kf_quantizer
 
-            get_kf_quantizer(quantization_config).preprocess_model(model)
+            model = get_kf_quantizer(quantization_config).preprocess_model(model)
+        return model
 
     @staticmethod
     def hub_repo_weight_dtype(identifier):
@@ -652,7 +657,7 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         config.update(kwargs)
         model = cls(**config)
         cls._apply_generate_args(model, spec)
-        cls._apply_quantization_config(
+        model = cls._apply_quantization_config(
             model, spec.get("quantization_config") if spec else None
         )
         return model
@@ -815,7 +820,7 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         model = cls(**config)
         cls._apply_generate_args(model, spec)
         # Swap in packed layers BEFORE building, so the packed weights load into them.
-        cls._apply_quantization_config(
+        model = cls._apply_quantization_config(
             model, spec.get("quantization_config") if spec else None
         )
 

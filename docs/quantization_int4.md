@@ -23,17 +23,16 @@ quantize_model(model, "int4", group_size=64)
 Three named schemes cover the common cases: `"int4"` (block size 32), `"int4-g64"`, and
 `"int4-g128"`.
 
-int4 is also the usual reason to want the **no-float** load. For subclassed LLMs
-`quantization=` quantizes each tensor as it streams in, so peak memory is the int4 size
-rather than the bf16 model it would otherwise build first:
+`quantization="int4"` builds the model at `load_dtype` (bf16) and quantizes it after, so
+peak memory during the load is the bf16 model, then drops to the int4 size:
 
 ```python
 model = Qwen3TextGenerate.from_weights("qwen3-4b", quantization="int4")
 ```
 
-This is automatic and needs no flag. It covers subclassed LLMs whose converter assigns
-through `model.weights`; functional models and the release-`.h5` / timm paths build then
-quantize instead.
+To load a checkpoint that does not fit in float at all, use a repo that ships already
+quantized in a native packed format (e.g. GPT-OSS mxfp4), whose packed weights load without
+a float intermediate.
 
 ## Int4Config
 

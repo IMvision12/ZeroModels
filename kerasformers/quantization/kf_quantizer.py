@@ -8,7 +8,8 @@ carry no quantization flags; the quantizer is the single thing that produces pac
 layers, on load.
 
 Dispatch is a plain :func:`get_kf_quantizer` (keyed on ``quant_method``); there is no
-``Auto`` registry yet. Today the only method is ``mxfp4`` (GPT-OSS).
+``Auto`` registry yet. The methods are ``mxfp4`` (GPT-OSS native packed experts) and the
+generic weight-only ``int8`` / ``int4`` / ``fp8``.
 """
 
 from kerasformers.quantization.quantize import _named_children, _swap, _walk_layers
@@ -40,7 +41,7 @@ class KfQuantizer:
     def preprocess_model(self, model, **kwargs):
         model = self._process_model_before_weight_loading(model, **kwargs)
         # Stamp the model so it serializes + reloads itself quantized. Some paths
-        # (quantize_skeleton) already set a QuantizationConfig; keep it if so.
+        # (quantize_model) already set a QuantizationConfig; keep it if so.
         if getattr(model, "_quantization_config", None) is None:
             model._quantization_config = dict(self.quantization_config)
         return model
@@ -89,17 +90,18 @@ class Mxfp4KfQuantizer(KfQuantizer):
 class WeightOnlyKfQuantizer(KfQuantizer):
     """int8 / int4 / fp8 weight-only quantization, applied before the weights load.
 
-    Uses ``quantize_skeleton`` (the no-float path): swaps unbuilt ``Dense`` /
-    ``Embedding`` for their int/fp8 skeletons so a repo whose ``quantization_config``
-    names one of these schemes builds integer storage directly and loads into it,
-    without ever materializing the float model. Generic across models (unlike the
-    GPT-OSS-specific mxfp4 expert swap).
+    Swaps every eligible ``Dense`` / ``Embedding`` for its int / fp8 quantized layer
+    so a repo whose ``quantization_config`` names one of these schemes builds integer
+    storage the packed checkpoint loads into. Delegates to ``quantize_model``, which
+    **clones** a functional model (its graph can't be swapped in place) and returns
+    the new model, so callers must use the returned value. Generic across models
+    (unlike the GPT-OSS-specific mxfp4 expert swap).
     """
 
     def _process_model_before_weight_loading(self, model, **kwargs):
-        from kerasformers.quantization.quantize import quantize_skeleton
+        from kerasformers.quantization.quantize import quantize_model
 
-        return quantize_skeleton(model, self.quantization_config["quant_method"])
+        return quantize_model(model, self.quantization_config["quant_method"])
 
 
 # quant_method -> KfQuantizer. mxfp4 is the GPT-OSS native packed-expert swap; the
