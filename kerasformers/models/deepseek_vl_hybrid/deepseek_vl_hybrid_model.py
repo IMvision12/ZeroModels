@@ -143,7 +143,7 @@ class DeepseekVLHybridModel(BaseModel):
     :class:`DeepseekVLHybridConditionalGenerate` for logits / text.
     """
 
-    HF_MODEL_TYPE = "deepseek_vl_v2"
+    HF_MODEL_TYPE = "deepseek_vl_hybrid"
     config_class = DeepseekVLHybridConfig
     HUB_REPO_SIBLINGS = DEEPSEEK_VL_HYBRID_HUB_SIBLINGS
     output_logits = False
