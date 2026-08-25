@@ -404,6 +404,7 @@ class Gemma4Model(BaseModel):
         self.embed_tokens_per_layer = embed_tokens_per_layer
         self.per_layer_model_projection = per_layer_model_projection
         self.per_layer_projection_norm = per_layer_projection_norm
+        self.reshape_4d = reshape_4d
         self.decoder_layers = decoder_layers
         self.final_norm = final_norm
         self.full_mask_layer = full_mask_layer
@@ -513,21 +514,18 @@ class Gemma4Model(BaseModel):
     def compute_per_layer_inputs(self, input_ids, inputs_embeds):
         # PLE: token-identity embedding (scaled) + a context projection of the
         # scaled main embedding, combined as (proj + identity) / sqrt(2). Shape
-        # (batch, seq, num_layers, hidden_size_per_layer_input).
-        b = ops.shape(input_ids)[0]
-        s = ops.shape(input_ids)[1]
+        # (batch, seq, num_layers, hidden_size_per_layer_input). The (b, s, L, d)
+        # reshape goes through reshape_4d, whose compute_output_spec keeps the
+        # dynamic (b, s) out of the graph; a bare ops.reshape here bakes None as
+        # the batch dim and crashes the multimodal functional graph on replay.
         ple = self.embed_tokens_per_layer(input_ids) * ops.cast(
             self.hidden_size_per_layer_input**0.5, self.compute_dtype
         )
-        ple = ops.reshape(
-            ple, (b, s, self.num_layers, self.hidden_size_per_layer_input)
-        )
+        ple = self.reshape_4d(ple)
         proj = self.per_layer_model_projection(inputs_embeds) * ops.cast(
             self.embed_dim**-0.5, self.compute_dtype
         )
-        proj = ops.reshape(
-            proj, (b, s, self.num_layers, self.hidden_size_per_layer_input)
-        )
+        proj = self.reshape_4d(proj)
         proj = self.per_layer_projection_norm(proj)
         return (proj + ple) * ops.cast(2.0**-0.5, self.compute_dtype)
 
@@ -1167,9 +1165,10 @@ class Gemma4MultimodalModel(BaseModel):
                 inputs["pixel_values"] = pv
                 inputs["pixel_position_ids"] = pvp
             if audio_tower is not None:
-                feat = layers.Input(
-                    shape=(None, audio_config["input_dim"]), name="input_features"
+                audio_in_dim = audio_config.get(
+                    "input_dim", audio_config.get("conv_channels", (128,))[0]
                 )
+                feat = layers.Input(shape=(None, audio_in_dim), name="input_features")
                 feat_mask = layers.Input(
                     shape=(None,), dtype="bool", name="input_features_mask"
                 )
