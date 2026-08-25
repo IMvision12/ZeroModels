@@ -288,6 +288,7 @@ class GraniteSpeechModel(BaseModel):
     """
 
     HF_MODEL_TYPE = "granite_speech"
+    default_load_dtype = "bfloat16"  # ibm-granite granite-speech checkpoints are bf16
     BASE_MODEL_CONFIG = None
     BASE_WEIGHT_CONFIG = None
     config_class = GraniteSpeechConfig

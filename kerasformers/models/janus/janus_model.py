@@ -173,6 +173,7 @@ class JanusModel(BaseModel):
     """
 
     HF_MODEL_TYPE = "janus"
+    default_load_dtype = "bfloat16"  # official Janus-Pro checkpoints are bf16
     BASE_MODEL_CONFIG = None
     # Weights load by Hub repo id, e.g. from_weights("kerasformers/janus_pro_1b"),
     # via kf_config.json on the repo (no url table in the package).

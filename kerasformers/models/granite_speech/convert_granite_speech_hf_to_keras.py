@@ -58,6 +58,11 @@ def transfer_granite_speech_weights(keras_model, hf_state_dict):
 
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
         keras_dotted = weight.path.replace("/", ".")
+        # The conformer encoder + Q-Former projector run inside the GraniteSpeechAudioFeatures
+        # wrapper, so keras paths them under "audio_features/"; the HF checkpoint keeps them at
+        # the top level (encoder.* / projector.*). Strip the wrapper prefix before mapping.
+        if keras_dotted.startswith("audio_features."):
+            keras_dotted = keras_dotted[len("audio_features.") :]
         if keras_dotted == "token_embedding.embeddings":
             name = "language_model.model.embed_tokens.weight"
         else:

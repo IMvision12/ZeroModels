@@ -441,6 +441,9 @@ class InternVLModel(BaseModel):
     """
 
     HF_MODEL_TYPE = "internvl"
+    default_load_dtype = (
+        "bfloat16"  # InternVL3/3.5 checkpoints (OpenGVLab + hosted) are bf16
+    )
     config_class = InternVLConfig
     output_logits = False
 
