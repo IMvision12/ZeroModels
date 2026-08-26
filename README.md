@@ -1,7 +1,6 @@
 <p align="center">
   <img src="https://github.com/user-attachments/assets/34764a5a-5959-4c76-b5b8-3fc1fd3b52c5" width="100">
 </p>
-
 <h1 align="center">ZeroModels</h1>
 
 <div align="center">
@@ -9,6 +8,8 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Keras](https://img.shields.io/badge/keras-v3.5.0+-success.svg)](https://github.com/keras-team/keras)
 ![Python](https://img.shields.io/badge/python-v3.10.0+-success.svg)
+
+</div>
 
 ## 📖 Introduction
 
