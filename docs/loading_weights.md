@@ -8,7 +8,7 @@ hide:
 Every model and preprocessor loads through one call:
 
 ```python
-model = SegFormerSemanticSegment.from_weights("kerasformers/segformer_b0_ade_512")
+model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
 ```
 
 Behind that one call sit **three ways** weights actually reach the model. You rarely choose
@@ -17,7 +17,7 @@ load, and how long it takes.
 
 | # | Way | What happens | Used by |
 |---|---|---|---|
-| 1 | [**HuggingFace Hub**](#1-hub-keras-weights) | `kerasformers/<variant>`. The repo's `kf_config.json` rebuilds the model and `model.weights.h5` (or a sharded `.weights.json`) loads with no conversion. | Vision, detection, segmentation, depth, speech, text encoders, CLIP-family, classification backbones |
+| 1 | [**HuggingFace Hub**](#1-hub-keras-weights) | `zeromodels/<variant>`. The repo's `kf_config.json` rebuilds the model and `model.weights.h5` (or a sharded `.weights.json`) loads with no conversion. | Vision, detection, segmentation, depth, speech, text encoders, CLIP-family, classification backbones |
 | 2 | [**On the fly**](#2-on-the-fly-conversion) | A bare variant whose entry carries an `hf_id`. Upstream safetensors are downloaded and converted in process. | The LLMs and VLMs: Qwen, Llama, Gemma, DeepSeek, GLM, Mistral, ... |
 | 3 | [**`hf:` prefix**](#3-the-hf-prefix) | Any Hub repo, named explicitly. Same conversion machinery as way 2, but you pick the repo. | Fine-tunes and community weights, for any architecture |
 
@@ -26,7 +26,7 @@ variant is way 2, and an `hf:` prefix is way 3.
 
 ```python
 model = SegFormerSemanticSegment.from_weights(
-    "kerasformers/segformer_b0_ade_512"
+    "zeromodels/segformer_b0_ade_512"
 )  # 1: Hub Keras
 model = Qwen3TextGenerate.from_weights("qwen3-4b")  # 2: on the fly
 model = SegFormerSemanticSegment.from_weights("hf:<user>/my-finetune")  # 3: hf:
@@ -36,7 +36,7 @@ model = SegFormerSemanticSegment.from_weights("hf:<user>/my-finetune")  # 3: hf:
 
 **Used by the vision, detection, segmentation, depth, speech, text-encoder, and
 classification models.** Official checkpoints live under the
-[kerasformers](https://huggingface.co/kerasformers) org on Hugging Face. Each repo is
+[zeromodels](https://huggingface.co/zeromodels) org on Hugging Face. Each repo is
 self-describing:
 
 - `kf_config.json` — model class + flat architecture fields
@@ -44,8 +44,8 @@ self-describing:
 - optionally `kf_preprocessor.json` — processor / tokenizer settings
 
 ```python
-model = SegFormerSemanticSegment.from_weights("kerasformers/segformer_b0_ade_512")
-processor = SegFormerImageProcessor.from_weights("kerasformers/segformer_b0_ade_512")
+model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
+processor = SegFormerImageProcessor.from_weights("zeromodels/segformer_b0_ade_512")
 ```
 
 Nothing is converted at load time: the weight file is downloaded once (with a tqdm
@@ -56,7 +56,7 @@ mirror as Keras weights.
 Sharded Hub repos work the same way: a `.weights.json` index pulls every shard it lists
 from the same repo before loading.
 
-> Prefer the Hub repo id (`kerasformers/<variant>`) over a bare variant name for these
+> Prefer the Hub repo id (`zeromodels/<variant>`) over a bare variant name for these
 > families. Bare ids only work for models that still keep an in-package
 > `BASE_WEIGHT_CONFIG` with an `hf_id` (the LLMs / VLMs below).
 
@@ -71,7 +71,7 @@ model = Qwen3TextGenerate.from_weights("qwen3-4b")
 ```
 
 The reason is **size**. A pre-converted `.weights.h5` for a 4B model is ~8 GB and a 120B
-one is hundreds; mirroring that as kerasformers Hub files would duplicate weights the
+one is hundreds; mirroring that as zeromodels Hub files would duplicate weights the
 upstream Hub already serves. Converting on arrival costs CPU time instead of storage, and
 the Hub download is cached like any other.
 
@@ -81,7 +81,7 @@ The tradeoff is that **the conversion runs on every load**. To pay it once:
 model = Qwen3TextGenerate.from_weights("qwen3-4b", cache_converted=True)
 ```
 
-That stores the converted result under `$KERASFORMERS_HOME/converted` and rebuilds from it
+That stores the converted result under `$ZEROMODELS_HOME/converted` and rebuilds from it
 next time, skipping both the download and the conversion. See [Caching](#caching).
 
 Some families are **gated**. Accept the license on the upstream Hub repo and authenticate:
@@ -131,7 +131,7 @@ SegFormerSemanticSegment.from_weights("hf:openai/clip-vit-base-patch16")
 
 ```
 ValueError: SegFormerSemanticSegment can only load HF models whose config.json model_type
-is segformer, but 'openai/clip-vit-base-patch16' has model_type='clip'. This kerasformers
+is segformer, but 'openai/clip-vit-base-patch16' has model_type='clip'. This zeromodels
 class is the wrong destination for that checkpoint.
 ```
 
@@ -144,10 +144,10 @@ model = ResNetImageClassify.from_weights("hf:timm/resnet50.a1_in1k")
 model = ResNetImageClassify.from_weights("hf:<user>/my-resnet", variant="resnet50")
 ```
 
-Official kerasformers classification weights still prefer the Hub Keras path:
+Official zeromodels classification weights still prefer the Hub Keras path:
 
 ```python
-model = ResNetImageClassify.from_weights("kerasformers/resnet50_a1_in1k")
+model = ResNetImageClassify.from_weights("zeromodels/resnet50_a1_in1k")
 ```
 
 > **Load the processor from the same source as the model.** A fine-tune can ship a
@@ -157,10 +157,10 @@ model = ResNetImageClassify.from_weights("kerasformers/resnet50_a1_in1k")
 ## Variants and Hub repo ids
 
 Each model page lists the short variant ids in its Model Variants table. For Hub Keras
-families, load them as `kerasformers/<variant>`:
+families, load them as `zeromodels/<variant>`:
 
 ```python
-model = SegFormerSemanticSegment.from_weights("kerasformers/segformer_b0_ade_512")
+model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
 ```
 
 For LLMs / VLMs, the bare variant is enough — it resolves through the class's
@@ -180,8 +180,8 @@ Downloads are cached, so the second load of the same weights is local:
 
 Conversion itself is **not** cached by default, which is what makes way 2 slower on the
 second load than way 1. For a checkpoint you load repeatedly, `cache_converted=True` stores
-the converted result under `$KERASFORMERS_HOME/converted` (default
-`~/.cache/kerasformers/converted`) and rebuilds from it next time, skipping both download
+the converted result under `$ZEROMODELS_HOME/converted` (default
+`~/.cache/zeromodels/converted`) and rebuilds from it next time, skipping both download
 and conversion:
 
 ```python
@@ -197,7 +197,7 @@ The cache key includes the source identity, the backend and dtype, and the quant
 recipe, so it cannot hand back a stale or differently configured model. For an `hf:` id the
 source identity is the resolved **commit SHA**, so a repo that moves invalidates the entry.
 A miss falls back to the normal path silently. On an ephemeral machine (Colab, CI) point
-`KERASFORMERS_HOME` at persistent storage or the cache buys you nothing.
+`ZEROMODELS_HOME` at persistent storage or the cache buys you nothing.
 
 ## Loading big checkpoints
 
@@ -227,7 +227,7 @@ not downloaded.
 
 ```python
 model = SegFormerSemanticSegment.from_weights(
-    "kerasformers/segformer_b0_ade_512", load_weights=False
+    "zeromodels/segformer_b0_ade_512", load_weights=False
 )
 ```
 
@@ -236,7 +236,7 @@ initializer, which is how you keep a pretrained backbone while swapping the head
 
 ```python
 model = SegFormerSemanticSegment.from_weights(
-    "kerasformers/segformer_b0_ade_512", num_classes=7, skip_mismatch=True
+    "zeromodels/segformer_b0_ade_512", num_classes=7, skip_mismatch=True
 )
 print(model.output_shape)
 ```
@@ -265,7 +265,7 @@ untrained.
 rather the source be visible at the call site than encoded in the identifier:
 
 ```python
-model = SegFormerSemanticSegment.from_hub_repo("kerasformers/segformer_b0_ade_512")
+model = SegFormerSemanticSegment.from_hub_repo("zeromodels/segformer_b0_ade_512")
 model = Qwen3TextGenerate.from_variant("qwen3-4b")
 model = SegFormerSemanticSegment.from_hf("nvidia/segformer-b0-finetuned-ade-512-512")
 ```

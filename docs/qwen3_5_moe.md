@@ -2,10 +2,10 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> and <code>kf_preprocessor.json</code> plus a
 sharded <code>model.weights.json</code> + shards and a <code>tokenizer.json</code>). Load the
-model and processor with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+model and processor with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Alibaba's Qwen3.5-MoE vision-language models, ported to pure Keras 3. Qwen3.5-MoE is a
@@ -24,7 +24,7 @@ image + video understanding with the sparse hybrid backbone.
 
 Links:
 
-- HF collection: [Qwen3.5-MoE](https://huggingface.co/collections/kerasformers/qwen35-moe-6a7eb77a1a41110f3195af09)
+- HF collection: [Qwen3.5-MoE](https://huggingface.co/collections/zeromodels/qwen35-moe-6a7eb77a1a41110f3195af09)
 - Paper: [Qwen3 Technical Report (arXiv:2505.09388)](https://arxiv.org/abs/2505.09388)
 - HF docs: [transformers/model_doc/qwen3_5_moe](https://huggingface.co/docs/transformers/model_doc/qwen3_5_moe)
 
@@ -33,15 +33,15 @@ See also [qwen3_next.md](qwen3_next.md) (the text-only Qwen3-Next MoE), [qwen3_5
 
 ## Variants
 
-Preconverted, bf16 weights are hosted under `kerasformers/`. Load the model and processor
-with `from_weights("kerasformers/<variant>")`; the `-base` suffix marks the base
+Preconverted, bf16 weights are hosted under `zeromodels/`. Load the model and processor
+with `from_weights("zeromodels/<variant>")`; the `-base` suffix marks the base
 (non-instruction-tuned) checkpoints. Qwen3.5-MoE is Apache 2.0.
 
 | Variant | Hub |
 |---|---|
-| `qwen3.5-35b-a3b` | [`kerasformers/qwen3.5-35b-a3b`](https://huggingface.co/kerasformers/qwen3.5-35b-a3b) |
-| `qwen3.5-35b-a3b-base` | [`kerasformers/qwen3.5-35b-a3b-base`](https://huggingface.co/kerasformers/qwen3.5-35b-a3b-base) |
-| `qwen3.5-122b-a10b` | [`kerasformers/qwen3.5-122b-a10b`](https://huggingface.co/kerasformers/qwen3.5-122b-a10b) |
+| `qwen3.5-35b-a3b` | [`zeromodels/qwen3.5-35b-a3b`](https://huggingface.co/zeromodels/qwen3.5-35b-a3b) |
+| `qwen3.5-35b-a3b-base` | [`zeromodels/qwen3.5-35b-a3b-base`](https://huggingface.co/zeromodels/qwen3.5-35b-a3b-base) |
+| `qwen3.5-122b-a10b` | [`zeromodels/qwen3.5-122b-a10b`](https://huggingface.co/zeromodels/qwen3.5-122b-a10b) |
 
 Upstream Qwen safetensors also load directly via the `hf:` prefix, e.g.
 `from_weights("hf:Qwen/Qwen3.5-35B-A3B")`, which converts them in process (pass
@@ -99,13 +99,13 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.qwen3_5_moe import (
+from zeromodels.models.qwen3_5_moe import (
     Qwen3_5MoeConditionalGenerate,
     Qwen3_5MoeProcessor,
 )
 
-model = Qwen3_5MoeConditionalGenerate.from_weights("kerasformers/qwen3.5-35b-a3b")
-processor = Qwen3_5MoeProcessor.from_weights("kerasformers/qwen3.5-35b-a3b")
+model = Qwen3_5MoeConditionalGenerate.from_weights("zeromodels/qwen3.5-35b-a3b")
+processor = Qwen3_5MoeProcessor.from_weights("zeromodels/qwen3.5-35b-a3b")
 
 inputs = processor(
     conversation=[
@@ -130,6 +130,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Qwen3_5MoeConditionalGenerate.from_weights(
-    "kerasformers/qwen3.5-35b-a3b", quantization="int8", load_dtype="bfloat16"
+    "zeromodels/qwen3.5-35b-a3b", quantization="int8", load_dtype="bfloat16"
 )
 ```

@@ -2,10 +2,10 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code> +
 <code>kf_preprocessor.json</code>). Load with
-<code>from_weights("kerasformers/&lt;variant&gt;")</code>. All three task classes
+<code>from_weights("zeromodels/&lt;variant&gt;")</code>. All three task classes
 load from the <b>same</b> single-weight repo.
 </div>
 
@@ -126,7 +126,7 @@ matching the TIPSv2 backbone's expected inputs.
 
 ## Model Variants
 
-Load any of these with `from_weights("kerasformers/<variant id>")`.
+Load any of these with `from_weights("zeromodels/<variant id>")`.
 
 | Variant id | Image size | Patch | FFN | Weights |
 |---|---:|---:|---|---|
@@ -145,12 +145,12 @@ hand when loading.
 
 ```python
 import keras
-from kerasformers.models.tipsv2_dpt import (
+from zeromodels.models.tipsv2_dpt import (
     Tipsv2DptDensePredict,
     Tipsv2DptImageProcessor,
 )
 
-model = Tipsv2DptDensePredict.from_weights("kerasformers/tipsv2-b14-dpt")
+model = Tipsv2DptDensePredict.from_weights("zeromodels/tipsv2-b14-dpt")
 proc = Tipsv2DptImageProcessor(image_resolution=model.image_size)
 
 pixel_values = proc("assets/data/coco_bear.jpg")["pixel_values"]
@@ -175,13 +175,13 @@ size for visualization.
 Both single-task classes load from the same repo and return one output each:
 
 ```python
-from kerasformers.models.tipsv2_dpt import (
+from zeromodels.models.tipsv2_dpt import (
     Tipsv2DptDepthEstimation,
     Tipsv2DptSemanticSegment,
 )
 
-depth_model = Tipsv2DptDepthEstimation.from_weights("kerasformers/tipsv2-b14-dpt")
-seg_model = Tipsv2DptSemanticSegment.from_weights("kerasformers/tipsv2-b14-dpt")
+depth_model = Tipsv2DptDepthEstimation.from_weights("zeromodels/tipsv2-b14-dpt")
+seg_model = Tipsv2DptSemanticSegment.from_weights("zeromodels/tipsv2-b14-dpt")
 
 depth = depth_model(pixel_values)["predicted_depth"]
 seg = seg_model(pixel_values)["segmentation_logits"]
@@ -200,12 +200,12 @@ Every class also accepts the `hf:` prefix to convert an upstream
 `google/tipsv2-*-dpt` checkpoint on the fly:
 
 ```python
-from kerasformers.models.tipsv2_dpt import Tipsv2DptDensePredict
+from zeromodels.models.tipsv2_dpt import Tipsv2DptDensePredict
 
 model = Tipsv2DptDensePredict.from_weights("hf:google/tipsv2-b14-dpt")
 ```
 
 No shape arguments are needed. The architecture is read from the repo's
 `config.json` and mapped onto the constructor. Loading `hf:google/tipsv2-b14-dpt`
-and the `kerasformers/tipsv2-b14-dpt` Hub variant produces identical outputs, since
+and the `zeromodels/tipsv2-b14-dpt` Hub variant produces identical outputs, since
 they are the same checkpoint by two routes.

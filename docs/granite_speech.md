@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Granite Speech is a **speech-aware LLM**, not an ASR model with a language model bolted
@@ -166,15 +166,15 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 import keras
 import numpy as np
 import soundfile as sf
-from kerasformers.models.granite_speech import (
+from zeromodels.models.granite_speech import (
     GraniteSpeechConditionalGenerate,
     GraniteSpeechProcessor,
 )
 
 model = GraniteSpeechConditionalGenerate.from_weights(
-    "kerasformers/granite_speech_3_3_2b", load_dtype="bfloat16"
+    "zeromodels/granite_speech_3_3_2b", load_dtype="bfloat16"
 )
-processor = GraniteSpeechProcessor.from_weights("kerasformers/granite_speech_3_3_2b")
+processor = GraniteSpeechProcessor.from_weights("zeromodels/granite_speech_3_3_2b")
 
 audio, sr = sf.read(
     "assets/speech_luminous_criticisms.wav", dtype="float32"
@@ -266,7 +266,7 @@ feeding an entire meeting in one call.
 Any Hugging Face repo whose `model_type` is `"granite_speech"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.granite_speech import (
+from zeromodels.models.granite_speech import (
     GraniteSpeechConditionalGenerate,
     GraniteSpeechProcessor,
 )
@@ -278,7 +278,7 @@ processor = GraniteSpeechProcessor.from_weights("hf:ibm-granite/granite-speech-3
 
 # Architecture only, randomly initialized
 model = GraniteSpeechConditionalGenerate.from_weights(
-    "kerasformers/granite_speech_3_3_2b", load_weights=False
+    "zeromodels/granite_speech_3_3_2b", load_weights=False
 )
 ```
 

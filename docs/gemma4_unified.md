@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 The **12B** Gemma 4 checkpoints (`google/gemma-4-12B`) are a distinct,
@@ -33,14 +33,14 @@ See also [gemma4.md](gemma4.md), [gemma3.md](gemma3.md).
 
 ## Variants
 
-Preconverted, bf16 weights are hosted under `kerasformers/`. Load with
-`from_weights("kerasformers/<variant>")`; `-it` is instruction-tuned. Gemma 4 is
+Preconverted, bf16 weights are hosted under `zeromodels/`. Load with
+`from_weights("zeromodels/<variant>")`; `-it` is instruction-tuned. Gemma 4 is
 Apache 2.0.
 
 | Variant | Hub | Modalities |
 |---|---|---|
-| `gemma-4-12b` | [`kerasformers/gemma-4-12b`](https://huggingface.co/kerasformers/gemma-4-12b) | text + image + audio |
-| `gemma-4-12b-it` | [`kerasformers/gemma-4-12b-it`](https://huggingface.co/kerasformers/gemma-4-12b-it) | text + image + audio |
+| `gemma-4-12b` | [`zeromodels/gemma-4-12b`](https://huggingface.co/zeromodels/gemma-4-12b) | text + image + audio |
+| `gemma-4-12b-it` | [`zeromodels/gemma-4-12b-it`](https://huggingface.co/zeromodels/gemma-4-12b-it) | text + image + audio |
 
 Upstream Google safetensors also load via the `hf:` prefix, e.g.
 `from_weights("hf:google/gemma-4-12B-it")` (converts in process; pass
@@ -99,13 +99,13 @@ ids. It shares the decoder weights with `Gemma4UnifiedConditionalGenerate`. Set
 `config_class = Gemma4TextConfig`.
 
 ```python
-from kerasformers.models.gemma4_unified import (
+from zeromodels.models.gemma4_unified import (
     Gemma4UnifiedTextGenerate,
     Gemma4UnifiedTokenizer,
 )
 
-model = Gemma4UnifiedTextGenerate.from_weights("kerasformers/gemma-4-12b-it")
-tokenizer = Gemma4UnifiedTokenizer.from_weights("kerasformers/gemma-4-12b-it")
+model = Gemma4UnifiedTextGenerate.from_weights("zeromodels/gemma-4-12b-it")
+tokenizer = Gemma4UnifiedTokenizer.from_weights("zeromodels/gemma-4-12b-it")
 outputs = model.generate(
     **tokenizer([{"role": "user", "content": "Summarize attention in one line."}]),
     max_new_tokens=64,
@@ -118,7 +118,7 @@ print(tokenizer.decode(outputs[0]))
 The encoder-free vision embedder used by the backbone: raw merged pixel patches ->
 `LayerNorm -> Dense -> LayerNorm -> + factorized 2-D position embedding -> LayerNorm`
 -> shared soft-token projector into text space. Exposed from
-`kerasformers.models.gemma4_unified` for custom pipelines.
+`zeromodels.models.gemma4_unified` for custom pipelines.
 
 ### `Gemma4UnifiedImageProcessor`
 
@@ -164,13 +164,13 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.gemma4_unified import (
+from zeromodels.models.gemma4_unified import (
     Gemma4UnifiedConditionalGenerate,
     Gemma4UnifiedTokenizer,
 )
 
-model = Gemma4UnifiedConditionalGenerate.from_weights("kerasformers/gemma-4-12b-it")
-tokenizer = Gemma4UnifiedTokenizer.from_weights("kerasformers/gemma-4-12b-it")
+model = Gemma4UnifiedConditionalGenerate.from_weights("zeromodels/gemma-4-12b-it")
+tokenizer = Gemma4UnifiedTokenizer.from_weights("zeromodels/gemma-4-12b-it")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -184,13 +184,13 @@ print(tokenizer.decode(outputs[0]))
 
 ```python
 from PIL import Image
-from kerasformers.models.gemma4_unified import (
+from zeromodels.models.gemma4_unified import (
     Gemma4UnifiedConditionalGenerate,
     Gemma4UnifiedProcessor,
 )
 
-model = Gemma4UnifiedConditionalGenerate.from_weights("kerasformers/gemma-4-12b-it")
-processor = Gemma4UnifiedProcessor.from_weights("kerasformers/gemma-4-12b-it")
+model = Gemma4UnifiedConditionalGenerate.from_weights("zeromodels/gemma-4-12b-it")
+processor = Gemma4UnifiedProcessor.from_weights("zeromodels/gemma-4-12b-it")
 
 inputs = processor(
     conversation=[
@@ -222,7 +222,7 @@ The 12B fits comfortably in bf16; weight-only quantization shrinks it further. S
 
 ```python
 model = Gemma4UnifiedConditionalGenerate.from_weights(
-    "kerasformers/gemma-4-12b-it",
+    "zeromodels/gemma-4-12b-it",
     quantization="int8",
     load_dtype="bfloat16",
 )

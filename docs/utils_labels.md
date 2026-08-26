@@ -3,7 +3,7 @@
 Models predict integer ids. These lists turn them back into names.
 
 ```python
-from kerasformers.utils.labels_util import COCO_80_CLASSES, ADE20K_150_CLASSES
+from zeromodels.utils.labels_util import COCO_80_CLASSES, ADE20K_150_CLASSES
 
 print(len(COCO_80_CLASSES), COCO_80_CLASSES[0])
 print(len(ADE20K_150_CLASSES), ADE20K_150_CLASSES[0])
@@ -14,8 +14,8 @@ print(len(ADE20K_150_CLASSES), ADE20K_150_CLASSES[0])
 150 wall
 ```
 
-They live in `kerasformers.utils.labels_util` and are imported by path, not re-exported from
-`kerasformers.utils`. All are plain tuples, so they are cheap to import and safe to share.
+They live in `zeromodels.utils.labels_util` and are imported by path, not re-exported from
+`zeromodels.utils`. All are plain tuples, so they are cheap to import and safe to share.
 
 | Constant | Size | Used by |
 |---|---|---|
@@ -85,7 +85,7 @@ The first 80 entries are things, the remaining 53 are stuff, and the two id tupl
 that split without parsing strings:
 
 ```python
-from kerasformers.utils.labels_util import (
+from zeromodels.utils.labels_util import (
     COCO_PANOPTIC_THING_IDS,
     COCO_PANOPTIC_STUFF_IDS,
 )

@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kerasformers"
+name = "zeromodels"
 authors = [{ name = "Gitesh Chawda", email = "gitesh.ch.0912@gmail.com" }]
-description = "KerasFormers: Open-source Keras 3 collection of pretrained models"
+description = "ZeroModels: Open-source Keras 3 collection of pretrained models"
 readme = "README.md"
 requires-python = ">=3.11"
 keywords = [
@@ -65,7 +65,7 @@ test = [
 ]
 # Conversion-only backends: needed to convert source checkpoints to Keras
 # weights (offline scripts + on-the-fly `from_weights("hf:...")` / timm loads),
-# never to build or run a model. Install with: pip install kerasformers[conversion]
+# never to build or run a model. Install with: pip install zeromodels[conversion]
 conversion = [
     "torch>=2.5.0",
     "torchvision>=0.20.0",
@@ -74,23 +74,23 @@ conversion = [
 ]
 
 [project.scripts]
-kerasformers-test = "tests._test_runner:main"
+zeromodels-test = "tests._test_runner:main"
 
 [project.urls]
-homepage = "https://imvision12.github.io/KerasFormers/"
-documentation = "https://imvision12.github.io/KerasFormers/"
-repository = "https://github.com/IMvision12/KerasFormers.git"
+homepage = "https://imvision12.github.io/ZeroModels/"
+documentation = "https://imvision12.github.io/ZeroModels/"
+repository = "https://github.com/IMvision12/ZeroModels.git"
 
 [tool.setuptools.packages]
-find = { include = ["kerasformers*"] }
+find = { include = ["zeromodels*"] }
 
 [tool.setuptools.dynamic]
-version = { attr = "kerasformers.__version__" }
+version = { attr = "zeromodels.__version__" }
 
 [tool.coverage.run]
-source = ["kerasformers", "tests"]
+source = ["zeromodels", "tests"]
 omit = [
-    "kerasformers/models/*/convert_*.py",
+    "zeromodels/models/*/convert_*.py",
 ]
 
 [tool.coverage.report]

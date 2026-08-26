@@ -2,11 +2,11 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> and <code>kf_preprocessor.json</code> plus the
 Keras weights: <code>model.weights.h5</code>, or a sharded <code>model.weights.json</code> +
 shards for the larger checkpoints). Load the model and processor with
-<code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+<code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Alibaba's Qwen2.5-VL vision-language models, ported to pure Keras 3. It keeps
@@ -19,7 +19,7 @@ not override it by hand.
 
 Links:
 
-- HF collection: [Qwen2.5-VL](https://huggingface.co/collections/kerasformers/qwen25-vl-6a7cc9f463d6956b6c3ba911)
+- HF collection: [Qwen2.5-VL](https://huggingface.co/collections/zeromodels/qwen25-vl-6a7cc9f463d6956b6c3ba911)
 - Paper: [Qwen2.5-VL Technical Report (arXiv:2502.13923)](https://arxiv.org/abs/2502.13923)
 - HF docs: [transformers/model_doc/qwen2_5_vl](https://huggingface.co/docs/transformers/model_doc/qwen2_5_vl)
 
@@ -27,14 +27,14 @@ See also [qwen2_vl.md](qwen2_vl.md), [qwen3_vl.md](qwen3_vl.md).
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`.
+Load any of these with `from_weights("zeromodels/<variant>")`.
 
 | Variant | Hub |
 |---|---|
-| `qwen2.5-vl-3b-instruct` | [`kerasformers/qwen2.5-vl-3b-instruct`](https://huggingface.co/kerasformers/qwen2.5-vl-3b-instruct) |
-| `qwen2.5-vl-7b-instruct` | [`kerasformers/qwen2.5-vl-7b-instruct`](https://huggingface.co/kerasformers/qwen2.5-vl-7b-instruct) |
-| `qwen2.5-vl-32b-instruct` | [`kerasformers/qwen2.5-vl-32b-instruct`](https://huggingface.co/kerasformers/qwen2.5-vl-32b-instruct) |
-| `qwen2.5-vl-72b-instruct` | [`kerasformers/qwen2.5-vl-72b-instruct`](https://huggingface.co/kerasformers/qwen2.5-vl-72b-instruct) |
+| `qwen2.5-vl-3b-instruct` | [`zeromodels/qwen2.5-vl-3b-instruct`](https://huggingface.co/zeromodels/qwen2.5-vl-3b-instruct) |
+| `qwen2.5-vl-7b-instruct` | [`zeromodels/qwen2.5-vl-7b-instruct`](https://huggingface.co/zeromodels/qwen2.5-vl-7b-instruct) |
+| `qwen2.5-vl-32b-instruct` | [`zeromodels/qwen2.5-vl-32b-instruct`](https://huggingface.co/zeromodels/qwen2.5-vl-32b-instruct) |
+| `qwen2.5-vl-72b-instruct` | [`zeromodels/qwen2.5-vl-72b-instruct`](https://huggingface.co/zeromodels/qwen2.5-vl-72b-instruct) |
 
 ## API
 
@@ -95,16 +95,16 @@ produces them for you.
 Text-only counterpart of `Qwen2_5VLConditionalGenerate`, built with no vision tower
 (`build_vision=False`), so `.generate()` takes just token ids. It reads only the language
 model out of a Qwen2.5-VL checkpoint: `hf:` conversion copies just the text weights, and a
-kerasformers repo declaring `Qwen2_5VLConditionalGenerate` is read through
+zeromodels repo declaring `Qwen2_5VLConditionalGenerate` is read through
 `FULL_CHECKPOINT_SOURCES`. Qwen2.5-VL ships no dedicated tokenizer class, so drive text
 through `Qwen2_5VLProcessor` with a text-only conversation. Set
 `config_class = Qwen2_5VLTextConfig`.
 
 ```python
-from kerasformers.models.qwen2_5_vl import Qwen2_5VLTextGenerate, Qwen2_5VLProcessor
+from zeromodels.models.qwen2_5_vl import Qwen2_5VLTextGenerate, Qwen2_5VLProcessor
 
-model = Qwen2_5VLTextGenerate.from_weights("kerasformers/qwen2.5-vl-3b-instruct")
-processor = Qwen2_5VLProcessor.from_weights("kerasformers/qwen2.5-vl-3b-instruct")
+model = Qwen2_5VLTextGenerate.from_weights("zeromodels/qwen2.5-vl-3b-instruct")
+processor = Qwen2_5VLProcessor.from_weights("zeromodels/qwen2.5-vl-3b-instruct")
 conversation = [
     {"role": "user", "content": [{"type": "text", "text": "Who wrote Dune?"}]},
 ]
@@ -167,13 +167,13 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.qwen2_5_vl import (
+from zeromodels.models.qwen2_5_vl import (
     Qwen2_5VLConditionalGenerate,
     Qwen2_5VLProcessor,
 )
 
-model = Qwen2_5VLConditionalGenerate.from_weights("kerasformers/qwen2.5-vl-3b-instruct")
-processor = Qwen2_5VLProcessor.from_weights("kerasformers/qwen2.5-vl-3b-instruct")
+model = Qwen2_5VLConditionalGenerate.from_weights("zeromodels/qwen2.5-vl-3b-instruct")
+processor = Qwen2_5VLProcessor.from_weights("zeromodels/qwen2.5-vl-3b-instruct")
 
 image = Image.open("photo.jpg")
 inputs = processor(
@@ -257,7 +257,7 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Qwen2_5VLConditionalGenerate.from_weights(
-    "kerasformers/qwen2.5-vl-3b-instruct",
+    "zeromodels/qwen2.5-vl-3b-instruct",
     quantization="int8",
     load_dtype="bfloat16",
 )

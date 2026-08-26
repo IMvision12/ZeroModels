@@ -5,7 +5,7 @@ PYTEST := python -m pytest
 .PHONY: help
 help:
 	@echo ""
-	@echo " kerasformers test suite"
+	@echo " zeromodels test suite"
 	@echo " ────────────────────────────────────────────────"
 	@echo " make test-all                Full suite (torch)"
 	@echo " make test-backend-torch      Backend on torch"

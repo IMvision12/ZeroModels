@@ -6,8 +6,8 @@ gets a checkpoint onto a GPU that int8 cannot.
 ## Usage
 
 ```python
-from kerasformers.models.qwen3 import Qwen3TextGenerate
-from kerasformers.quantization import quantize_model
+from zeromodels.models.qwen3 import Qwen3TextGenerate
+from zeromodels.quantization import quantize_model
 
 # load and quantize in one call
 model = Qwen3TextGenerate.from_weights("qwen3-4b", quantization="int4")
@@ -59,7 +59,7 @@ Resolution order for any layer is `skip_modules` first, then `overrides`, then t
 Pass it anywhere a scheme string is accepted, `from_weights` included:
 
 ```python
-from kerasformers.quantization import Int4Config, quantize_model
+from zeromodels.quantization import Int4Config, quantize_model
 
 cfg = Int4Config(group_size=128)
 
@@ -84,7 +84,7 @@ int4 is a real accuracy step down from int8, so holding the sensitive layers hig
 common. Anything not matched keeps the int4 default:
 
 ```python
-from kerasformers.quantization import QuantizationConfig
+from zeromodels.quantization import QuantizationConfig
 
 QuantizationConfig(mode="int4", group_size=128, overrides={"decoder_layer_0": "int8"})
 ```

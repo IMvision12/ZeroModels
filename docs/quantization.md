@@ -1,7 +1,7 @@
 # Quantization (int8 / int4 / fp8 / mxfp4)
 
-kerasformers ships its **own** weight-only int8 / int4 / fp8 / mxfp4 quantization in
-`kerasformers/quantization/`: a from-scratch, backend-agnostic implementation
+zeromodels ships its **own** weight-only int8 / int4 / fp8 / mxfp4 quantization in
+`zeromodels/quantization/`: a from-scratch, backend-agnostic implementation
 (pure `keras.ops`), not Keras's built-in `model.quantize`. It shrinks a model
 ~4× (int8 / fp8) or ~8× (int4 / mxfp4) so larger checkpoints fit in memory. int8 /
 int4 / mxfp4 run on TensorFlow / Torch / JAX; fp8 (float8-e4m3) is torch / jax only.
@@ -26,7 +26,7 @@ class. The rest of this page is the machinery they share.
 ## Quick start
 
 ```python
-from kerasformers.models.qwen3 import Qwen3TextGenerate
+from zeromodels.models.qwen3 import Qwen3TextGenerate
 
 # load + quantize in one call
 model = Qwen3TextGenerate.from_weights("qwen3-4b", quantization="int8")  # ~4x smaller
@@ -36,7 +36,7 @@ model = Qwen3TextGenerate.from_weights(
 )  # ~4x (torch/jax)
 
 # or quantize a model you already built/loaded
-from kerasformers.quantization import quantize_model
+from zeromodels.quantization import quantize_model
 
 quantize_model(model, "int8")  # in place
 quantize_model(model, "int4", group_size=64)  # int4 block size (default 32)
@@ -65,7 +65,7 @@ Pass a `QuantizationConfig` for fine control: named schemes, mixed precision,
 and skipping accuracy-sensitive layers:
 
 ```python
-from kerasformers.quantization import quantize_model, QuantizationConfig
+from zeromodels.quantization import quantize_model, QuantizationConfig
 
 cfg = QuantizationConfig(
     mode="int4",
@@ -84,7 +84,7 @@ ordinary Keras save (the quantization is carried in `get_config` and re-applied 
 
 ```python
 import keras
-from kerasformers.quantization import dequantize_model, get_kf_quantizer
+from zeromodels.quantization import dequantize_model, get_kf_quantizer
 
 # Full save: the quantization round-trips automatically.
 model.save("model.keras")
@@ -93,7 +93,7 @@ model = keras.saving.load_model("model.keras")  # rebuilt quantized, weights loa
 # Weights-only (.weights.h5) carries values, not structure, so the target must already
 # be quantized before load_weights. From a Hub repo that is automatic (kf_config's
 # quantization_config drives it):
-model = Qwen3TextGenerate.from_weights("kerasformers/qwen3-4b-int8")
+model = Qwen3TextGenerate.from_weights("zeromodels/qwen3-4b-int8")
 
 # Into a hand-built model, apply the quantizer first, then load_weights. For a
 # functional model preprocess_model returns a NEW (cloned) quantized model, so use it:
@@ -130,7 +130,7 @@ quantized repo loads with **no flag**:
 
 ```python
 # reads quantization_config -> loads bf16 dense + mxfp4 experts, by default
-model = GptOssTextGenerate.from_weights("kerasformers/gpt-oss-20b")
+model = GptOssTextGenerate.from_weights("zeromodels/gpt-oss-20b")
 ```
 
 The models stay **quantization-agnostic** (no per-model flags): the model builds the
@@ -198,7 +198,7 @@ exact-zero test (handles zero and denormal channels), and `dequantize` takes the
 compute `dtype`, so `mixed_bfloat16` graphs don't upcast through float32.
 
 `quantize_model` walks the layer tree and **swaps** every built `Dense` →
-[`QuantizedDense`](https://github.com/IMvision12/KerasFormers/blob/main/kerasformers/quantization/quantized_layers.py), `EinsumDense`
+[`QuantizedDense`](https://github.com/IMvision12/ZeroModels/blob/main/zeromodels/quantization/quantized_layers.py), `EinsumDense`
 → `QuantizedEinsumDense`, `Embedding` → `QuantizedEmbedding`, and fused experts →
 `QuantizedExperts`, freeing the float weights, then records the resolved
 `QuantizationConfig` on the model. The swap unlocks the keras layer tracker,
@@ -213,7 +213,7 @@ class plus one file per scheme:
 
 | Symbol | File | Role |
 |---|---|---|
-| `BaseQuantizer` | `base/base_quantization.py` | base class (also `kerasformers.base.BaseQuantizer`): `quantize(weight, axis)` / `dequantize(packed, scale, axis, dtype)` / `storage_spec(weight_shape, axis)` + `get_config` / `from_config`; ships `normalize_axes` / `single_axis` |
+| `BaseQuantizer` | `base/base_quantization.py` | base class (also `zeromodels.base.BaseQuantizer`): `quantize(weight, axis)` / `dequantize(packed, scale, axis, dtype)` / `storage_spec(weight_shape, axis)` + `get_config` / `from_config`; ships `normalize_axes` / `single_axis` |
 | `Int8Quantizer` | `int8_quantize.py` | per-channel int8 quantizer (quantize / dequantize methods) |
 | `Int4Quantizer` | `int4_quantize.py` | block-wise packed int4 quantizer (any axis via moveaxis; module `effective_group_size`) |
 | `Fp8Quantizer` | `fp8_quantize.py` | per-channel float8-e4m3 quantizer (module `fp8_supported`; torch / jax) |
@@ -279,7 +279,7 @@ Worked examples (int4, ≈ 0.55 B/param):
 - **Coverage.** `Dense`, `EinsumDense`, `Embedding`, and fused-SwiGLU MoE expert
   banks (`gate_up_proj`/`down_proj`) are quantized; other custom weight layouts
   stay float. A `Dense`/`Embedding` stored inside a Python list (rare:
-  kerasformers uses attributes) is skipped with a warning. `dequantize_model`
+  zeromodels uses attributes) is skipped with a warning. `dequantize_model`
   reverts `Dense`/`Embedding`; quantized `EinsumDense` / experts stay quantized
   (they still run correctly). Tied-output LLMs that read `token_embedding.embeddings`
   for the logit projection keep working: `QuantizedEmbedding` exposes a

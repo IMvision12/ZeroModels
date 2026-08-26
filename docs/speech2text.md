@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Speech2Text (S2T) is fairseq's convolution-plus-transformer encoder-decoder for
@@ -181,15 +181,15 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 import soundfile as sf
-from kerasformers.models.speech2text import (
+from zeromodels.models.speech2text import (
     Speech2TextProcessor,
     Speech2TextConditionalGenerate,
 )
 
 model = Speech2TextConditionalGenerate.from_weights(
-    "kerasformers/s2t-small-librispeech-asr"
+    "zeromodels/s2t-small-librispeech-asr"
 )
-processor = Speech2TextProcessor.from_weights("kerasformers/s2t-small-librispeech-asr")
+processor = Speech2TextProcessor.from_weights("zeromodels/s2t-small-librispeech-asr")
 
 audio, sr = sf.read("assets/speech_quilter_manner.wav", dtype="float32")  # 16 kHz mono
 text = model.generate(audio, processor)
@@ -247,7 +247,7 @@ Any Hugging Face repo whose `model_type` is `"speech_to_text"` loads with the `h
 including the multilingual speech-translation checkpoints.
 
 ```python
-from kerasformers.models.speech2text import (
+from zeromodels.models.speech2text import (
     Speech2TextProcessor,
     Speech2TextConditionalGenerate,
 )
@@ -259,7 +259,7 @@ processor = Speech2TextProcessor.from_weights("hf:facebook/s2t-small-librispeech
 
 # Architecture only, randomly initialized
 model = Speech2TextConditionalGenerate.from_weights(
-    "kerasformers/s2t-small-librispeech-asr", load_weights=False
+    "zeromodels/s2t-small-librispeech-asr", load_weights=False
 )
 ```
 

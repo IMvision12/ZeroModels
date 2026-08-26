@@ -30,7 +30,7 @@ def _np(x):
 
 
 def _to_rows(out, pad_id=None):
-    """Normalize ANY kerasformers / HF tokenizer output to a list of per-row
+    """Normalize ANY zeromodels / HF tokenizer output to a list of per-row
     real-token id lists, regardless of the output contract:
 
     * dict ``input_ids`` / ``token_ids`` (+ ``attention_mask`` / ``padding_mask``),
@@ -87,7 +87,7 @@ def _assert_rows(name, ours_rows, hf_rows):
 
 
 def _build_legs(module, cls_name, repo):
-    """Both kerasformers construction paths, compared against HF independently:
+    """Both zeromodels construction paths, compared against HF independently:
     ``native`` = ``cls()`` (the shipped release tokenizer.json / class
     defaults, i.e. what ``from_weights(variant)`` uses) and ``from_hf`` =
     ``cls.from_hf(repo)`` (files pulled from the HF repo). A leg that fails to
@@ -111,161 +111,161 @@ def _build_legs(module, cls_name, repo):
 # name -> (submodule, class, hf_repo | None=use ours.hf_id, add_special, pad_attr)
 SPECS = {
     "bert": (
-        "kerasformers.models.bert.bert_tokenizer",
+        "zeromodels.models.bert.bert_tokenizer",
         "BertTokenizer",
         "bert-base-uncased",
         True,
         None,
     ),
     "clip": (
-        "kerasformers.models.clip.clip_tokenizer",
+        "zeromodels.models.clip.clip_tokenizer",
         "CLIPTokenizer",
         "openai/clip-vit-base-patch16",
         True,
         None,
     ),
     "deberta": (
-        "kerasformers.models.deberta.deberta_tokenizer",
+        "zeromodels.models.deberta.deberta_tokenizer",
         "DebertaTokenizer",
         "microsoft/deberta-base",
         True,
         None,
     ),
     "deberta_v2": (
-        "kerasformers.models.deberta_v2.deberta_v2_tokenizer",
+        "zeromodels.models.deberta_v2.deberta_v2_tokenizer",
         "DebertaV2Tokenizer",
         "microsoft/deberta-v2-xlarge",
         True,
         None,
     ),
     "deberta_v3": (
-        "kerasformers.models.deberta_v3.deberta_v3_tokenizer",
+        "zeromodels.models.deberta_v3.deberta_v3_tokenizer",
         "DebertaV3Tokenizer",
         "microsoft/deberta-v3-base",
         True,
         None,
     ),
     "gpt": (
-        "kerasformers.models.gpt.gpt_tokenizer",
+        "zeromodels.models.gpt.gpt_tokenizer",
         "GptTokenizer",
         "openai-community/openai-gpt",
         False,
         None,
     ),
     "gpt2": (
-        "kerasformers.models.gpt2.gpt2_tokenizer",
+        "zeromodels.models.gpt2.gpt2_tokenizer",
         "GPT2Tokenizer",
         "openai-community/gpt2",
         False,
         None,
     ),
     "gpt_oss": (
-        "kerasformers.models.gpt_oss.gpt_oss_tokenizer",
+        "zeromodels.models.gpt_oss.gpt_oss_tokenizer",
         "GptOssTokenizer",
         None,
         False,
         None,
     ),
     "granite_speech": (
-        "kerasformers.models.granite_speech.granite_speech_tokenizer",
+        "zeromodels.models.granite_speech.granite_speech_tokenizer",
         "GraniteSpeechTokenizer",
         "ibm-granite/granite-speech-3.3-2b",
         False,
         None,
     ),
     "granite_speech_plus": (
-        "kerasformers.models.granite_speech_plus.granite_speech_plus_tokenizer",
+        "zeromodels.models.granite_speech_plus.granite_speech_plus_tokenizer",
         "GraniteSpeechPlusTokenizer",
         "ibm-granite/granite-speech-4.1-2b-plus",
         False,
         None,
     ),
     "metaclip2": (
-        "kerasformers.models.metaclip2.metaclip2_tokenizer",
+        "zeromodels.models.metaclip2.metaclip2_tokenizer",
         "MetaClip2Tokenizer",
         "facebook/metaclip-2-worldwide-huge-378",
         True,
         None,
     ),
     "metaclip2_mt5": (
-        "kerasformers.models.metaclip2.metaclip2_mt5_tokenizer",
+        "zeromodels.models.metaclip2.metaclip2_mt5_tokenizer",
         "MetaClip2Mt5Tokenizer",
         "google/mt5-base",
         True,
         None,
     ),
     "moonshine": (
-        "kerasformers.models.moonshine.moonshine_tokenizer",
+        "zeromodels.models.moonshine.moonshine_tokenizer",
         "MoonshineTokenizer",
         "UsefulSensors/moonshine-tiny",
         False,
         None,
     ),
     "qwen2": (
-        "kerasformers.models.qwen2.qwen2_tokenizer",
+        "zeromodels.models.qwen2.qwen2_tokenizer",
         "Qwen2Tokenizer",
         None,
         False,
         None,
     ),
     "qwen2_vl": (
-        "kerasformers.models.qwen2_vl.qwen2_vl_tokenizer",
+        "zeromodels.models.qwen2_vl.qwen2_vl_tokenizer",
         "Qwen2VLTokenizer",
         None,
         False,
         None,
     ),
     "qwen3": (
-        "kerasformers.models.qwen3.qwen3_tokenizer",
+        "zeromodels.models.qwen3.qwen3_tokenizer",
         "Qwen3Tokenizer",
         None,
         False,
         None,
     ),
     "qwen3_5": (
-        "kerasformers.models.qwen3_5.qwen3_5_tokenizer",
+        "zeromodels.models.qwen3_5.qwen3_5_tokenizer",
         "Qwen3_5Tokenizer",
         None,
         False,
         None,
     ),
     "roberta": (
-        "kerasformers.models.roberta.roberta_tokenizer",
+        "zeromodels.models.roberta.roberta_tokenizer",
         "RobertaTokenizer",
         "roberta-base",
         True,
         None,
     ),
     "siglip": (
-        "kerasformers.models.siglip.siglip_tokenizer",
+        "zeromodels.models.siglip.siglip_tokenizer",
         "SigLIPTokenizer",
         "google/siglip-base-patch16-224",
         True,
         "pad_token_id",
     ),
     "siglip2": (
-        "kerasformers.models.siglip2.siglip2_tokenizer",
+        "zeromodels.models.siglip2.siglip2_tokenizer",
         "SigLIP2Tokenizer",
         "google/siglip2-base-patch16-224",
         True,
         "pad_token_id",
     ),
     "speech2text": (
-        "kerasformers.models.speech2text.speech2text_tokenizer",
+        "zeromodels.models.speech2text.speech2text_tokenizer",
         "Speech2TextTokenizer",
         "facebook/s2t-small-librispeech-asr",
         True,
         "pad_token_id",
     ),
     "whisper": (
-        "kerasformers.models.whisper.whisper_tokenizer",
+        "zeromodels.models.whisper.whisper_tokenizer",
         "WhisperTokenizer",
         "openai/whisper-tiny",
         False,
         None,
     ),
     "xlm_roberta": (
-        "kerasformers.models.xlm_roberta.xlm_roberta_tokenizer",
+        "zeromodels.models.xlm_roberta.xlm_roberta_tokenizer",
         "XLMRobertaTokenizer",
         "xlm-roberta-base",
         True,
@@ -323,7 +323,7 @@ def test_sam3_clip_tokenizer_vs_clip():
     """SAM3's CLIP text tokenizer returns a ``(input_ids, attention_mask)`` tuple
     via ``encode`` (no HF ``AutoTokenizer`` of its own); compare its real tokens
     against the OpenAI CLIP tokenizer it mirrors."""
-    from kerasformers.models.sam3.sam3_clip_tokenizer import SAM3CLIPTokenizer
+    from zeromodels.models.sam3.sam3_clip_tokenizer import SAM3CLIPTokenizer
 
     try:
         ours = SAM3CLIPTokenizer.from_hf("openai/clip-vit-base-patch16")
@@ -338,7 +338,7 @@ def test_sam3_clip_tokenizer_vs_clip():
 def test_bert_token_type_ids_pairs():
     """Exercise ``token_type_ids`` (0 for segment A, 1 for segment B) on a
     BERT text-pair batch, vs HF."""
-    from kerasformers.models.bert.bert_tokenizer import BertTokenizer
+    from zeromodels.models.bert.bert_tokenizer import BertTokenizer
 
     try:
         tok = BertTokenizer.from_hf("bert-base-uncased")
@@ -383,7 +383,7 @@ SNAPSHOT_TEXTS = [
 
 
 def _all_tokenizers():
-    import kerasformers.models as models
+    import zeromodels.models as models
 
     found = {}
     for family in sorted(n for n in dir(models) if not n.startswith("_")):
@@ -401,9 +401,7 @@ ALL_TOKENIZERS = _all_tokenizers()
 def _family_hf_id(family):
     """First hf_id any variant of this family publishes."""
     try:
-        config = importlib.import_module(
-            f"kerasformers.models.{family}.{family}_config"
-        )
+        config = importlib.import_module(f"zeromodels.models.{family}.{family}_config")
     except Exception:
         return None
     for attr in dir(config):

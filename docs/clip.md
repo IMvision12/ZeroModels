@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 CLIP (Contrastive Language-Image Pre-training) is a vision + text dual-encoder trained on hundreds of millions of (image, caption) pairs with a contrastive loss. The vision side is a ViT; the text side is a small transformer with causal masking. Both encoders project to a shared embedding space, and a learnable temperature scales the cosine-similarity logits.
@@ -399,10 +399,10 @@ Variant ids for `CLIPModel.from_weights`:
 
 ```python
 import keras
-from kerasformers.models.clip import CLIPProcessor, CLIPZeroShotClassify
+from zeromodels.models.clip import CLIPProcessor, CLIPZeroShotClassify
 
-processor = CLIPProcessor.from_weights("kerasformers/clip_vit_base_16")
-model = CLIPZeroShotClassify.from_weights("kerasformers/clip_vit_base_16")
+processor = CLIPProcessor.from_weights("zeromodels/clip_vit_base_16")
+model = CLIPZeroShotClassify.from_weights("zeromodels/clip_vit_base_16")
 
 labels = [
     "a photo of two cats",
@@ -449,10 +449,10 @@ image, and the same label set is scored against each:
 
 ```python
 import keras
-from kerasformers.models.clip import CLIPProcessor, CLIPZeroShotClassify
+from zeromodels.models.clip import CLIPProcessor, CLIPZeroShotClassify
 
-processor = CLIPProcessor.from_weights("kerasformers/clip_vit_base_16")
-model = CLIPZeroShotClassify.from_weights("kerasformers/clip_vit_base_16")
+processor = CLIPProcessor.from_weights("zeromodels/clip_vit_base_16")
+model = CLIPZeroShotClassify.from_weights("zeromodels/clip_vit_base_16")
 
 image_paths = ["assets/data/coco_cats.jpg", "assets/data/coco_bear.jpg"]
 labels = [
@@ -501,17 +501,17 @@ Mirrors HF's `CLIPForImageClassification`: the CLIP vision encoder feeds a mean-
 The classifier head is a plain `Dense`, so this class is only meaningful with a
 checkpoint whose head was actually trained. None of the Hub checkpoint variants in the
 table above carry one: they are all base CLIP, so
-`CLIPImageClassify.from_weights("kerasformers/clip_vit_base_16")` leaves the head randomly
+`CLIPImageClassify.from_weights("zeromodels/clip_vit_base_16")` leaves the head randomly
 initialized and its predictions are meaningless. Point it at a fine-tune, or train
 the head yourself.
 
 ```python
 import keras
-from kerasformers.models.clip import CLIPImageClassify, CLIPImageProcessor
+from zeromodels.models.clip import CLIPImageClassify, CLIPImageProcessor
 
 # A checkpoint whose classifier head was trained
 model = CLIPImageClassify.from_weights("hf:<user>/clip-finetuned-imagenet")
-image_processor = CLIPImageProcessor.from_weights("kerasformers/clip_vit_base_16")
+image_processor = CLIPImageProcessor.from_weights("zeromodels/clip_vit_base_16")
 
 inputs = image_processor("cat.jpg")  # {"pixel_values": (1, 224, 224, 3)}
 logits = model(inputs["pixel_values"])  # (B, num_classes)
@@ -544,7 +544,7 @@ model built from the **defaults** (`num_classes=1000`) with no error raised.
 You can also warm-start the vision encoder from a `CLIPModel` checkpoint (the encoder weight names match across both classes):
 
 ```python
-src = CLIPModel.from_weights("kerasformers/clip_vit_base_16")
+src = CLIPModel.from_weights("zeromodels/clip_vit_base_16")
 ac = CLIPImageClassify(
     num_classes=10,
     image_size=224,
@@ -593,8 +593,8 @@ import keras
 
 keras.config.set_image_data_format("channels_first")
 
-processor = CLIPProcessor.from_weights("kerasformers/clip_vit_base_16")
-model = CLIPZeroShotClassify.from_weights("kerasformers/clip_vit_base_16")
+processor = CLIPProcessor.from_weights("zeromodels/clip_vit_base_16")
+model = CLIPZeroShotClassify.from_weights("zeromodels/clip_vit_base_16")
 
 inputs = processor(text=labels, image_paths="assets/data/coco_cats.jpg")
 # inputs["images"] is (1, 3, 224, 224)
@@ -620,7 +620,7 @@ You are not limited to the official variants above. Any Hugging Face repo whose
 checkpoints, LAION variants, and arbitrary user fine-tunes.
 
 ```python
-from kerasformers.models.clip import CLIPZeroShotClassify
+from zeromodels.models.clip import CLIPZeroShotClassify
 
 # The original OpenAI checkpoints
 model = CLIPZeroShotClassify.from_weights("hf:openai/clip-vit-base-patch16")
@@ -645,5 +645,5 @@ All seven model classes accept `hf:`, as do `CLIPProcessor`, `CLIPImageProcessor
 processor = CLIPProcessor.from_weights("hf:openai/clip-vit-base-patch16")
 ```
 
-Loading `hf:openai/clip-vit-base-patch16` and the `kerasformers/clip_vit_base_16` Hub variant
+Loading `hf:openai/clip-vit-base-patch16` and the `zeromodels/clip_vit_base_16` Hub variant
 produces identical outputs, since they are the same checkpoint by two routes.

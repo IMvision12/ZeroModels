@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 OpenAI's original GPT (Radford et al. 2018, "openai-gpt") in pure Keras 3: a
@@ -30,11 +30,11 @@ See also [gpt2.md](gpt2.md).
 
 ## Variants
 
-Load with `from_weights("kerasformers/<variant>")`. GPT ships a single size.
+Load with `from_weights("zeromodels/<variant>")`. GPT ships a single size.
 
 | Variant | Hub | Layers | Width | Heads | Vocab | Params |
 |---|---|---|---|---|---|---|
-| `gpt` | [`kerasformers/gpt`](https://huggingface.co/kerasformers/gpt) | 12 | 768 | 12 | 40478 | 117M |
+| `gpt` | [`zeromodels/gpt`](https://huggingface.co/zeromodels/gpt) | 12 | 768 | 12 | 40478 | 117M |
 
 ## API
 
@@ -91,7 +91,7 @@ GptTokenizer(variant="gpt", hf_id=None, tokenizer_file=None)
 
 | Arg | Default | Meaning |
 |---|---|---|
-| `variant` | `"gpt"` | resolves to the `kerasformers/<variant>` repo's `tokenizer.json` |
+| `variant` | `"gpt"` | resolves to the `zeromodels/<variant>` repo's `tokenizer.json` |
 | `hf_id` | `None` | explicit Hub repo to pull `tokenizer.json` from (overrides `variant`) |
 | `tokenizer_file` | `None` | explicit path to a `tokenizer.json` |
 
@@ -107,10 +107,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.gpt import GptTextGenerate, GptTokenizer
+from zeromodels.models.gpt import GptTextGenerate, GptTokenizer
 
-model = GptTextGenerate.from_weights("kerasformers/gpt")
-tokenizer = GptTokenizer.from_weights("kerasformers/gpt")
+model = GptTextGenerate.from_weights("zeromodels/gpt")
+tokenizer = GptTokenizer.from_weights("zeromodels/gpt")
 
 inputs = tokenizer("the meaning of life is")
 outputs = model.generate(**inputs, max_new_tokens=40)
@@ -136,9 +136,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.gpt import GptModel
+from zeromodels.models.gpt import GptModel
 
-backbone = GptModel.from_weights("kerasformers/gpt")
+backbone = GptModel.from_weights("zeromodels/gpt")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, 768)
 ```
 

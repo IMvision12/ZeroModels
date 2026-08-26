@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> most GLM families are hosted as preconverted Keras weights under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a> (each repo
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a> (each repo
 carries <code>kf_config.json</code> + the <code>.weights.h5</code>) — load with
-<code>from_weights("kerasformers/&lt;variant&gt;")</code>. The largest checkpoints
+<code>from_weights("zeromodels/&lt;variant&gt;")</code>. The largest checkpoints
 (full-size GLM-4.5 / GLM-4.6 and the GLM-5 MoE series) are not re-hosted; convert them on
 the fly with a raw <code>hf:</code> id. See <a href="../loading_weights/">Loading Weights</a>.
 </div>
@@ -22,12 +22,12 @@ HuggingFace reference.
 
 | Family | Module | Kind | Decoder |
 |---|---|---|---|
-| GLM-4-9B | `kerasformers.models.glm` | text | GLM (interleaved partial RoPE) |
-| GLM-4-0414 / GLM-Z1 | `kerasformers.models.glm4` | text | GLM + sandwich norms |
-| GLM-4.5 / GLM-4.6 | `kerasformers.models.glm4_moe` | text (MoE) | grouped-top-k router + shared expert, NeoX partial RoPE |
-| GLM-5 / GLM-5.1 / GLM-5.2 | `kerasformers.models.glm5_moe` | text (MoE) | **MLA + DSA** (DeepSeek Sparse Attention) + DeepSeekMoE |
-| GLM-4.1V | `kerasformers.models.glm4v` | image+video+text | GLM + Qwen2-VL-class M-RoPE vision |
-| GLM-4.5V | `kerasformers.models.glm4v_moe` | image+video+text (MoE) | GLM-4.5 MoE + GLM-4V vision |
+| GLM-4-9B | `zeromodels.models.glm` | text | GLM (interleaved partial RoPE) |
+| GLM-4-0414 / GLM-Z1 | `zeromodels.models.glm4` | text | GLM + sandwich norms |
+| GLM-4.5 / GLM-4.6 | `zeromodels.models.glm4_moe` | text (MoE) | grouped-top-k router + shared expert, NeoX partial RoPE |
+| GLM-5 / GLM-5.1 / GLM-5.2 | `zeromodels.models.glm5_moe` | text (MoE) | **MLA + DSA** (DeepSeek Sparse Attention) + DeepSeekMoE |
+| GLM-4.1V | `zeromodels.models.glm4v` | image+video+text | GLM + Qwen2-VL-class M-RoPE vision |
+| GLM-4.5V | `zeromodels.models.glm4v_moe` | image+video+text (MoE) | GLM-4.5 MoE + GLM-4V vision |
 
 Each family exposes a `*Model` (features, `call` → `last_hidden_state`) and a
 `*Generate` (adds the LM head + `.generate()`, `call` → `logits`), plus a
@@ -35,24 +35,24 @@ Each family exposes a `*Model` (features, `call` → `last_hidden_state`) and a
 
 ## Loading
 
-Hosted checkpoints load by their `kerasformers/<variant>` repo id (preconverted
+Hosted checkpoints load by their `zeromodels/<variant>` repo id (preconverted
 bf16 `.weights.h5` + `kf_config.json`). A raw `hf:` id converts any matching
 upstream checkpoint on the fly (safetensors mapped at load time; FP8 MoE
 dequantized) — used for the checkpoints too large to re-host.
 
 ```python
-from kerasformers.models.glm import GlmTextGenerate
-from kerasformers.models.glm4_moe import Glm4MoeTextGenerate
+from zeromodels.models.glm import GlmTextGenerate
+from zeromodels.models.glm4_moe import Glm4MoeTextGenerate
 
-gen = GlmTextGenerate.from_weights("kerasformers/glm-4-9b-chat")  # text
-gen = Glm4MoeTextGenerate.from_weights("kerasformers/glm-4.5-air")  # text MoE
+gen = GlmTextGenerate.from_weights("zeromodels/glm-4-9b-chat")  # text
+gen = Glm4MoeTextGenerate.from_weights("zeromodels/glm-4.5-air")  # text MoE
 # a raw hf: id converts on the fly (e.g. the not-hosted full-size GLM-4.5)
 gen = Glm4MoeTextGenerate.from_weights("hf:zai-org/GLM-4.5")
 ```
 
 ### Available variants
 
-Text (load hosted ones as `kerasformers/<variant>`):
+Text (load hosted ones as `zeromodels/<variant>`):
 
 | Family | Variants | Hosted? | Upstream |
 |---|---|---|---|
@@ -78,10 +78,10 @@ identifier you give the model.
 
 ```python
 # text LLM
-from kerasformers.models.glm import GlmTextGenerate, GlmTokenizer
+from zeromodels.models.glm import GlmTextGenerate, GlmTokenizer
 
-model = GlmTextGenerate.from_weights("kerasformers/glm-4-9b-chat")
-tokenizer = GlmTokenizer.from_weights("kerasformers/glm-4-9b-chat")
+model = GlmTextGenerate.from_weights("zeromodels/glm-4-9b-chat")
+tokenizer = GlmTokenizer.from_weights("zeromodels/glm-4-9b-chat")
 
 messages = [{"role": "user", "content": "Name three prime numbers."}]
 inputs = tokenizer(messages)
@@ -89,10 +89,10 @@ outputs = model.generate(**inputs, max_new_tokens=128)
 print(tokenizer.decode(outputs[0]))
 
 # vision-language (GLM-4.1V)
-from kerasformers.models.glm4v import Glm4vConditionalGenerate, Glm4vProcessor
+from zeromodels.models.glm4v import Glm4vConditionalGenerate, Glm4vProcessor
 
-model = Glm4vConditionalGenerate.from_weights("kerasformers/glm-4.1v-9b-thinking")
-processor = Glm4vProcessor.from_weights("kerasformers/glm-4.1v-9b-thinking")
+model = Glm4vConditionalGenerate.from_weights("zeromodels/glm-4.1v-9b-thinking")
+processor = Glm4vProcessor.from_weights("zeromodels/glm-4.1v-9b-thinking")
 
 conversation = [
     {

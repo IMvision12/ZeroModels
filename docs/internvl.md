@@ -2,7 +2,7 @@
 
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
-<code>.weights.h5</code> under <code>kerasformers/</code>.
+<code>.weights.h5</code> under <code>zeromodels/</code>.
 <code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
@@ -172,7 +172,7 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.internvl import InternVLConditionalGenerate, InternVLProcessor
+from zeromodels.models.internvl import InternVLConditionalGenerate, InternVLProcessor
 
 model = InternVLConditionalGenerate.from_weights("internvl3-1b")
 processor = InternVLProcessor.from_weights("internvl3-1b")
@@ -258,7 +258,7 @@ Text-only prompts batch the same way: pass `text=[...]` with no `images`.
 have rendered yourself (or go through the processor above).
 
 ```python
-from kerasformers.models.internvl import InternVLTokenizer
+from zeromodels.models.internvl import InternVLTokenizer
 
 tokenizer = InternVLTokenizer.from_weights("internvl3-1b")
 inputs = tokenizer("Who wrote Dune?")

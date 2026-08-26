@@ -2,7 +2,7 @@
 
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
-<code>.weights.h5</code> under <code>kerasformers/</code>.
+<code>.weights.h5</code> under <code>zeromodels/</code>.
 <code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
@@ -149,7 +149,7 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.mistral3 import Mistral3ConditionalGenerate, Mistral3Processor
+from zeromodels.models.mistral3 import Mistral3ConditionalGenerate, Mistral3Processor
 
 model = Mistral3ConditionalGenerate.from_weights("mistral-small-3.1-24b-instruct")
 processor = Mistral3Processor.from_weights("mistral-small-3.1-24b-instruct")
@@ -235,7 +235,7 @@ Text-only prompts batch the same way: pass `text=[...]` with no `images`.
 have rendered yourself (or go through the processor above).
 
 ```python
-from kerasformers.models.mistral3 import Mistral3Tokenizer
+from zeromodels.models.mistral3 import Mistral3Tokenizer
 
 tokenizer = Mistral3Tokenizer.from_weights("mistral-small-3.1-24b-instruct")
 inputs = tokenizer("Who wrote Dune?")

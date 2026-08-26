@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 DETR (DEtection TRansformer) treats object detection as direct set prediction. A ResNet backbone produces a feature map, a transformer encoder-decoder attends over it with a fixed set of learned object queries, and each query emits one class and one box. Training uses a bipartite (Hungarian) matching loss, so every ground-truth object is assigned exactly one query.
@@ -199,10 +199,10 @@ Panoptic variants for `DETRPanopticSegment.from_weights`:
 
 ```python
 from PIL import Image
-from kerasformers.models.detr import DETRDetect, DETRImageProcessor
+from zeromodels.models.detr import DETRDetect, DETRImageProcessor
 
-model = DETRDetect.from_weights("kerasformers/detr-resnet-50")
-processor = DETRImageProcessor.from_weights("kerasformers/detr-resnet-50")
+model = DETRDetect.from_weights("zeromodels/detr-resnet-50")
+processor = DETRImageProcessor.from_weights("zeromodels/detr-resnet-50")
 
 image = Image.open("assets/data/coco_living_room.jpg").convert("RGB")
 inputs = processor(image)
@@ -250,10 +250,10 @@ Pass a list of images and one `target_sizes` entry per image:
 
 ```python
 from PIL import Image
-from kerasformers.models.detr import DETRDetect, DETRImageProcessor
+from zeromodels.models.detr import DETRDetect, DETRImageProcessor
 
-model = DETRDetect.from_weights("kerasformers/detr-resnet-50")
-processor = DETRImageProcessor.from_weights("kerasformers/detr-resnet-50")
+model = DETRDetect.from_weights("zeromodels/detr-resnet-50")
+processor = DETRImageProcessor.from_weights("zeromodels/detr-resnet-50")
 
 paths = ["assets/data/coco_desk.jpg", "assets/data/coco_cats.jpg"]
 images = [Image.open(p).convert("RGB") for p in paths]
@@ -305,10 +305,10 @@ things plus stuff, plus "no object") rather than the detector's 92.
 
 ```python
 from PIL import Image
-from kerasformers.models.detr import DETRImageProcessor, DETRPanopticSegment
+from zeromodels.models.detr import DETRImageProcessor, DETRPanopticSegment
 
-model = DETRPanopticSegment.from_weights("kerasformers/detr-resnet-50-panoptic")
-processor = DETRImageProcessor.from_weights("kerasformers/detr-resnet-50-panoptic")
+model = DETRPanopticSegment.from_weights("zeromodels/detr-resnet-50-panoptic")
+processor = DETRImageProcessor.from_weights("zeromodels/detr-resnet-50-panoptic")
 
 image = Image.open("assets/data/coco_skier.jpg").convert("RGB")
 output = model(processor(image)["pixel_values"], training=False)
@@ -331,7 +331,7 @@ largest first, or a big stuff region such as a wall will bury every object insid
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.utils.labels_util import COCO_91_CLASSES
+from zeromodels.utils.labels_util import COCO_91_CLASSES
 
 PALETTE = [
     (255, 59, 48),
@@ -406,7 +406,7 @@ person 1.000, class_159 0.999, skis 0.995, class_187 0.974
 `person` and `skis` are COCO detection classes so they resolve, while `class_159`
 (snow) and `class_187` (sky) are stuff classes with no name in the default list. The library ships
 `COCO_91_CLASSES`, `COCO_80_CLASSES`, and `PASCAL_VOC_CLASSES` in
-`kerasformers.utils.labels_util`, plus `COCO_PANOPTIC_THING_IDS` and
+`zeromodels.utils.labels_util`, plus `COCO_PANOPTIC_THING_IDS` and
 `COCO_PANOPTIC_STUFF_IDS`, but no panoptic **name** list, so supply your own.
 
 ## Custom Class Names
@@ -462,8 +462,8 @@ import keras
 
 keras.config.set_image_data_format("channels_first")
 
-model = DETRDetect.from_weights("kerasformers/detr-resnet-50")
-processor = DETRImageProcessor.from_weights("kerasformers/detr-resnet-50")
+model = DETRDetect.from_weights("zeromodels/detr-resnet-50")
+processor = DETRImageProcessor.from_weights("zeromodels/detr-resnet-50")
 
 inputs = processor(image)
 # inputs["pixel_values"] is (1, 3, 800, 800)
@@ -486,7 +486,7 @@ You are not limited to the official variants above. Any Hugging Face repo whose
 `facebook/detr-*` checkpoints and arbitrary user fine-tunes.
 
 ```python
-from kerasformers.models.detr import DETRDetect
+from zeromodels.models.detr import DETRDetect
 
 # The original Facebook checkpoints
 model = DETRDetect.from_weights("hf:facebook/detr-resnet-50")
@@ -495,7 +495,7 @@ model = DETRDetect.from_weights("hf:facebook/detr-resnet-50")
 model = DETRDetect.from_weights("hf:<user>/detr-finetuned-on-my-data")
 
 # Architecture only, randomly initialized
-model = DETRDetect.from_weights("kerasformers/detr-resnet-50", load_weights=False)
+model = DETRDetect.from_weights("zeromodels/detr-resnet-50", load_weights=False)
 ```
 
 No shape arguments are needed. The architecture is read from the repo's `config.json`
@@ -509,5 +509,5 @@ matching preprocessing from the same repo:
 processor = DETRImageProcessor.from_weights("hf:facebook/detr-resnet-50")
 ```
 
-Loading `hf:facebook/detr-resnet-50` and the `kerasformers/detr-resnet-50` Hub variant produces
+Loading `hf:facebook/detr-resnet-50` and the `zeromodels/detr-resnet-50` Hub variant produces
 identical outputs, since they are the same checkpoint by two routes.

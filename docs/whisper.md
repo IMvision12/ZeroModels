@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Whisper is an encoder-decoder transformer trained on 680,000 hours of weakly supervised
@@ -215,10 +215,10 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 import soundfile as sf
-from kerasformers.models.whisper import WhisperProcessor, WhisperConditionalGenerate
+from zeromodels.models.whisper import WhisperProcessor, WhisperConditionalGenerate
 
-model = WhisperConditionalGenerate.from_weights("kerasformers/whisper_base")
-processor = WhisperProcessor.from_weights("kerasformers/whisper_base")
+model = WhisperConditionalGenerate.from_weights("zeromodels/whisper_base")
+processor = WhisperProcessor.from_weights("zeromodels/whisper_base")
 
 audio, sr = sf.read("assets/speech_festive_season.wav", dtype="float32")  # 16 kHz mono
 text = model.generate(audio, processor, language="en", task="transcribe")
@@ -299,7 +299,7 @@ Any Hugging Face repo whose `model_type` is `"whisper"` loads with the `hf:` pre
 including the original OpenAI checkpoints and community fine-tunes.
 
 ```python
-from kerasformers.models.whisper import WhisperProcessor, WhisperConditionalGenerate
+from zeromodels.models.whisper import WhisperProcessor, WhisperConditionalGenerate
 
 model = WhisperConditionalGenerate.from_weights("hf:openai/whisper-small")
 processor = WhisperProcessor.from_weights("hf:openai/whisper-small")
@@ -308,7 +308,7 @@ model = WhisperConditionalGenerate.from_weights("hf:<user>/whisper-small-finetun
 
 # Architecture only, randomly initialized
 model = WhisperConditionalGenerate.from_weights(
-    "kerasformers/whisper_tiny", load_weights=False
+    "zeromodels/whisper_tiny", load_weights=False
 )
 ```
 

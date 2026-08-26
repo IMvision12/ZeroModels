@@ -5,12 +5,12 @@ import numpy as np
 import pytest
 from keras import ops
 
-from kerasformers.base import BaseProcessor
 from tests.base.model_test_registry import (
     MODEL_TEST_CONFIGS,
     create_test_input,
     import_model_class,
 )
+from zeromodels.base import BaseProcessor
 
 BACKEND = os.environ.get("KERAS_BACKEND", "torch")
 MODEL_IDS = list(MODEL_TEST_CONFIGS.keys())
@@ -424,8 +424,8 @@ class _FakeTokenizer:
 
 
 def _glm4v_processor():
-    from kerasformers.models.glm4v.glm4v_image_processor import Glm4vImageProcessor
-    from kerasformers.models.glm4v.glm4v_processor import Glm4vProcessor
+    from zeromodels.models.glm4v.glm4v_image_processor import Glm4vImageProcessor
+    from zeromodels.models.glm4v.glm4v_processor import Glm4vProcessor
 
     return Glm4vProcessor(
         patch_size=16,
@@ -494,7 +494,7 @@ def test_kimi_expands_each_image_against_its_own_grid():
     # Expanding markers with repeated replace() puts the second image's span
     # inside the first one's, which keeps the token total right while moving the
     # patches: 4 + 1 stays 5 either way, so only the layout catches it.
-    from kerasformers.models.kimi_k25.kimi_k25_processor import (
+    from zeromodels.models.kimi_k25.kimi_k25_processor import (
         IMAGE_TOKEN,
         KimiK25Processor,
     )

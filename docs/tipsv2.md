@@ -2,10 +2,10 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code> +
 <code>tokenizer.json</code> + <code>kf_preprocessor.json</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>. The full model
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>. The full model
 and both towers load from the same repo.
 </div>
 
@@ -227,7 +227,7 @@ exactly the `Tipsv2Model` input dict.
 
 ## Model Variants
 
-Load any of these with `from_weights("kerasformers/<variant id>")`.
+Load any of these with `from_weights("zeromodels/<variant id>")`.
 
 | Variant id | Image size | Patch | FFN | Weights |
 |---|---:|---:|---|---|
@@ -245,10 +245,10 @@ automatically from the config (`vision_use_swiglu_ffn=True`).
 
 ```python
 import keras
-from kerasformers.models.tipsv2 import Tipsv2Model, Tipsv2Processor
+from zeromodels.models.tipsv2 import Tipsv2Model, Tipsv2Processor
 
-model = Tipsv2Model.from_weights("kerasformers/tipsv2-b14")
-processor = Tipsv2Processor.from_weights("kerasformers/tipsv2-b14")
+model = Tipsv2Model.from_weights("zeromodels/tipsv2-b14")
+processor = Tipsv2Processor.from_weights("zeromodels/tipsv2-b14")
 
 labels = [
     "a photo of a person skiing",
@@ -282,10 +282,10 @@ directly with no key remapping.
 Each tower loads from the same repo and produces embeddings you can index or cache:
 
 ```python
-from kerasformers.models.tipsv2 import Tipsv2VisionModel, Tipsv2TextModel
+from zeromodels.models.tipsv2 import Tipsv2VisionModel, Tipsv2TextModel
 
-vision = Tipsv2VisionModel.from_weights("kerasformers/tipsv2-b14")
-text = Tipsv2TextModel.from_weights("kerasformers/tipsv2-b14")
+vision = Tipsv2VisionModel.from_weights("zeromodels/tipsv2-b14")
+text = Tipsv2TextModel.from_weights("zeromodels/tipsv2-b14")
 
 image_feats = vision(inputs["images"])["pooler_output"]
 text_feats = text(
@@ -319,7 +319,7 @@ Every class also accepts the `hf:` prefix to convert an upstream
 `tokenizer.model`, which `Tipsv2Tokenizer` rebuilds into a fast `tokenizer.json`):
 
 ```python
-from kerasformers.models.tipsv2 import Tipsv2Model, Tipsv2Processor
+from zeromodels.models.tipsv2 import Tipsv2Model, Tipsv2Processor
 
 model = Tipsv2Model.from_weights("hf:google/tipsv2-b14")
 processor = Tipsv2Processor.from_weights("hf:google/tipsv2-b14")
@@ -327,5 +327,5 @@ processor = Tipsv2Processor.from_weights("hf:google/tipsv2-b14")
 
 No shape arguments are needed. The architecture is read from the repo's
 `config.json` and mapped onto the constructor. Loading `hf:google/tipsv2-b14` and
-the `kerasformers/tipsv2-b14` Hub variant produces identical outputs, since they are
+the `zeromodels/tipsv2-b14` Hub variant produces identical outputs, since they are
 the same checkpoint by two routes.

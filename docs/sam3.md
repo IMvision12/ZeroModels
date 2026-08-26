@@ -2,10 +2,10 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> preconverted Keras weights are hosted <b>ungated</b> at
-<a href="https://huggingface.co/kerasformers/sam3">kerasformers/sam3</a> under the SAM
+<a href="https://huggingface.co/zeromodels/sam3">zeromodels/sam3</a> under the SAM
 license (<code>kf_config.json</code> + <code>model.weights.h5</code> +
 <code>tokenizer.json</code> + <code>kf_preprocessor.json</code>). Load with
-<code>from_weights("kerasformers/sam3")</code> &mdash; no license gate. The gated upstream
+<code>from_weights("zeromodels/sam3")</code> &mdash; no license gate. The gated upstream
 <a href="https://huggingface.co/facebook/sam3">facebook/sam3</a> also converts on the fly
 via the <code>hf:</code> prefix once you accept its license.
 </div>
@@ -27,12 +27,12 @@ available, through a geometry encoder, and can be mixed with text.
 ## API
 
 Three task wrappers share one `SAM3Model`. They differ only in what they return. There is a
-single SAM3 checkpoint, hosted ungated at `kerasformers/sam3`, so load with `from_weights`
+single SAM3 checkpoint, hosted ungated at `zeromodels/sam3`, so load with `from_weights`
 (no `variant` to pick):
 
 ```python
 Task.from_weights(
-    repo_id="kerasformers/sam3", load_weights=True, **kwargs
+    repo_id="zeromodels/sam3", load_weights=True, **kwargs
 )  # load + wrap
 Task(model)  # wrap an existing SAM3Model
 ```
@@ -40,13 +40,13 @@ Task(model)  # wrap an existing SAM3Model
 **Load once, share the backbone** across tasks rather than paying for a second copy:
 
 ```python
-from kerasformers.models.sam3 import (
+from zeromodels.models.sam3 import (
     SAM3Detect,
     SAM3InstanceSegment,
     SAM3SemanticSegment,
 )
 
-segmenter = SAM3InstanceSegment.from_weights("kerasformers/sam3")
+segmenter = SAM3InstanceSegment.from_weights("zeromodels/sam3")
 detector = SAM3Detect(model=segmenter.model)  # same weights, no reload
 semantic = SAM3SemanticSegment(model=segmenter.model)
 ```
@@ -100,10 +100,10 @@ directly, but it is the transformers-style entry point and the home of the
 `post_process_*` helpers.
 
 ```python
-from kerasformers.models.sam3 import SAM3Processor
+from zeromodels.models.sam3 import SAM3Processor
 
 # tokenizer.json + kf_preprocessor.json, both hosted ungated
-processor = SAM3Processor.from_weights("kerasformers/sam3")
+processor = SAM3Processor.from_weights("zeromodels/sam3")
 
 inputs = processor(images="cats.jpg", text="cat")
 # -> pixel_values (1, 1008, 1008, 3), input_ids (1, 32), attention_mask, original_sizes
@@ -130,10 +130,10 @@ raw `SAM3Model` outputs into the result dicts.
 
 | Variant id          | Backbone | Params | Source                                |
 |---------------------|----------|-------:|---------------------------------------|
-| `kerasformers/sam3` | ViT-L/14 | ~839 M | hosted, ungated (SAM license)         |
+| `zeromodels/sam3` | ViT-L/14 | ~839 M | hosted, ungated (SAM license)         |
 | `sam3_saco`         | ViT-L/14 | ~839 M | converts from `facebook/sam3` (gated) |
 
-One checkpoint, two ways to load it: `kerasformers/sam3` is the preconverted ungated repo;
+One checkpoint, two ways to load it: `zeromodels/sam3` is the preconverted ungated repo;
 `hf:facebook/sam3` converts the gated upstream on the fly. Native resolution is
 **1008x1008** &mdash; the ViT uses windowed attention with 2-D RoPE plus a learned position
 table sized to a 72x72 patch grid &mdash; and `predict` preprocesses to that size. The
@@ -146,9 +146,9 @@ graph is resolution-parametric, so you can build it at another size for
 
 ```python
 import torch
-from kerasformers.models.sam3 import SAM3InstanceSegment
+from zeromodels.models.sam3 import SAM3InstanceSegment
 
-segmenter = SAM3InstanceSegment.from_weights("kerasformers/sam3")
+segmenter = SAM3InstanceSegment.from_weights("zeromodels/sam3")
 
 with torch.no_grad():
     result = segmenter.predict(
@@ -295,9 +295,9 @@ Same prompt, same image, different question. Instance mode asks *which balloons*
 semantic mode asks *where is balloon*, and returns one merged binary mask.
 
 ```python
-from kerasformers.models.sam3 import SAM3SemanticSegment
+from zeromodels.models.sam3 import SAM3SemanticSegment
 
-semantic = SAM3SemanticSegment.from_weights("kerasformers/sam3")
+semantic = SAM3SemanticSegment.from_weights("zeromodels/sam3")
 
 with torch.no_grad():
     mask = semantic.predict(images="assets/data/coco_apartment.jpg", text="balloon")[0]
@@ -318,9 +318,9 @@ semantic map rather than filtering queries.
 Skip the mask decoder when boxes are all you need:
 
 ```python
-from kerasformers.models.sam3 import SAM3Detect
+from zeromodels.models.sam3 import SAM3Detect
 
-detector = SAM3Detect.from_weights("kerasformers/sam3")
+detector = SAM3Detect.from_weights("zeromodels/sam3")
 
 with torch.no_grad():
     result = detector.predict(images="assets/data/coco_city_bus.jpg", text="car")[0]
@@ -343,9 +343,9 @@ The ViT-L dominates the cost and does not depend on the prompt, so cache it with
 
 ```python
 import torch
-from kerasformers.models.sam3 import SAM3InstanceSegment
+from zeromodels.models.sam3 import SAM3InstanceSegment
 
-segmenter = SAM3InstanceSegment.from_weights("kerasformers/sam3")
+segmenter = SAM3InstanceSegment.from_weights("zeromodels/sam3")
 
 with torch.no_grad():
     features = segmenter.model.encode_image("assets/data/coco_apartment.jpg")
@@ -414,9 +414,9 @@ import keras
 
 keras.config.set_image_data_format("channels_first")
 
-from kerasformers.models.sam3 import SAM3InstanceSegment
+from zeromodels.models.sam3 import SAM3InstanceSegment
 
-segmenter = SAM3InstanceSegment.from_weights("kerasformers/sam3")
+segmenter = SAM3InstanceSegment.from_weights("zeromodels/sam3")
 ```
 
 Returned masks and boxes are in original-image pixel space either way.
@@ -431,11 +431,11 @@ pretrain grid) tiles / crops to it, so the checkpoint loads unchanged.
 
 ```python
 import torch
-from kerasformers.models.sam3 import SAM3InstanceSegment, SAM3Model
+from zeromodels.models.sam3 import SAM3InstanceSegment, SAM3Model
 
 # build the graph at 1512x1512 (grid 108x108) and load the hosted weights
 model = SAM3Model.from_weights(
-    "kerasformers/sam3", vit_image_size=1512, image_size=1512
+    "zeromodels/sam3", vit_image_size=1512, image_size=1512
 )
 # the task's image processor follows model.vit_image_size
 segmenter = SAM3InstanceSegment(model=model)
@@ -453,7 +453,7 @@ with torch.no_grad():
 `sam3_utils` ships the overlay helpers used for the figures above:
 
 ```python
-from kerasformers.models.sam3.sam3_utils import (
+from zeromodels.models.sam3.sam3_utils import (
     draw_detections,
     draw_instance_masks,
     draw_semantic_mask,
@@ -465,11 +465,11 @@ draw_instance_masks(image, result, title="balloons").save("out.jpg")
 ## Tokenizer
 
 `SAM3CLIPTokenizer` is the OpenAI CLIP BPE tokenizer with `max_seq_len=32`. It resolves
-`tokenizer.json` from the ungated `kerasformers/sam3` on the fly (no license gate);
+`tokenizer.json` from the ungated `zeromodels/sam3` on the fly (no license gate);
 `encode` returns an `(input_ids, attention_mask)` **tuple**, not a dict.
 
 ```python
-from kerasformers.models.sam3 import SAM3CLIPTokenizer
+from zeromodels.models.sam3 import SAM3CLIPTokenizer
 
 tokenizer = SAM3CLIPTokenizer()
 input_ids, attention_mask = tokenizer.encode("a photo of a cat")

@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Google's ELECTRA in pure Keras 3: a BERT-style bidirectional text encoder pre-trained as a
@@ -24,13 +24,13 @@ See also [bert.md](bert.md), [modernbert.md](modernbert.md), [roberta.md](robert
 ELECTRA ships two checkpoints per size, hosted as one repo each. The **discriminator** repo
 (kf_config declares `ElectraModel`) serves the encoder + the classify / QA / token /
 multiple-choice heads; the **generator** repo (kf_config declares `ElectraMaskedLM`) serves the
-masked-LM. Load with `from_weights("kerasformers/<variant>")`.
+masked-LM. Load with `from_weights("zeromodels/<variant>")`.
 
 | Size | Discriminator (encoder / downstream) | Generator (masked-LM) |
 |---|---|---|
-| small | [`kerasformers/electra_small_discriminator`](https://huggingface.co/kerasformers/electra_small_discriminator) | [`kerasformers/electra_small_generator`](https://huggingface.co/kerasformers/electra_small_generator) |
-| base | [`kerasformers/electra_base_discriminator`](https://huggingface.co/kerasformers/electra_base_discriminator) | [`kerasformers/electra_base_generator`](https://huggingface.co/kerasformers/electra_base_generator) |
-| large | [`kerasformers/electra_large_discriminator`](https://huggingface.co/kerasformers/electra_large_discriminator) | [`kerasformers/electra_large_generator`](https://huggingface.co/kerasformers/electra_large_generator) |
+| small | [`zeromodels/electra_small_discriminator`](https://huggingface.co/zeromodels/electra_small_discriminator) | [`zeromodels/electra_small_generator`](https://huggingface.co/zeromodels/electra_small_generator) |
+| base | [`zeromodels/electra_base_discriminator`](https://huggingface.co/zeromodels/electra_base_discriminator) | [`zeromodels/electra_base_generator`](https://huggingface.co/zeromodels/electra_base_generator) |
+| large | [`zeromodels/electra_large_discriminator`](https://huggingface.co/zeromodels/electra_large_discriminator) | [`zeromodels/electra_large_generator`](https://huggingface.co/zeromodels/electra_large_generator) |
 
 ## API
 
@@ -90,30 +90,30 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.electra import ElectraModel, ElectraTokenizer
+from zeromodels.models.electra import ElectraModel, ElectraTokenizer
 
-model = ElectraModel.from_weights("kerasformers/electra_base_discriminator")
-tokenizer = ElectraTokenizer.from_weights("kerasformers/electra_base_discriminator")
+model = ElectraModel.from_weights("zeromodels/electra_base_discriminator")
+tokenizer = ElectraTokenizer.from_weights("zeromodels/electra_base_discriminator")
 out = model(tokenizer("Hello, world."))["last_hidden_state"]  # (1, L, 768)
 ```
 
 ### Fill-mask (generator)
 
 ```python
-from kerasformers.models.electra import ElectraMaskedLM, ElectraTokenizer
+from zeromodels.models.electra import ElectraMaskedLM, ElectraTokenizer
 
-mlm = ElectraMaskedLM.from_weights("kerasformers/electra_base_generator")
-tokenizer = ElectraTokenizer.from_weights("kerasformers/electra_base_generator")
+mlm = ElectraMaskedLM.from_weights("zeromodels/electra_base_generator")
+tokenizer = ElectraTokenizer.from_weights("zeromodels/electra_base_generator")
 logits = mlm(tokenizer("The capital of France is [MASK]."))  # (1, L, vocab_size)
 ```
 
 ### Classification (fine-tune the discriminator)
 
 ```python
-from kerasformers.models.electra import ElectraSequenceClassify, ElectraQnA
+from zeromodels.models.electra import ElectraSequenceClassify, ElectraQnA
 
 clf = ElectraSequenceClassify.from_weights(
-    "kerasformers/electra_base_discriminator", num_classes=2
+    "zeromodels/electra_base_discriminator", num_classes=2
 )  # encoder pretrained, classifier random -> fine-tune
 qa = ElectraQnA.from_weights("hf:org/electra-base-squad2")  # or a community fine-tune
 ```

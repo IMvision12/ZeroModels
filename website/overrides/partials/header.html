@@ -13,7 +13,7 @@
     lives in the left sidebar on content pages instead.
 
   Internal hrefs go through the `url` filter, which is what keeps them correct
-  under the /KerasFormers/ subpath on GitHub Pages.
+  under the /ZeroModels/ subpath on GitHub Pages.
 -#}
 {% set class = "md-header" %}
 {% if "navigation.tabs.sticky" in features %}
@@ -31,7 +31,7 @@
         The landing page is deliberately absent from the nav, so nav.homepage is
         unset and Material's usual `d(nav.homepage.url, true)` fallback would not
         resolve. `'.' | url` gives the site root relative to the current page,
-        which is what keeps this correct under the /KerasFormers/ subpath. -#}
+        which is what keeps this correct under the /ZeroModels/ subpath. -#}
     <a href="{{ config.extra.homepage | d('.' | url, true) }}" title="{{ config.site_name | e }}" class="md-header__button md-logo kf-logo" aria-label="{{ config.site_name }}" data-md-component="logo">
       {% include "partials/logo.html" %}
       <span class="kf-logo__word">{{ config.site_name }}</span>
@@ -62,7 +62,7 @@
         links to it, and so does the footer. -#}
     <nav class="kf-topnav" aria-label="Site links">
       <a href="{{ 'models/' | url }}">Models</a>
-      <a href="https://huggingface.co/kerasformers">Hugging Face</a>
+      <a href="https://huggingface.co/zeromodels">Hugging Face</a>
       <a href="{{ 'getting_started/' | url }}">Docs</a>
     </nav>
     {% if config.theme.palette %}

@@ -2,7 +2,7 @@
 
 Small helpers shared across the model pages: loading an image or video into the array shape
 the processors expect, drawing results, and the class-name lists that turn label ids back
-into words. One page per module in `kerasformers/utils/`.
+into words. One page per module in `zeromodels/utils/`.
 
 | Page | Module | Covers |
 |---|---|---|
@@ -12,7 +12,7 @@ into words. One page per module in `kerasformers/utils/`.
 | [**Class labels**](utils_labels.md) | `labels_util.py` | COCO, ADE20K, Cityscapes, and VOC class-name lists |
 
 ```python
-from kerasformers.utils import (
+from zeromodels.utils import (
     load_image,
     get_data_format,
     standardize_input_shape,
@@ -25,7 +25,7 @@ from kerasformers.utils import (
     plot_depth,
     plot_sam_masks,
 )
-from kerasformers.utils.labels_util import COCO_80_CLASSES, ADE20K_150_CLASSES
+from zeromodels.utils.labels_util import COCO_80_CLASSES, ADE20K_150_CLASSES
 ```
 
 Everything here is optional. The processors accept plain PIL images and NumPy arrays, so

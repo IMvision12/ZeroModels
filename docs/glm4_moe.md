@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> the GLM-4.5-Air checkpoints are hosted as preconverted Keras weights on
-Hugging Face under <a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+Hugging Face under <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + a sharded <code>model.weights.json</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>. The full-size
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>. The full-size
 GLM-4.5 / GLM-4.6 (~358B) are too large to re-host: convert them on the fly with
 <code>from_weights("hf:zai-org/GLM-4.5")</code>. See
 <a href="../loading_weights/">Loading Weights</a>.
@@ -37,13 +37,13 @@ See also [glm4.md](glm4.md), [glm5_moe.md](glm5_moe.md).
 ## Variants
 
 The GLM-4.5-Air checkpoints are hosted; load them with
-`from_weights("kerasformers/<variant>")`. The full-size GLM-4.5 / GLM-4.6 are not
+`from_weights("zeromodels/<variant>")`. The full-size GLM-4.5 / GLM-4.6 are not
 re-hosted (too large) but load on the fly with `from_weights("hf:<upstream>")`.
 
 | Variant | Hosted | Upstream |
 |---|---|---|
-| `glm-4.5-air` | `kerasformers/glm-4.5-air` | [`zai-org/GLM-4.5-Air`](https://huggingface.co/zai-org/GLM-4.5-Air) |
-| `glm-4.5-air-base` | `kerasformers/glm-4.5-air-base` | [`zai-org/GLM-4.5-Air-Base`](https://huggingface.co/zai-org/GLM-4.5-Air-Base) |
+| `glm-4.5-air` | `zeromodels/glm-4.5-air` | [`zai-org/GLM-4.5-Air`](https://huggingface.co/zai-org/GLM-4.5-Air) |
+| `glm-4.5-air-base` | `zeromodels/glm-4.5-air-base` | [`zai-org/GLM-4.5-Air-Base`](https://huggingface.co/zai-org/GLM-4.5-Air-Base) |
 | `glm-4.5` | `hf:` only | [`zai-org/GLM-4.5`](https://huggingface.co/zai-org/GLM-4.5) |
 | `glm-4.6` | `hf:` only | [`zai-org/GLM-4.6`](https://huggingface.co/zai-org/GLM-4.6) |
 
@@ -131,10 +131,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.glm4_moe import Glm4MoeTextGenerate, Glm4MoeTokenizer
+from zeromodels.models.glm4_moe import Glm4MoeTextGenerate, Glm4MoeTokenizer
 
-model = Glm4MoeTextGenerate.from_weights("kerasformers/glm-4.5-air")
-tokenizer = Glm4MoeTokenizer.from_weights("kerasformers/glm-4.5-air")
+model = Glm4MoeTextGenerate.from_weights("zeromodels/glm-4.5-air")
+tokenizer = Glm4MoeTokenizer.from_weights("zeromodels/glm-4.5-air")
 
 inputs = tokenizer("Explain rotary embeddings in one sentence.")
 outputs = model.generate(**inputs, max_new_tokens=64)
@@ -163,9 +163,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.glm4_moe import Glm4MoeModel
+from zeromodels.models.glm4_moe import Glm4MoeModel
 
-backbone = Glm4MoeModel.from_weights("kerasformers/glm-4.5-air")
+backbone = Glm4MoeModel.from_weights("zeromodels/glm-4.5-air")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -185,6 +185,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Glm4MoeTextGenerate.from_weights(
-    "kerasformers/glm-4.5-air", quantization="int8", load_dtype="bfloat16"
+    "zeromodels/glm-4.5-air", quantization="int8", load_dtype="bfloat16"
 )
 ```

@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 DeepLabV3 does **semantic segmentation**: every pixel gets a class, with no notion of separate object instances. Two dogs side by side are one `dog` region, not two.
@@ -123,16 +123,16 @@ Each figure is the original image beside the predicted segmentation overlaid on 
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.deeplabv3 import (
+from zeromodels.models.deeplabv3 import (
     DeepLabV3ImageProcessor,
     DeepLabV3SemanticSegment,
 )
 
 model = DeepLabV3SemanticSegment.from_weights(
-    "kerasformers/deeplabv3_resnet50_coco_voc"
+    "zeromodels/deeplabv3_resnet50_coco_voc"
 )
 processor = DeepLabV3ImageProcessor.from_weights(
-    "kerasformers/deeplabv3_resnet50_coco_voc"
+    "zeromodels/deeplabv3_resnet50_coco_voc"
 )
 
 image = Image.open("assets/data/coco_airplane.jpg").convert("RGB")
@@ -169,16 +169,16 @@ target size:
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.deeplabv3 import (
+from zeromodels.models.deeplabv3 import (
     DeepLabV3ImageProcessor,
     DeepLabV3SemanticSegment,
 )
 
 model = DeepLabV3SemanticSegment.from_weights(
-    "kerasformers/deeplabv3_resnet50_coco_voc"
+    "zeromodels/deeplabv3_resnet50_coco_voc"
 )
 processor = DeepLabV3ImageProcessor.from_weights(
-    "kerasformers/deeplabv3_resnet50_coco_voc"
+    "zeromodels/deeplabv3_resnet50_coco_voc"
 )
 
 paths = ["assets/data/coco_dog_yard.jpg", "assets/data/coco_cat_car.jpg"]
@@ -227,10 +227,10 @@ import keras
 keras.config.set_image_data_format("channels_first")
 
 model = DeepLabV3SemanticSegment.from_weights(
-    "kerasformers/deeplabv3_resnet50_coco_voc"
+    "zeromodels/deeplabv3_resnet50_coco_voc"
 )
 processor = DeepLabV3ImageProcessor.from_weights(
-    "kerasformers/deeplabv3_resnet50_coco_voc"
+    "zeromodels/deeplabv3_resnet50_coco_voc"
 )
 ```
 
@@ -258,11 +258,11 @@ checkpoint, so there is no `hf:` route for those ids. You can still construct th
 architecture and load your own weights:
 
 ```python
-from kerasformers.models.deeplabv3 import DeepLabV3SemanticSegment
+from zeromodels.models.deeplabv3 import DeepLabV3SemanticSegment
 
 # Architecture only, randomly initialized
 model = DeepLabV3SemanticSegment.from_weights(
-    "kerasformers/deeplabv3_resnet50_coco_voc",
+    "zeromodels/deeplabv3_resnet50_coco_voc",
     load_weights=False,
 )
 

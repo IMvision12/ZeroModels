@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 DeepSeek's Janus-Pro unified multimodal models, ported to pure Keras 3. A SigLIP
@@ -23,12 +23,12 @@ See also [deepseek_vl.md](deepseek_vl.md).
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`.
+Load any of these with `from_weights("zeromodels/<variant>")`.
 
 | Variant | Hub |
 |---|---|
-| `janus_pro_1b` | [`kerasformers/janus_pro_1b`](https://huggingface.co/kerasformers/janus_pro_1b) |
-| `janus_pro_7b` | [`kerasformers/janus_pro_7b`](https://huggingface.co/kerasformers/janus_pro_7b) |
+| `janus_pro_1b` | [`zeromodels/janus_pro_1b`](https://huggingface.co/zeromodels/janus_pro_1b) |
+| `janus_pro_7b` | [`zeromodels/janus_pro_7b`](https://huggingface.co/zeromodels/janus_pro_7b) |
 
 ## API
 
@@ -136,10 +136,10 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.janus import JanusConditionalGenerate, JanusProcessor
+from zeromodels.models.janus import JanusConditionalGenerate, JanusProcessor
 
-model = JanusConditionalGenerate.from_weights("kerasformers/janus_pro_1b")
-processor = JanusProcessor.from_weights("kerasformers/janus_pro_1b")
+model = JanusConditionalGenerate.from_weights("zeromodels/janus_pro_1b")
+processor = JanusProcessor.from_weights("zeromodels/janus_pro_1b")
 
 image = Image.open("photo.jpg")
 inputs = processor(
@@ -222,9 +222,9 @@ Text-only prompts batch the same way: pass `text=[...]` with no `images`.
 have rendered yourself (or go through the processor above).
 
 ```python
-from kerasformers.models.janus import JanusTokenizer
+from zeromodels.models.janus import JanusTokenizer
 
-tokenizer = JanusTokenizer.from_weights("kerasformers/janus_pro_1b")
+tokenizer = JanusTokenizer.from_weights("zeromodels/janus_pro_1b")
 inputs = tokenizer("Who wrote Dune?")
 outputs = model.generate(**inputs, max_new_tokens=32)
 print(tokenizer.decode(outputs[0]))
@@ -237,7 +237,7 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = JanusConditionalGenerate.from_weights(
-    "kerasformers/janus_pro_1b",
+    "zeromodels/janus_pro_1b",
     quantization="int8",
     load_dtype="bfloat16",
 )

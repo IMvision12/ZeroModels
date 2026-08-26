@@ -6,7 +6,7 @@ from the original checkpoints, no `transformers` or `torch` runtime dependency o
 path.
 
 ```shell
-pip install -U kerasformers
+pip install -U zeromodels
 ```
 
 Every model follows the same two-call shape: build it with `from_weights`, and feed it
@@ -18,10 +18,10 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.detr import DETRDetect, DETRImageProcessor
+from zeromodels.models.detr import DETRDetect, DETRImageProcessor
 
-model = DETRDetect.from_weights("kerasformers/detr-resnet-50")
-processor = DETRImageProcessor.from_weights("kerasformers/detr-resnet-50")
+model = DETRDetect.from_weights("zeromodels/detr-resnet-50")
+processor = DETRImageProcessor.from_weights("zeromodels/detr-resnet-50")
 
 image = Image.open("photo.jpg").convert("RGB")
 output = model(processor(image)["pixel_values"], training=False)
@@ -76,7 +76,7 @@ Each model page follows the same structure, so you can skim any of them the same
 | **Model Variants** | The `from_weights` ids, with sizes and what each was trained on. |
 | **Basic Usage** | A runnable example with its real, measured output. |
 | **Data Format** | Layouts, `channels_last` vs `channels_first`, audio rates. |
-| **Loading Fine-tuned Weights** | Hub Keras (`kerasformers/...`) and the `hf:` prefix for any compatible Hub repo. |
+| **Loading Fine-tuned Weights** | Hub Keras (`zeromodels/...`) and the `hf:` prefix for any compatible Hub repo. |
 
 The outputs printed in those examples are **measured, not illustrative**: they come from
 actually running the snippet on the image or audio clip shown beside it.
@@ -90,8 +90,8 @@ loading, plotting, and the class-name lists.
 Three sources, one call:
 
 ```python
-# Preconverted Keras weights on the kerasformers Hub org (kf_config.json)
-model = SegFormerSemanticSegment.from_weights("kerasformers/segformer_b0_ade_512")
+# Preconverted Keras weights on the zeromodels Hub org (kf_config.json)
+model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
 
 # Bare variant: on-the-fly conversion from an upstream Hub checkpoint (LLMs / VLMs)
 model = Qwen3TextGenerate.from_weights("qwen3-8b")
@@ -103,7 +103,7 @@ model = SegFormerSemanticSegment.from_weights(
 
 # Architecture only, randomly initialized
 model = SegFormerSemanticSegment.from_weights(
-    "kerasformers/segformer_b0_ade_512", load_weights=False
+    "zeromodels/segformer_b0_ade_512", load_weights=False
 )
 ```
 
@@ -132,4 +132,4 @@ import keras
 keras.config.set_image_data_format("channels_first")
 ```
 
-Source and issues: [github.com/IMvision12/KerasFormers](https://github.com/IMvision12/KerasFormers).
+Source and issues: [github.com/IMvision12/ZeroModels](https://github.com/IMvision12/ZeroModels).

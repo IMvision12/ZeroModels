@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 SigLIP 2 keeps SigLIP's sigmoid loss and adds captioning-based pretraining,
@@ -240,7 +240,7 @@ Combined processor for SigLIP 2 models: image + Gemma text.
 
 ## Model Variants
 
-Load any of these with `from_weights("kerasformers/<variant id>")`.
+Load any of these with `from_weights("zeromodels/<variant id>")`.
 
 | Variant id | Image size | Patch | Weights |
 |---|---:|---:|---|
@@ -264,10 +264,10 @@ Load any of these with `from_weights("kerasformers/<variant id>")`.
 
 ```python
 import keras
-from kerasformers.models.siglip2 import SigLIP2Processor, SigLIP2ZeroShotClassify
+from zeromodels.models.siglip2 import SigLIP2Processor, SigLIP2ZeroShotClassify
 
-processor = SigLIP2Processor.from_weights("kerasformers/siglip2_base_p16_224")
-model = SigLIP2ZeroShotClassify.from_weights("kerasformers/siglip2_base_p16_224")
+processor = SigLIP2Processor.from_weights("zeromodels/siglip2_base_p16_224")
+model = SigLIP2ZeroShotClassify.from_weights("zeromodels/siglip2_base_p16_224")
 
 labels = [
     "a photo of a living room",
@@ -377,7 +377,7 @@ You are not limited to the variants above. Any Hugging Face repo whose
 community fine-tunes.
 
 ```python
-from kerasformers.models.siglip2 import SigLIP2ZeroShotClassify
+from zeromodels.models.siglip2 import SigLIP2ZeroShotClassify
 
 model = SigLIP2ZeroShotClassify.from_weights("hf:google/siglip2-base-patch16-224")
 model = SigLIP2ZeroShotClassify.from_weights("hf:<user>/my-finetune")
@@ -394,5 +394,5 @@ repo:
 processor = SigLIP2Processor.from_weights("hf:google/siglip2-base-patch16-224")
 ```
 
-Loading `hf:google/siglip2-base-patch16-224` and the `kerasformers/siglip2_base_p16_224` Hub
+Loading `hf:google/siglip2-base-patch16-224` and the `zeromodels/siglip2_base_p16_224` Hub
 variant produces identical outputs, since they are the same checkpoint by two routes.

@@ -1,12 +1,12 @@
 # Main Classes
 
-Every model in KerasFormers is assembled from the same small set of base classes in
-`kerasformers.base`. You rarely instantiate them directly, but knowing what they provide
+Every model in ZeroModels is assembled from the same small set of base classes in
+`zeromodels.base`. You rarely instantiate them directly, but knowing what they provide
 explains why every model page looks alike: the same `from_weights`, the same processor
 call, the same `generate`.
 
 ```python
-from kerasformers.base import (
+from zeromodels.base import (
     BaseConfig,
     BaseModel,
     BaseGeneration,
@@ -79,7 +79,7 @@ Model.from_weights(
 
 The one entry point you normally use. It dispatches on `identifier`:
 
-- `"org/repo"` (for example `"kerasformers/segformer_b0_ade_512"`) → Hub Keras via
+- `"org/repo"` (for example `"zeromodels/segformer_b0_ade_512"`) → Hub Keras via
   `kf_config.json`
 - a bare variant (for example `"qwen3-4b"`) → on-the-fly conversion from an upstream
   `hf_id`
@@ -87,7 +87,7 @@ The one entry point you normally use. It dispatches on `identifier`:
 
 **Parameters**
 
-- **identifier** (`str`): a Hub Keras repo (`"kerasformers/segformer_b0_ade_512"`), a bare
+- **identifier** (`str`): a Hub Keras repo (`"zeromodels/segformer_b0_ade_512"`), a bare
   LLM/VLM variant (`"qwen3-4b"`), or an `hf:`-prefixed Hub repo
   (`"hf:nvidia/segformer-b0-finetuned-ade-512-512"`).
 - **load_weights** (`bool`, *optional*, defaults to `True`): set `False` to build the architecture with random initialization.
@@ -99,7 +99,7 @@ The one entry point you normally use. It dispatches on `identifier`:
 - **kwargs**: forwarded to the constructor, so `image_size=448` or `as_backbone=True` go here.
 
 ```python
-model = SegFormerSemanticSegment.from_weights("kerasformers/segformer_b0_ade_512")
+model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
 model = SegFormerSemanticSegment.from_weights("hf:<user>/my-finetune")
 model = Qwen3TextGenerate.from_weights(
     "qwen3-8b", load_dtype="bfloat16", quantization="int8"
@@ -180,7 +180,7 @@ or audio features, ride along in `**prefill_inputs`, which is why a VLM call loo
 - **attention_mask** (*optional*): padding mask for batched prompts.
 - **max_new_tokens** (`int`, *optional*): decode budget.
 - **eos_token_id** (`int`, *optional*): stop token, defaulting to the model's own.
-- **sampler** (*optional*): a sampler from `kerasformers.samplers`; greedy if omitted.
+- **sampler** (*optional*): a sampler from `zeromodels.samplers`; greedy if omitted.
 - **seed** (`int`, *optional*): seed for stochastic samplers.
 
 ### BaseSeq2SeqGeneration

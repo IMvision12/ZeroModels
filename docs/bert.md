@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Google's BERT in pure Keras 3: the bidirectional transformer text encoder, with a masked-LM
@@ -21,15 +21,15 @@ See also [modernbert.md](modernbert.md), [roberta.md](roberta.md), [electra.md](
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`. The architecture is identical
+Load any of these with `from_weights("zeromodels/<variant>")`. The architecture is identical
 across variants; only the vocabulary and tokenizer casing differ.
 
 | Variant | Hub | vocab | casing |
 |---|---|---|---|
-| `bert_base_uncased` | [`kerasformers/bert_base_uncased`](https://huggingface.co/kerasformers/bert_base_uncased) | 30522 | lowercased |
-| `bert_large_uncased` | [`kerasformers/bert_large_uncased`](https://huggingface.co/kerasformers/bert_large_uncased) | 30522 | lowercased |
-| `bert_base_cased` | [`kerasformers/bert_base_cased`](https://huggingface.co/kerasformers/bert_base_cased) | 28996 | case-preserving |
-| `bert_large_cased` | [`kerasformers/bert_large_cased`](https://huggingface.co/kerasformers/bert_large_cased) | 28996 | case-preserving |
+| `bert_base_uncased` | [`zeromodels/bert_base_uncased`](https://huggingface.co/zeromodels/bert_base_uncased) | 30522 | lowercased |
+| `bert_large_uncased` | [`zeromodels/bert_large_uncased`](https://huggingface.co/zeromodels/bert_large_uncased) | 30522 | lowercased |
+| `bert_base_cased` | [`zeromodels/bert_base_cased`](https://huggingface.co/zeromodels/bert_base_cased) | 28996 | case-preserving |
+| `bert_large_cased` | [`zeromodels/bert_large_cased`](https://huggingface.co/zeromodels/bert_large_cased) | 28996 | case-preserving |
 
 ## API
 
@@ -91,10 +91,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.bert import BertMaskedLM, BertTokenizer
+from zeromodels.models.bert import BertMaskedLM, BertTokenizer
 
-mlm = BertMaskedLM.from_weights("kerasformers/bert_base_uncased")
-tokenizer = BertTokenizer.from_weights("kerasformers/bert_base_uncased")
+mlm = BertMaskedLM.from_weights("zeromodels/bert_base_uncased")
+tokenizer = BertTokenizer.from_weights("zeromodels/bert_base_uncased")
 
 inputs = tokenizer("the capital of france is [MASK].")
 logits = mlm(inputs)  # (1, L, vocab_size)
@@ -105,10 +105,10 @@ print(tokenizer.ids_to_tokens[int(logits[0, mask].argmax())])  # -> "paris"
 ### Backbone features
 
 ```python
-from kerasformers.models.bert import BertModel, BertTokenizer
+from zeromodels.models.bert import BertModel, BertTokenizer
 
-model = BertModel.from_weights("kerasformers/bert_base_uncased")
-tokenizer = BertTokenizer.from_weights("kerasformers/bert_base_uncased")
+model = BertModel.from_weights("zeromodels/bert_base_uncased")
+tokenizer = BertTokenizer.from_weights("zeromodels/bert_base_uncased")
 out = model(tokenizer("Hello, world."))
 out["last_hidden_state"]  # (1, L, 768)
 out["pooler_output"]  # (1, 768)
@@ -117,7 +117,7 @@ out["pooler_output"]  # (1, 768)
 ### Classification (community fine-tunes)
 
 ```python
-from kerasformers.models.bert import BertSequenceClassify, BertTokenClassify, BertQnA
+from zeromodels.models.bert import BertSequenceClassify, BertTokenClassify, BertQnA
 
 clf = BertSequenceClassify.from_weights(
     "hf:textattack/bert-base-uncased-SST-2"

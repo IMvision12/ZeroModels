@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 V2 changes **nothing** about [V1](depth_anything_v1.md)'s architecture: the same DINOv2 ViT backbone, the same DPT neck and head. What changed is the data. V1 learned from real labeled images, whose depth annotations are noisy around edges; V2 replaces them with synthetic images, whose labels are exact, and recovers real-world coverage through a much larger teacher pseudo-labeling 62 M unlabeled photos.
@@ -75,8 +75,8 @@ DepthAnythingV2Model(
 The backbone and DPT neck alone, without the head, returning the fused pyramid at quarter
 resolution (`(B, 296, 296, 64)` for a 518 input). Use it as a feature extractor.
 
-> **The backbone class has no dedicated kerasformers Hub repo**, so
-> `DepthAnythingV2Model.from_weights("kerasformers/depth_anything_v2_small")` raises: the Hub
+> **The backbone class has no dedicated zeromodels Hub repo**, so
+> `DepthAnythingV2Model.from_weights("zeromodels/depth_anything_v2_small")` raises: the Hub
 > checkpoint assets are exports of the full estimator. Load it over `hf:`, or read the
 > layer you want off `DepthAnythingV2DepthEstimation`.
 
@@ -144,16 +144,16 @@ import matplotlib
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.depth_anything_v2 import (
+from zeromodels.models.depth_anything_v2 import (
     DepthAnythingV2DepthEstimation,
     DepthAnythingV2ImageProcessor,
 )
 
 model = DepthAnythingV2DepthEstimation.from_weights(
-    "kerasformers/depth_anything_v2_large"
+    "zeromodels/depth_anything_v2_large"
 )
 processor = DepthAnythingV2ImageProcessor.from_weights(
-    "kerasformers/depth_anything_v2_large"
+    "zeromodels/depth_anything_v2_large"
 )
 
 image = Image.open("assets/data/coco_tennis.jpg").convert("RGB")
@@ -197,16 +197,16 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.depth_anything_v2 import (
+from zeromodels.models.depth_anything_v2 import (
     DepthAnythingV2DepthEstimation,
     DepthAnythingV2ImageProcessor,
 )
 
 model = DepthAnythingV2DepthEstimation.from_weights(
-    "kerasformers/depth_anything_v2_large"
+    "zeromodels/depth_anything_v2_large"
 )
 processor = DepthAnythingV2ImageProcessor.from_weights(
-    "kerasformers/depth_anything_v2_large"
+    "zeromodels/depth_anything_v2_large"
 )
 
 paths = ["assets/data/ade_val_2.jpg", "assets/data/coco_parking.jpg"]
@@ -259,16 +259,16 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.depth_anything_v2 import (
+from zeromodels.models.depth_anything_v2 import (
     DepthAnythingV2DepthEstimation,
     DepthAnythingV2ImageProcessor,
 )
 
 model = DepthAnythingV2DepthEstimation.from_weights(
-    "kerasformers/depth_anything_v2_metric_indoor_large"
+    "zeromodels/depth_anything_v2_metric_indoor_large"
 )
 processor = DepthAnythingV2ImageProcessor.from_weights(
-    "kerasformers/depth_anything_v2_metric_indoor_large"
+    "zeromodels/depth_anything_v2_metric_indoor_large"
 )
 
 image = Image.open("assets/data/coco_living_room.jpg").convert("RGB")
@@ -299,7 +299,7 @@ scene is out of its training domain.
 `DepthAnythingV2Model` stops after the DPT neck, for attaching your own head:
 
 ```python
-from kerasformers.models.depth_anything_v2 import DepthAnythingV2Model
+from zeromodels.models.depth_anything_v2 import DepthAnythingV2Model
 
 backbone = DepthAnythingV2Model.from_weights(
     "hf:depth-anything/Depth-Anything-V2-Small-hf"
@@ -318,12 +318,12 @@ weights stay valid.
 ```python
 # 392 / 14 = 28 x 28 patches
 model = DepthAnythingV2DepthEstimation.from_weights(
-    "kerasformers/depth_anything_v2_small", image_size=392
+    "zeromodels/depth_anything_v2_small", image_size=392
 )
 
 # Non-square, 28 x 56 patches
 model = DepthAnythingV2DepthEstimation.from_weights(
-    "kerasformers/depth_anything_v2_small", image_size=(392, 784)
+    "zeromodels/depth_anything_v2_small", image_size=(392, 784)
 )
 ```
 
@@ -351,10 +351,10 @@ import keras
 keras.config.set_image_data_format("channels_first")
 
 model = DepthAnythingV2DepthEstimation.from_weights(
-    "kerasformers/depth_anything_v2_large"
+    "zeromodels/depth_anything_v2_large"
 )
 processor = DepthAnythingV2ImageProcessor.from_weights(
-    "kerasformers/depth_anything_v2_large"
+    "zeromodels/depth_anything_v2_large"
 )
 # model input: (B, 3, 518, 518), output: (B, 1, 518, 518)
 ```
@@ -367,7 +367,7 @@ Any Hugging Face repo whose `model_type` is `"depth_anything"` loads with the `h
 prefix.
 
 ```python
-from kerasformers.models.depth_anything_v2 import DepthAnythingV2DepthEstimation
+from zeromodels.models.depth_anything_v2 import DepthAnythingV2DepthEstimation
 
 model = DepthAnythingV2DepthEstimation.from_weights(
     "hf:depth-anything/Depth-Anything-V2-Large-hf"
@@ -378,7 +378,7 @@ model = DepthAnythingV2DepthEstimation.from_weights(
 
 # Architecture only, randomly initialized
 model = DepthAnythingV2DepthEstimation.from_weights(
-    "kerasformers/depth_anything_v2_small", load_weights=False
+    "zeromodels/depth_anything_v2_small", load_weights=False
 )
 ```
 

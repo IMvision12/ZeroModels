@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 OWLv2 keeps [OWL-ViT](owlvit.md)'s dual-tower skeleton and per-patch detection head, and scales it with self-training on web image-text pairs. It adds an **objectness head**, a learned "is this patch an object at all" score that is independent of the text queries, which improves ranking when several queries compete for the same region.
@@ -176,15 +176,15 @@ fixed across variants: 12 layers, vocab 49408, max query length 16.
 
 ```python
 from PIL import Image
-from kerasformers.models.owlv2 import (
+from zeromodels.models.owlv2 import (
     Owlv2Detect,
     Owlv2ImageProcessor,
     Owlv2Processor,
 )
 
-model = Owlv2Detect.from_weights("kerasformers/owlv2-base-patch16")
-processor = Owlv2Processor.from_weights("kerasformers/owlv2-base-patch16")
-image_processor = Owlv2ImageProcessor.from_weights("kerasformers/owlv2-base-patch16")
+model = Owlv2Detect.from_weights("zeromodels/owlv2-base-patch16")
+processor = Owlv2Processor.from_weights("zeromodels/owlv2-base-patch16")
+image_processor = Owlv2ImageProcessor.from_weights("zeromodels/owlv2-base-patch16")
 
 image = Image.open("assets/data/coco_teddy_bears.jpg").convert("RGB")
 prompts = [
@@ -241,15 +241,15 @@ Pass one query list per image, and one `target_sizes` entry per image, each squa
 
 ```python
 from PIL import Image
-from kerasformers.models.owlv2 import (
+from zeromodels.models.owlv2 import (
     Owlv2Detect,
     Owlv2ImageProcessor,
     Owlv2Processor,
 )
 
-model = Owlv2Detect.from_weights("kerasformers/owlv2-base-patch16")
-processor = Owlv2Processor.from_weights("kerasformers/owlv2-base-patch16")
-image_processor = Owlv2ImageProcessor.from_weights("kerasformers/owlv2-base-patch16")
+model = Owlv2Detect.from_weights("zeromodels/owlv2-base-patch16")
+processor = Owlv2Processor.from_weights("zeromodels/owlv2-base-patch16")
+image_processor = Owlv2ImageProcessor.from_weights("zeromodels/owlv2-base-patch16")
 
 paths = ["assets/data/coco_bear.jpg", "assets/data/coco_girl_umbrella.jpg"]
 images = [Image.open(p).convert("RGB") for p in paths]
@@ -328,8 +328,8 @@ import keras
 
 keras.config.set_image_data_format("channels_first")
 
-model = Owlv2Detect.from_weights("kerasformers/owlv2-base-patch16")
-processor = Owlv2Processor.from_weights("kerasformers/owlv2-base-patch16")
+model = Owlv2Detect.from_weights("zeromodels/owlv2-base-patch16")
+processor = Owlv2Processor.from_weights("zeromodels/owlv2-base-patch16")
 ```
 
 Detections are the same under either layout. Set it once at the top of a script, since
@@ -344,7 +344,7 @@ Any Hugging Face repo whose `model_type` is `"owlv2"` loads directly with the `h
 prefix.
 
 ```python
-from kerasformers.models.owlv2 import Owlv2Detect
+from zeromodels.models.owlv2 import Owlv2Detect
 
 # The original Google checkpoints
 model = Owlv2Detect.from_weights("hf:google/owlv2-base-patch16-ensemble")
@@ -353,7 +353,7 @@ model = Owlv2Detect.from_weights("hf:google/owlv2-base-patch16-ensemble")
 model = Owlv2Detect.from_weights("hf:<user>/owlv2-finetuned-on-my-data")
 
 # Architecture only, randomly initialized
-model = Owlv2Detect.from_weights("kerasformers/owlv2-base-patch16", load_weights=False)
+model = Owlv2Detect.from_weights("zeromodels/owlv2-base-patch16", load_weights=False)
 ```
 
 No shape arguments are needed. The architecture is read from the repo's `config.json`.
@@ -363,5 +363,5 @@ All five model classes accept `hf:`, as do `Owlv2Processor` and `Owlv2ImageProce
 processor = Owlv2Processor.from_weights("hf:google/owlv2-base-patch16")
 ```
 
-Loading `hf:google/owlv2-base-patch16` and the `kerasformers/owlv2-base-patch16` Hub variant
+Loading `hf:google/owlv2-base-patch16` and the `zeromodels/owlv2-base-patch16` Hub variant
 produces identical outputs, since they are the same checkpoint by two routes.

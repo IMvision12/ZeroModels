@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 The second Gemma generation, ported to pure Keras 3. It keeps the Gemma decoder shape
@@ -27,17 +27,17 @@ See also [gemma.md](gemma.md), [gemma3.md](gemma3.md), [gemma4.md](gemma4.md).
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`. The `-it` suffix marks
+Load any of these with `from_weights("zeromodels/<variant>")`. The `-it` suffix marks
 instruction-tuned checkpoints (use the chat template); bare names are base models.
 
 | Variant | Hub |
 |---|---|
-| `gemma-2-2b` | [`kerasformers/gemma-2-2b`](https://huggingface.co/kerasformers/gemma-2-2b) |
-| `gemma-2-2b-it` | [`kerasformers/gemma-2-2b-it`](https://huggingface.co/kerasformers/gemma-2-2b-it) |
-| `gemma-2-9b` | [`kerasformers/gemma-2-9b`](https://huggingface.co/kerasformers/gemma-2-9b) |
-| `gemma-2-9b-it` | [`kerasformers/gemma-2-9b-it`](https://huggingface.co/kerasformers/gemma-2-9b-it) |
-| `gemma-2-27b` | [`kerasformers/gemma-2-27b`](https://huggingface.co/kerasformers/gemma-2-27b) |
-| `gemma-2-27b-it` | [`kerasformers/gemma-2-27b-it`](https://huggingface.co/kerasformers/gemma-2-27b-it) |
+| `gemma-2-2b` | [`zeromodels/gemma-2-2b`](https://huggingface.co/zeromodels/gemma-2-2b) |
+| `gemma-2-2b-it` | [`zeromodels/gemma-2-2b-it`](https://huggingface.co/zeromodels/gemma-2-2b-it) |
+| `gemma-2-9b` | [`zeromodels/gemma-2-9b`](https://huggingface.co/zeromodels/gemma-2-9b) |
+| `gemma-2-9b-it` | [`zeromodels/gemma-2-9b-it`](https://huggingface.co/zeromodels/gemma-2-9b-it) |
+| `gemma-2-27b` | [`zeromodels/gemma-2-27b`](https://huggingface.co/zeromodels/gemma-2-27b) |
+| `gemma-2-27b-it` | [`zeromodels/gemma-2-27b-it`](https://huggingface.co/zeromodels/gemma-2-27b-it) |
 
 ## API
 
@@ -115,10 +115,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.gemma2 import Gemma2TextGenerate, Gemma2Tokenizer
+from zeromodels.models.gemma2 import Gemma2TextGenerate, Gemma2Tokenizer
 
-model = Gemma2TextGenerate.from_weights("kerasformers/gemma-2-2b-it")
-tokenizer = Gemma2Tokenizer.from_weights("kerasformers/gemma-2-2b-it")
+model = Gemma2TextGenerate.from_weights("zeromodels/gemma-2-2b-it")
+tokenizer = Gemma2Tokenizer.from_weights("zeromodels/gemma-2-2b-it")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -146,9 +146,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.gemma2 import Gemma2Model
+from zeromodels.models.gemma2 import Gemma2Model
 
-backbone = Gemma2Model.from_weights("kerasformers/gemma-2-2b")
+backbone = Gemma2Model.from_weights("zeromodels/gemma-2-2b")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, 2304)
 ```
 
@@ -165,7 +165,7 @@ The 27B checkpoint needs quantization to fit comfortably on a single 80GB GPU. S
 
 ```python
 model = Gemma2TextGenerate.from_weights(
-    "kerasformers/gemma-2-27b-it",
+    "zeromodels/gemma-2-27b-it",
     quantization="int8",
     load_dtype="bfloat16",
 )

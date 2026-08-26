@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 D-FINE is a real-time detector built on the RT-DETR recipe: an HGNetV2 backbone, a hybrid encoder that mixes attention-based intra-scale interaction (AIFI) with cross-scale feature merging (CCFM), and a deformable decoder with 300 queries. Like RT-DETR it is NMS-free, so one forward pass is the whole pipeline.
@@ -153,10 +153,10 @@ All are 640×640 COCO models. `dfine-nano` also narrows `hidden_dim` to 128.
 
 ```python
 from PIL import Image
-from kerasformers.models.dfine import DFineDetect, DFineImageProcessor
+from zeromodels.models.dfine import DFineDetect, DFineImageProcessor
 
-model = DFineDetect.from_weights("kerasformers/dfine-nano")
-processor = DFineImageProcessor.from_weights("kerasformers/dfine-nano")
+model = DFineDetect.from_weights("zeromodels/dfine-nano")
+processor = DFineImageProcessor.from_weights("zeromodels/dfine-nano")
 
 image = Image.open("assets/data/coco_buffet.jpg").convert("RGB")
 inputs = processor(image)
@@ -206,10 +206,10 @@ Pass a list of images and one `target_sizes` entry per image:
 
 ```python
 from PIL import Image
-from kerasformers.models.dfine import DFineDetect, DFineImageProcessor
+from zeromodels.models.dfine import DFineDetect, DFineImageProcessor
 
-model = DFineDetect.from_weights("kerasformers/dfine-nano")
-processor = DFineImageProcessor.from_weights("kerasformers/dfine-nano")
+model = DFineDetect.from_weights("zeromodels/dfine-nano")
+processor = DFineImageProcessor.from_weights("zeromodels/dfine-nano")
 
 paths = ["assets/data/coco_food_bowl.jpg", "assets/data/coco_kitchen.jpg"]
 images = [Image.open(p).convert("RGB") for p in paths]
@@ -263,7 +263,7 @@ D-FINE is Functional, so the input shape is fixed when the model is constructed.
 at another resolution, build at that size and match the processor:
 
 ```python
-model = DFineDetect.from_weights("kerasformers/dfine-nano", image_size=512)
+model = DFineDetect.from_weights("zeromodels/dfine-nano", image_size=512)
 processor = DFineImageProcessor(size={"height": 512, "width": 512})
 ```
 
@@ -335,8 +335,8 @@ import keras
 
 keras.config.set_image_data_format("channels_first")
 
-model = DFineDetect.from_weights("kerasformers/dfine-nano")
-processor = DFineImageProcessor.from_weights("kerasformers/dfine-nano")
+model = DFineDetect.from_weights("zeromodels/dfine-nano")
+processor = DFineImageProcessor.from_weights("zeromodels/dfine-nano")
 ```
 
 Detections are the same under either layout. Only the tensor shape changes. Set it once
@@ -352,7 +352,7 @@ Any Hugging Face repo whose `model_type` is `"d_fine"` loads directly with the `
 prefix, including the upstream checkpoints and arbitrary fine-tunes.
 
 ```python
-from kerasformers.models.dfine import DFineDetect
+from zeromodels.models.dfine import DFineDetect
 
 # Upstream Hub
 model = DFineDetect.from_weights("hf:ustc-community/dfine-nano-coco")
@@ -361,7 +361,7 @@ model = DFineDetect.from_weights("hf:ustc-community/dfine-nano-coco")
 model = DFineDetect.from_weights("hf:<user>/dfine-finetuned-on-my-data")
 
 # Architecture only, randomly initialized
-model = DFineDetect.from_weights("kerasformers/dfine-nano", load_weights=False)
+model = DFineDetect.from_weights("zeromodels/dfine-nano", load_weights=False)
 ```
 
 No shape arguments are needed. The architecture is read from the repo's `config.json`
@@ -372,5 +372,5 @@ and mapped onto the constructor. Both model classes accept `hf:`, as does
 processor = DFineImageProcessor.from_weights("hf:ustc-community/dfine-nano-coco")
 ```
 
-Loading `hf:ustc-community/dfine-nano-coco` and the `kerasformers/dfine-nano` Hub variant
+Loading `hf:ustc-community/dfine-nano-coco` and the `zeromodels/dfine-nano` Hub variant
 produces identical outputs, since they are the same checkpoint by two routes.

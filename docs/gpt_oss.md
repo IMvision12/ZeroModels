@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.json</code>, with the
-MoE experts kept in MXFP4). Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+MoE experts kept in MXFP4). Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 OpenAI's GPT-OSS, an open-weight mixture-of-experts decoder-only LLM, ported to pure
@@ -42,13 +42,13 @@ Links:
 
 ## Variants
 
-Load either with `from_weights("kerasformers/<variant>")`. Upstream safetensors also
+Load either with `from_weights("zeromodels/<variant>")`. Upstream safetensors also
 convert on the fly via `from_weights("hf:openai/<variant>")`.
 
 | Variant | Hub | layers | experts |
 |---|---|---|---|
-| `gpt-oss-20b` | [`kerasformers/gpt-oss-20b`](https://huggingface.co/kerasformers/gpt-oss-20b) | 24 | 32 |
-| `gpt-oss-120b` | [`kerasformers/gpt-oss-120b`](https://huggingface.co/kerasformers/gpt-oss-120b) | 36 | 128 |
+| `gpt-oss-20b` | [`zeromodels/gpt-oss-20b`](https://huggingface.co/zeromodels/gpt-oss-20b) | 24 | 32 |
+| `gpt-oss-120b` | [`zeromodels/gpt-oss-120b`](https://huggingface.co/zeromodels/gpt-oss-120b) | 36 | 128 |
 
 ## API
 
@@ -139,10 +139,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.gpt_oss import GptOssTextGenerate, GptOssTokenizer
+from zeromodels.models.gpt_oss import GptOssTextGenerate, GptOssTokenizer
 
-model = GptOssTextGenerate.from_weights("kerasformers/gpt-oss-20b")
-tokenizer = GptOssTokenizer.from_weights("kerasformers/gpt-oss-20b")
+model = GptOssTextGenerate.from_weights("zeromodels/gpt-oss-20b")
+tokenizer = GptOssTokenizer.from_weights("zeromodels/gpt-oss-20b")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -173,9 +173,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.gpt_oss import GptOssModel
+from zeromodels.models.gpt_oss import GptOssModel
 
-backbone = GptOssModel.from_weights("kerasformers/gpt-oss-20b")
+backbone = GptOssModel.from_weights("zeromodels/gpt-oss-20b")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, 2880)
 ```
 
@@ -193,9 +193,9 @@ GPT-OSS loads in **bfloat16 by default** (the dense weights are bf16, the expert
 memory), pass `load_dtype="float32"`:
 
 ```python
-model = GptOssTextGenerate.from_weights("kerasformers/gpt-oss-20b")  # bf16 (default)
+model = GptOssTextGenerate.from_weights("zeromodels/gpt-oss-20b")  # bf16 (default)
 model = GptOssTextGenerate.from_weights(
-    "kerasformers/gpt-oss-20b", load_dtype="float32"
+    "zeromodels/gpt-oss-20b", load_dtype="float32"
 )  # fp32
 ```
 
