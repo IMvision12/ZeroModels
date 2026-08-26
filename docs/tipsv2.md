@@ -3,8 +3,8 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code> +
-<code>tokenizer.json</code> + <code>kf_preprocessor.json</code>).
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code> +
+<code>tokenizer.json</code> + <code>zm_preprocessor.json</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>. The full model
 and both towers load from the same repo.
 </div>

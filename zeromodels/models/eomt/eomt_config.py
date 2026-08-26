@@ -6,7 +6,7 @@ class EoMTConfig(BaseConfig):
 
     Instantiating it with the defaults yields a configuration close to the
     eomt_large_coco_panoptic_640 style. Fields mirror the model constructor and
-    serialize flat to a repo's `kf_config.json`.
+    serialize flat to a repo's `zm_config.json`.
 
     Args:
         hidden_dim (`int`, *optional*, defaults to 1024):

@@ -10,7 +10,7 @@ class MobileViTConfig(BaseConfig):
     hybrid. A single config serves the whole family: the backbone/classifier read the
     architecture fields, and the DeepLabV3 segmentation head additionally reads the
     `output_stride` / `atrous_rates` / `aspp_*` fields (the classifier ignores them).
-    One `kf_config.json` sits on each variant's repo and fields serialize flat.
+    One `zm_config.json` sits on each variant's repo and fields serialize flat.
 
     Args:
         initial_dims (`int`, *optional*, defaults to 16):

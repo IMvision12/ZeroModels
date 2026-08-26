@@ -6,7 +6,7 @@ class InceptionNextConfig(BaseConfig):
 
     InceptionNeXt reworks the ConvNeXt block with an Inception-style depthwise mixer
     (split into small square, wide band, and identity branches) for higher throughput.
-    One `kf_config.json` (declaring the canonical [`InceptionNextImageClassify`]) sits
+    One `zm_config.json` (declaring the canonical [`InceptionNextImageClassify`]) sits
     on each variant's repo, and both the backbone and classifier load from it. Fields
     mirror the model constructor and serialize flat.
 

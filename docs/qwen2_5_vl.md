@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> and <code>kf_preprocessor.json</code> plus the
+(each repo carries <code>zm_config.json</code> and <code>zm_preprocessor.json</code> plus the
 Keras weights: <code>model.weights.h5</code>, or a sharded <code>model.weights.json</code> +
 shards for the larger checkpoints). Load the model and processor with
 <code>from_weights("zeromodels/&lt;variant&gt;")</code>.

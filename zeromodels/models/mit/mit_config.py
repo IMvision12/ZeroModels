@@ -6,7 +6,7 @@ class MiTConfig(BaseConfig):
 
     MiT (Mix Vision Transformer) is the hierarchical, convolution-augmented transformer
     encoder introduced with SegFormer, producing multi-scale features via overlapping
-    patch merging and efficient (sequence-reduced) attention. One `kf_config.json`
+    patch merging and efficient (sequence-reduced) attention. One `zm_config.json`
     (declaring the canonical [`MiTImageClassify`]) sits on each variant's repo, and both
     the backbone and classifier load from it. Fields mirror the model constructor and
     serialize flat.
@@ -39,7 +39,7 @@ class MiTConfig(BaseConfig):
     num_classes: int = 1000
 
 
-# Hosted variants -> (model arch key). Weights load by Hub repo id (kf_config.json);
+# Hosted variants -> (model arch key). Weights load by Hub repo id (zm_config.json);
 # the github release urls have been removed. MiT ships no timm ids (SegFormer encoder).
 MIT_VARIANTS = {
     "mit_b0_in1k": {

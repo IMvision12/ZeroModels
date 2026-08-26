@@ -6,7 +6,7 @@ class SegformerConfig(BaseConfig):
 
     Instantiating it with the defaults yields a configuration close to the
     SegFormer-B0 (ADE20K) style. Fields mirror the model constructor and
-    serialize flat to a repo's `kf_config.json`.
+    serialize flat to a repo's `zm_config.json`.
 
     Args:
         embed_dim (`tuple`, *optional*, defaults to `(32, 64, 160, 256)`):

@@ -5,7 +5,7 @@ class InceptionResNetV2Config(BaseConfig):
     r"""Configuration for [`InceptionResNetV2Model`] / [`InceptionResNetV2ImageClassify`].
 
     Inception-ResNet-V2 combines Inception modules with residual connections for faster
-    training and strong accuracy at 299x299. One `kf_config.json` (declaring the
+    training and strong accuracy at 299x299. One `zm_config.json` (declaring the
     canonical [`InceptionResNetV2ImageClassify`]) sits on each variant's repo, and both
     the backbone and classifier load from it. Fields mirror the model constructor and
     serialize flat.

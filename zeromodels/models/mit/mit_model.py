@@ -327,7 +327,7 @@ class MiTModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # Backbone shares the variant's repo with MiTImageClassify (which the
-        # kf_config declares); build from kf_config, then copy the backbone weights.
+        # zm_config declares); build from zm_config, then copy the backbone weights.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = MiTImageClassify.from_weights(repo_id, skip_mismatch=skip_mismatch)

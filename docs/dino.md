@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
@@ -85,7 +85,7 @@ stage maps (`(B, 56, 56, 256)` through `(B, 7, 7, 2048)`).
 
 `DinoImageProcessor` handles both DINO families, keyed on `model_type` (the same tag the
 model config carries). Loading it with `from_weights("zeromodels/<variant>")` reads the
-recipe from the repo's `kf_preprocessor.json`, so the right one comes back automatically;
+recipe from the repo's `zm_preprocessor.json`, so the right one comes back automatically;
 `DinoImageProcessor()` with no arguments is the ViT default.
 
 - **ViT** (`facebook/dino-*`, `model_type="dino_vit"`, the default) matches transformers'
@@ -100,9 +100,7 @@ Because the processor already normalizes, load the model with `include_normaliza
 ```python
 from zeromodels.models.dino import DinoViTModel, DinoImageProcessor
 
-model = DinoViTModel.from_weights(
-    "zeromodels/dino-vitb16", include_normalization=False
-)
+model = DinoViTModel.from_weights("zeromodels/dino-vitb16", include_normalization=False)
 processor = DinoImageProcessor.from_weights("zeromodels/dino-vitb16")
 
 pixel_values = processor("bear.jpg")["pixel_values"]  # (1, 224, 224, 3), normalized
@@ -110,7 +108,7 @@ tokens = model(pixel_values, training=False)
 ```
 
 `dino-resnet50` loads the same way and needs no extra arguments: its Hub
-`kf_preprocessor.json` sets `model_type="dino_resnet"`, so the crop recipe is restored for
+`zm_preprocessor.json` sets `model_type="dino_resnet"`, so the crop recipe is restored for
 you.
 
 ```python

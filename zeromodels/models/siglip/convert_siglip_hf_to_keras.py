@@ -175,7 +175,7 @@ def transfer_siglip_image_classify_weights(
 
 
 # Per-variant recipes (relocated from siglip_config.py). The zeromodels repos
-# hold a SigLIPZeroShotClassify checkpoint; its kf_config.json declares
+# hold a SigLIPZeroShotClassify checkpoint; its zm_config.json declares
 # SigLIPZeroShotClassify and every SigLIP head loads from it.
 SIGLIP_RECIPES = {
     "siglip_base_p16_224": {

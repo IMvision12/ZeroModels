@@ -138,7 +138,7 @@ def transfer_speech2text_weights(
 
 
 # Per-variant recipes (relocated from speech2text_config.py). Models load from the
-# Hub by repo id; these build the arch for conversion + drive the kf_config backfill.
+# Hub by repo id; these build the arch for conversion + drive the zm_config backfill.
 def _s2t(hidden, eh, dh, ef, df):
     return {
         "hidden_dim": hidden,

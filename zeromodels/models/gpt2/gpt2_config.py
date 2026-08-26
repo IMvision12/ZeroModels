@@ -6,7 +6,7 @@ class GPT2Config(BaseConfig):
     head ([`GPT2TextGenerate`]).
 
     GPT-2 is a decoder-only transformer with learned token and absolute-position
-    embeddings, pre-LayerNorm blocks, and a final LayerNorm. One `kf_config.json`
+    embeddings, pre-LayerNorm blocks, and a final LayerNorm. One `zm_config.json`
     (declaring the canonical [`GPT2Model`]) sits on each variant's repo; both the
     backbone and the generative head load from it. Fields mirror the model
     constructor and serialize flat.

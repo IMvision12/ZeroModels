@@ -12,7 +12,7 @@ from zeromodels.utils.image_util import normalize_image_for_classify_models
 from .efficientnetv2_config import EfficientNetV2Config
 
 # The backbone (EfficientNetV2Model) and classifier (EfficientNetV2ImageClassify)
-# share the variant's repo, whose kf_config.json declares EfficientNetV2ImageClassify.
+# share the variant's repo, whose zm_config.json declares EfficientNetV2ImageClassify.
 EFFICIENTNETV2_HUB_SIBLINGS = frozenset(
     {"EfficientNetV2Model", "EfficientNetV2ImageClassify"}
 )
@@ -862,7 +862,7 @@ class EfficientNetV2Model(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # Backbone shares the variant's repo with EfficientNetV2ImageClassify (which
-        # the kf_config declares); build from kf_config, then copy backbone weights.
+        # the zm_config declares); build from zm_config, then copy backbone weights.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = EfficientNetV2ImageClassify.from_weights(

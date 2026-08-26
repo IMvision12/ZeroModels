@@ -6,7 +6,7 @@ class DinoViTConfig(BaseConfig):
 
     The defaults describe the DINO ViT-S/16 variant; other variants override the
     patch size and transformer dimensions. Fields mirror the model constructor and
-    serialize flat to a repo's `kf_config.json`.
+    serialize flat to a repo's `zm_config.json`.
 
     Args:
         as_backbone (`bool`, *optional*, defaults to `False`):
@@ -70,7 +70,7 @@ class DinoResNetConfig(BaseConfig):
     r"""Configuration for [`DinoResNetModel`], a DINO ResNet-50 backbone.
 
     The defaults describe the DINO ResNet-50 variant. Fields mirror the model
-    constructor and serialize flat to a repo's `kf_config.json`.
+    constructor and serialize flat to a repo's `zm_config.json`.
 
     Args:
         as_backbone (`bool`, *optional*, defaults to `False`):

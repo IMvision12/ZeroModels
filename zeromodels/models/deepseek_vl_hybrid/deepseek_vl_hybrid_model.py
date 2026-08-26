@@ -28,7 +28,7 @@ MASK_NEG = -1e9
 
 # The backbone (DeepseekVLHybridModel) and generative head
 # (DeepseekVLHybridConditionalGenerate) share the variant's weights repo, whose
-# kf_config.json declares DeepseekVLHybridModel.
+# zm_config.json declares DeepseekVLHybridModel.
 DEEPSEEK_VL_HYBRID_HUB_SIBLINGS = frozenset(
     {"DeepseekVLHybridModel", "DeepseekVLHybridConditionalGenerate"}
 )

@@ -5,7 +5,7 @@ class ConvMixerConfig(BaseConfig):
     r"""Configuration for [`ConvMixerModel`] / [`ConvMixerImageClassify`].
 
     ConvMixer patchifies the input, then applies a stack of depthwise + pointwise
-    convolution mixer blocks at a single resolution. One `kf_config.json` (declaring
+    convolution mixer blocks at a single resolution. One `zm_config.json` (declaring
     the canonical [`ConvMixerImageClassify`]) sits on each variant's repo, and both the
     backbone and classifier load from it. Fields mirror the model constructor and
     serialize flat.

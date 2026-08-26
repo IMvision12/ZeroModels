@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> most GLM families are hosted as preconverted Keras weights under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a> (each repo
-carries <code>kf_config.json</code> + the <code>.weights.h5</code>) — load with
+carries <code>zm_config.json</code> + the <code>.weights.h5</code>) — load with
 <code>from_weights("zeromodels/&lt;variant&gt;")</code>. The largest checkpoints
 (full-size GLM-4.5 / GLM-4.6 and the GLM-5 MoE series) are not re-hosted; convert them on
 the fly with a raw <code>hf:</code> id. See <a href="../loading_weights/">Loading Weights</a>.
@@ -36,7 +36,7 @@ Each family exposes a `*Model` (features, `call` → `last_hidden_state`) and a
 ## Loading
 
 Hosted checkpoints load by their `zeromodels/<variant>` repo id (preconverted
-bf16 `.weights.h5` + `kf_config.json`). A raw `hf:` id converts any matching
+bf16 `.weights.h5` + `zm_config.json`). A raw `hf:` id converts any matching
 upstream checkpoint on the fly (safetensors mapped at load time; FP8 MoE
 dequantized) — used for the checkpoints too large to re-host.
 

@@ -6,7 +6,7 @@ class ConvNeXtV2Config(BaseConfig):
 
     ConvNeXtV2 augments ConvNeXt with Global Response Normalization (GRN) inside each
     block and is pre-trained with the Fully Convolutional Masked Autoencoder (FCMAE)
-    recipe. LayerScale is disabled (`layer_scale_init=None`). One `kf_config.json`
+    recipe. LayerScale is disabled (`layer_scale_init=None`). One `zm_config.json`
     (declaring the canonical [`ConvNeXtV2ImageClassify`]) sits on each variant's repo,
     and both the backbone and classifier load from it. Fields mirror the model
     constructor and serialize flat.

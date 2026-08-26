@@ -305,7 +305,7 @@ class Speech2TextModel(BaseModel):
     config_class = Speech2TextConfig
     HUB_REPO_SIBLINGS = SPEECH2TEXT_HUB_SIBLINGS
     HF_MODEL_TYPE = "speech_to_text"
-    # Default generation settings, written to kf_config.json under generate_args and
+    # Default generation settings, written to zm_config.json under generate_args and
     # re-attached on repo-id load; Speech2TextConditionalGenerate.generate() reads them.
     generate_args = {"max_new_tokens": 200}
 

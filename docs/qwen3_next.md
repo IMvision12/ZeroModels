@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> the 80B-A3B checkpoints are hosted as pretrained Keras weights on Hugging
 Face under <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> and <code>tokenizer.json</code> plus a sharded
+(each repo carries <code>zm_config.json</code> and <code>tokenizer.json</code> plus a sharded
 <code>model.weights.json</code> + shards). Load with
 <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>

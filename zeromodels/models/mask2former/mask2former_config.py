@@ -6,7 +6,7 @@ class Mask2FormerConfig(BaseConfig):
 
     Instantiating it with the defaults yields a configuration close to the
     mask2former-swin-tiny-coco-instance style. Fields mirror the model
-    constructor and serialize flat to a repo's `kf_config.json`.
+    constructor and serialize flat to a repo's `zm_config.json`.
 
     Args:
         backbone_embed_dim (`int`, *optional*, defaults to 96):

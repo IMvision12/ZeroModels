@@ -1806,7 +1806,7 @@ class DFineDetect(BaseModel):
     BASE_MODEL_CONFIG = None
     config_class = DFineConfig
     # Weights load by Hub repo id, e.g. from_weights("zeromodels/dfine-nano"),
-    # via kf_config.json on the repo (no url table in the package).
+    # via zm_config.json on the repo (no url table in the package).
     BASE_WEIGHT_CONFIG = None
     HF_MODEL_TYPE = ("d_fine", "dfine")
 

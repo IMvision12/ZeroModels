@@ -6,7 +6,7 @@ class DeiTConfig(BaseConfig):
 
     DeiT is a ViT trained data-efficiently with an extra distillation token; the
     distilled variants (`use_distillation=True`) average a CLS head and a distillation
-    head at inference. One `kf_config.json` (declaring the canonical
+    head at inference. One `zm_config.json` (declaring the canonical
     [`DeiTImageClassify`]) sits on each variant's repo, and both the backbone and
     classifier load from it. Fields mirror the model constructor and serialize flat.
 

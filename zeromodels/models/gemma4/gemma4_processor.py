@@ -57,17 +57,17 @@ class Gemma4Processor(BaseProcessor):
     @classmethod
     def from_hub_repo(cls, repo_id, **kwargs):
         # Gemma 4 has two preprocessors (image + audio) but one
-        # kf_preprocessor.json. The base loader would feed that single file to
+        # zm_preprocessor.json. The base loader would feed that single file to
         # both. Instead: the tokenizer loads from tokenizer.json, the image
-        # processor takes its params from kf_preprocessor.json (or defaults when
+        # processor takes its params from zm_preprocessor.json (or defaults when
         # absent), and the audio extractor uses the fixed USM defaults.
         import inspect
 
-        from zeromodels.conversion.kf_config import load_kf_preprocessor
+        from zeromodels.conversion.zm_config import load_zm_preprocessor
 
         repo_id = repo_id.rstrip("/")
         tokenizer = cls.TOKENIZER_CLS.from_weights(repo_id)
-        spec = load_kf_preprocessor(repo_id) or {}
+        spec = load_zm_preprocessor(repo_id) or {}
         img_params = set(inspect.signature(cls.IMAGE_PROCESSOR_CLS.__init__).parameters)
         img_kwargs = {k: v for k, v in spec.items() if k in img_params}
         return cls(

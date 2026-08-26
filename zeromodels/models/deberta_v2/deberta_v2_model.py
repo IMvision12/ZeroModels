@@ -17,7 +17,7 @@ from .deberta_v2_layers import (
 )
 
 # All classes (encoder + masked-LM + task heads) share the variant's weights repo,
-# whose kf_config.json declares the canonical DebertaV2Model encoder (model.weights.h5).
+# whose zm_config.json declares the canonical DebertaV2Model encoder (model.weights.h5).
 DEBERTA_V2_HUB_SIBLINGS = frozenset(
     {
         "DebertaV2Model",

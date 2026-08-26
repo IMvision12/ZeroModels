@@ -182,7 +182,7 @@ including the class count of a fine-tune, are read from the repo config.
 from zeromodels.models.qwen3 import Qwen3TextGenerate
 from zeromodels.models.segformer import SegFormerSemanticSegment
 
-# Preconverted Keras weights (kf_config.json)
+# Preconverted Keras weights (zm_config.json)
 SegFormerSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
 
 # Bare variant: converted from upstream on the fly
@@ -282,9 +282,7 @@ from zeromodels.models.gpt_oss import GptOssTextGenerate
 model = GptOssTextGenerate.from_weights("zeromodels/gpt-oss-120b")
 
 # Quantize weight-only on the way in, for a smaller footprint again
-model = GptOssTextGenerate.from_weights(
-    "zeromodels/gpt-oss-120b", quantization="int8"
-)
+model = GptOssTextGenerate.from_weights("zeromodels/gpt-oss-120b", quantization="int8")
 ```
 
 </div>

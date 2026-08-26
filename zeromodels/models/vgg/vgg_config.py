@@ -5,7 +5,7 @@ class VGGConfig(BaseConfig):
     r"""Configuration for [`VGGModel`] / [`VGGImageClassify`].
 
     VGG is a classic deep CNN built from stacks of 3x3 convolutions and max-pooling.
-    One `kf_config.json` (declaring the canonical [`VGGImageClassify`]) sits on each
+    One `zm_config.json` (declaring the canonical [`VGGImageClassify`]) sits on each
     variant's repo, and both the backbone and classifier load from it. Fields mirror
     the model constructor and serialize flat.
 

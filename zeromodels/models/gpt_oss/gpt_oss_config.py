@@ -7,7 +7,7 @@ class GptOssConfig(BaseConfig):
     GPT-OSS is OpenAI's open-weight mixture-of-experts decoder: grouped-query
     attention with learned per-head attention sinks, alternating sliding-window /
     full causal attention, YaRN-scaled rotary positions, and a top-k-routed MoE
-    feed-forward whose experts ship in MXFP4 (4-bit). One `kf_config.json` sits on
+    feed-forward whose experts ship in MXFP4 (4-bit). One `zm_config.json` sits on
     each variant's repo, and fields mirror the model constructor and serialize flat.
 
     Args:
@@ -51,7 +51,7 @@ class GptOssConfig(BaseConfig):
             Whether [`GptOssTextGenerate`] ties the LM head to the embeddings.
     MXFP4-packed checkpoints (the official 20b / 120b) carry a
     ``quantization_config`` block (``{"quant_method": "mxfp4"}``); the model itself is
-    quantization-agnostic, and a ``KfQuantizer`` swaps in the packed expert bank at
+    quantization-agnostic, and a ``ZmQuantizer`` swaps in the packed expert bank at
     load time.
 
     Examples:

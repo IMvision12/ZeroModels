@@ -6,7 +6,7 @@ class ViTConfig(BaseConfig):
 
     The Vision Transformer splits an image into patches, linearly embeds them with an
     added class token and positional embeddings, and applies a standard transformer
-    encoder. One `kf_config.json` (declaring the canonical [`ViTImageClassify`]) sits
+    encoder. One `zm_config.json` (declaring the canonical [`ViTImageClassify`]) sits
     on each variant's repo, and both the backbone and classifier load from it. Fields
     mirror the model constructor and serialize flat.
 

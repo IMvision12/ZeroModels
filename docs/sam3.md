@@ -3,8 +3,8 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> preconverted Keras weights are hosted <b>ungated</b> at
 <a href="https://huggingface.co/zeromodels/sam3">zeromodels/sam3</a> under the SAM
-license (<code>kf_config.json</code> + <code>model.weights.h5</code> +
-<code>tokenizer.json</code> + <code>kf_preprocessor.json</code>). Load with
+license (<code>zm_config.json</code> + <code>model.weights.h5</code> +
+<code>tokenizer.json</code> + <code>zm_preprocessor.json</code>). Load with
 <code>from_weights("zeromodels/sam3")</code> &mdash; no license gate. The gated upstream
 <a href="https://huggingface.co/facebook/sam3">facebook/sam3</a> also converts on the fly
 via the <code>hf:</code> prefix once you accept its license.
@@ -31,9 +31,7 @@ single SAM3 checkpoint, hosted ungated at `zeromodels/sam3`, so load with `from_
 (no `variant` to pick):
 
 ```python
-Task.from_weights(
-    repo_id="zeromodels/sam3", load_weights=True, **kwargs
-)  # load + wrap
+Task.from_weights(repo_id="zeromodels/sam3", load_weights=True, **kwargs)  # load + wrap
 Task(model)  # wrap an existing SAM3Model
 ```
 
@@ -102,7 +100,7 @@ directly, but it is the transformers-style entry point and the home of the
 ```python
 from zeromodels.models.sam3 import SAM3Processor
 
-# tokenizer.json + kf_preprocessor.json, both hosted ungated
+# tokenizer.json + zm_preprocessor.json, both hosted ungated
 processor = SAM3Processor.from_weights("zeromodels/sam3")
 
 inputs = processor(images="cats.jpg", text="cat")
@@ -121,7 +119,7 @@ inputs = processor(
 # -> input_boxes (norm cxcywh), input_boxes_labels, box_mask, pixel_values, ...
 ```
 
-`SAM3ImageProcessor` (the image half) loads its config from `kf_preprocessor.json`;
+`SAM3ImageProcessor` (the image half) loads its config from `zm_preprocessor.json`;
 `post_process_object_detection` / `post_process_instance_segmentation` /
 `post_process_semantic_segmentation` on either the processor or the image processor turn
 raw `SAM3Model` outputs into the result dicts.
@@ -434,9 +432,7 @@ import torch
 from zeromodels.models.sam3 import SAM3InstanceSegment, SAM3Model
 
 # build the graph at 1512x1512 (grid 108x108) and load the hosted weights
-model = SAM3Model.from_weights(
-    "zeromodels/sam3", vit_image_size=1512, image_size=1512
-)
+model = SAM3Model.from_weights("zeromodels/sam3", vit_image_size=1512, image_size=1512)
 # the task's image processor follows model.vit_image_size
 segmenter = SAM3InstanceSegment(model=model)
 

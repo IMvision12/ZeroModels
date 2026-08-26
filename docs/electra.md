@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
@@ -22,8 +22,8 @@ See also [bert.md](bert.md), [modernbert.md](modernbert.md), [roberta.md](robert
 ## Variants
 
 ELECTRA ships two checkpoints per size, hosted as one repo each. The **discriminator** repo
-(kf_config declares `ElectraModel`) serves the encoder + the classify / QA / token /
-multiple-choice heads; the **generator** repo (kf_config declares `ElectraMaskedLM`) serves the
+(zm_config declares `ElectraModel`) serves the encoder + the classify / QA / token /
+multiple-choice heads; the **generator** repo (zm_config declares `ElectraMaskedLM`) serves the
 masked-LM. Load with `from_weights("zeromodels/<variant>")`.
 
 | Size | Discriminator (encoder / downstream) | Generator (masked-LM) |

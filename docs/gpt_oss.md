@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.json</code>, with the
+(each repo carries <code>zm_config.json</code> + <code>model.weights.json</code>, with the
 MoE experts kept in MXFP4). Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
@@ -32,7 +32,7 @@ standard decoder it adds:
   tokens share experts). Both paths give identical results. The dequant is a
   backend-agnostic `keras.ops` port of HF's `convert_moe_packed_tensors`, so it runs
   on every backend including CPU. The hosted repos declare this in a
-  `quantization_config` block, and a `Mxfp4KfQuantizer` swaps the packed experts in on
+  `quantization_config` block, and a `Mxfp4ZmQuantizer` swaps the packed experts in on
   load, so the model itself carries no mxfp4 flag. See [mxfp4](quantization_mxfp4.md)
   for the format and using it as a general `quantize_model` scheme.
 

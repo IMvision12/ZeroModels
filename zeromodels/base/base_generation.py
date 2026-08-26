@@ -52,7 +52,7 @@ class BaseGeneration:
             f"{type(self).__name__} must implement call_with_cache()."
         )
 
-    # LEGACY spelling of a match="path" CheckpointSource: repos whose ``kf_config.json``
+    # LEGACY spelling of a match="path" CheckpointSource: repos whose ``zm_config.json``
     # declares one of these classes are loaded by building that (fuller, e.g. multimodal)
     # model and copying THIS head's backbone weights out of it, ignoring the rest (e.g. a
     # text head reading a vision-language checkpoint: the vision / audio weights become

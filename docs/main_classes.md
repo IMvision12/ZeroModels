@@ -49,7 +49,7 @@ class BaseConfig
 
 Every model carries a typed config, a `BaseConfig` subclass whose annotated fields are the
 architecture hyperparameters. Model constructors stay flat while the config serializes
-nested (the `text_config` / `vision_config` blocks you see in `kf_config.json`), and
+nested (the `text_config` / `vision_config` blocks you see in `zm_config.json`), and
 BaseConfig bridges the two: `constructor_kwargs()` flattens a config for the model, and
 `to_dict()` / `from_dict()` handle serialization. You rarely build one by hand, since
 `from_weights` reconstructs it from the repo, but the [Configuration](configuration.md)
@@ -80,7 +80,7 @@ Model.from_weights(
 The one entry point you normally use. It dispatches on `identifier`:
 
 - `"org/repo"` (for example `"zeromodels/segformer_b0_ade_512"`) → Hub Keras via
-  `kf_config.json`
+  `zm_config.json`
 - a bare variant (for example `"qwen3-4b"`) → on-the-fly conversion from an upstream
   `hf_id`
 - `"hf:org/repo"` → convert any compatible Hub checkpoint
@@ -135,8 +135,8 @@ Model.from_hf(
 ```
 
 The three halves `from_weights` dispatches to. Call them directly only when you want to be
-explicit about the source. `from_hub_repo` reads `kf_config.json` (and optionally
-`kf_preprocessor.json` for processors). `from_hf` reads the repo's `config.json`, so a
+explicit about the source. `from_hub_repo` reads `zm_config.json` (and optionally
+`zm_preprocessor.json` for processors). `from_hf` reads the repo's `config.json`, so a
 fine-tune with a different class count or vocabulary needs no extra arguments.
 
 > **Load the processor from the same source as the model.** A fine-tune can ship a
@@ -275,16 +275,16 @@ and `single_axis(axis, ndim)` resolve contraction axes. The quantized layers bui
 the `quantize_model` / `dequantize_model` entry points are covered in
 [Quantization](quantization.md).
 
-### KfQuantizer
+### ZmQuantizer
 
 ```python
-get_kf_quantizer(quantization_config)  # {"quant_method": "mxfp4" | "int8" | ...}
+get_zm_quantizer(quantization_config)  # {"quant_method": "mxfp4" | "int8" | ...}
 ```
 
 Model-level quantizer, the transformers `HfQuantizer` analog. `from_weights` reads a
-repo's `quantization_config` and runs the matching `KfQuantizer` to swap in the packed /
+repo's `quantization_config` and runs the matching `ZmQuantizer` to swap in the packed /
 int layers before the weights load, so the model stays quantization-agnostic. Dispatched
-by `quant_method`: `Mxfp4KfQuantizer` (GPT-OSS native experts) / `WeightOnlyKfQuantizer`
+by `quant_method`: `Mxfp4ZmQuantizer` (GPT-OSS native experts) / `WeightOnlyZmQuantizer`
 (int8 / int4 / fp8). Covered in [Quantization](quantization.md).
 
 ## Attention

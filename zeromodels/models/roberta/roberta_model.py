@@ -16,7 +16,7 @@ from .roberta_layers import (
 MASK_NEG = -1e9
 
 # All classes (encoder + masked-LM + task heads) share the variant's weights repo,
-# whose kf_config.json declares the canonical RobertaModel encoder (model.weights.h5).
+# whose zm_config.json declares the canonical RobertaModel encoder (model.weights.h5).
 ROBERTA_HUB_SIBLINGS = frozenset(
     {
         "RobertaModel",

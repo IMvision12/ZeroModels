@@ -19,7 +19,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.vgg import VGGImageClassify
 
 # Architecture presets, moved here from vgg_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 VGG_MODEL_CONFIG = {
     "vgg11": {
@@ -215,7 +215,7 @@ VGG_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 VGG_VARIANTS = {
     "vgg11_tv_in1k": {
         "model": "vgg11",

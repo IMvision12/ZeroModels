@@ -10,7 +10,7 @@ from zeromodels.models.convnext.convnext_model import (
 from .convnextv2_config import ConvNeXtV2Config
 
 # The backbone (ConvNeXtV2Model) and classifier (ConvNeXtV2ImageClassify) share the
-# variant's weights repo, whose kf_config.json declares ConvNeXtV2ImageClassify.
+# variant's weights repo, whose zm_config.json declares ConvNeXtV2ImageClassify.
 CONVNEXTV2_HUB_SIBLINGS = frozenset({"ConvNeXtV2Model", "ConvNeXtV2ImageClassify"})
 
 
@@ -53,7 +53,7 @@ class ConvNeXtV2Model(ConvNeXtModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # Backbone shares the variant's repo with ConvNeXtV2ImageClassify (which the
-        # kf_config declares); build from kf_config, then copy the backbone weights.
+        # zm_config declares); build from zm_config, then copy the backbone weights.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = ConvNeXtV2ImageClassify.from_weights(

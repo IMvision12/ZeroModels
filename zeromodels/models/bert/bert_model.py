@@ -16,7 +16,7 @@ MASK_NEG = -1e9
 # All BERT classes (encoder + masked-LM + task heads) share the variant's weights repo.
 # The single hosted model.weights.h5 is the FULL checkpoint (encoder + pooler + MLM head),
 # saved from BertMaskedLM(add_pooler=True); each class loads its own subset (Keras ignores
-# the weights it does not have). The kf_config.json declares the canonical BertModel.
+# the weights it does not have). The zm_config.json declares the canonical BertModel.
 BERT_HUB_SIBLINGS = frozenset(
     {
         "BertModel",

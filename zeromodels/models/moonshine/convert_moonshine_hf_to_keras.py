@@ -150,7 +150,7 @@ def transfer_moonshine_weights(
 
 
 # Per-variant recipes (relocated from moonshine_config.py). Models load from the
-# Hub by repo id; these build the arch for conversion + drive the kf_config backfill.
+# Hub by repo id; these build the arch for conversion + drive the zm_config backfill.
 MOONSHINE_RECIPES = {
     "moonshine_tiny": {
         "hidden_dim": 288,

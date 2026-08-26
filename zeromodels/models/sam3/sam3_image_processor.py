@@ -21,7 +21,7 @@ class SAM3ImageProcessor(BaseImageProcessor):
     masks / boxes back to the input image.
 
     The default config is what ``zeromodels/sam3`` hosts in its
-    ``kf_preprocessor.json``; ``image_resolution`` doubles as the model input
+    ``zm_preprocessor.json``; ``image_resolution`` doubles as the model input
     size, so set it (and build the model at the same size) for custom-resolution
     inference.
 

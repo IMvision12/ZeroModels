@@ -6,7 +6,7 @@ class MobileNetV3Config(BaseConfig):
 
     MobileNetV3 combines inverted-residual blocks with squeeze-and-excitation and
     hard-swish activations, tuned by NAS into `"small"` and `"large"` variants. One
-    `kf_config.json` (declaring the canonical [`MobileNetV3ImageClassify`]) sits on
+    `zm_config.json` (declaring the canonical [`MobileNetV3ImageClassify`]) sits on
     each variant's repo, and both the backbone and classifier load from it. Fields
     mirror the model constructor and serialize flat.
 

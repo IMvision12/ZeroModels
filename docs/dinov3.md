@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
@@ -93,7 +93,7 @@ feature map (`(B, 7, 7, 768)` for the tiny variant under `channels_last`), or wi
 ## Preprocessing
 
 `DinoV3ImageProcessor.from_weights("zeromodels/<variant>")` reads its settings from the
-repo's `kf_preprocessor.json`; `DinoV3ImageProcessor()` with no arguments gives the same
+repo's `zm_preprocessor.json`; `DinoV3ImageProcessor()` with no arguments gives the same
 defaults. Two matching options:
 
 - **`DinoV3ImageProcessor`** (matches transformers' `DINOv3ViTImageProcessor` for

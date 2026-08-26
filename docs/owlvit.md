@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
@@ -328,9 +328,7 @@ model = OwlViTDetect.from_weights("hf:google/owlvit-base-patch32")
 model = OwlViTDetect.from_weights("hf:<user>/owlvit-finetuned-on-my-data")
 
 # Architecture only, randomly initialized
-model = OwlViTDetect.from_weights(
-    "zeromodels/owlvit-base-patch32", load_weights=False
-)
+model = OwlViTDetect.from_weights("zeromodels/owlvit-base-patch32", load_weights=False)
 ```
 
 No shape arguments are needed. The architecture is read from the repo's `config.json`.

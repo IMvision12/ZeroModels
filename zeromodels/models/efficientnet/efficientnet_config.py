@@ -6,7 +6,7 @@ class EfficientNetConfig(BaseConfig):
 
     EfficientNet scales network width, depth, and input resolution together with a
     compound coefficient on top of a mobile inverted-bottleneck (MBConv) backbone. One
-    `kf_config.json` (declaring the canonical [`EfficientNetImageClassify`]) sits on
+    `zm_config.json` (declaring the canonical [`EfficientNetImageClassify`]) sits on
     each variant's repo, and both the backbone and classifier load from it. Fields
     mirror the model constructor and serialize flat.
 

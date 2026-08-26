@@ -7,7 +7,7 @@ class DinoV3ViTConfig(BaseConfig):
     The defaults describe the DINOv3 ViT-B/16 variant; other variants override the
     transformer dimensions. DINOv3 ViTs use rotary position embeddings, register
     tokens, and (optionally) SwiGLU MLPs. Fields mirror the model constructor and
-    serialize flat to a repo's `kf_config.json`.
+    serialize flat to a repo's `zm_config.json`.
 
     Args:
         as_backbone (`bool`, *optional*, defaults to `False`):
@@ -89,7 +89,7 @@ class DinoV3ConvNeXtConfig(BaseConfig):
 
     The defaults describe the DINOv3 ConvNeXt-Tiny variant; other variants override
     the per-stage depths and channel widths. Fields mirror the model constructor
-    and serialize flat to a repo's `kf_config.json`.
+    and serialize flat to a repo's `zm_config.json`.
 
     Args:
         as_backbone (`bool`, *optional*, defaults to `False`):

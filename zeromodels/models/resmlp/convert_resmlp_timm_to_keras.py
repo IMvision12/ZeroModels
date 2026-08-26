@@ -20,7 +20,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.resmlp import ResMLPImageClassify
 
 # Architecture presets, moved here from resmlp_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 RESMLP_MODEL_CONFIG = {
     "resmlp_12": {
@@ -62,7 +62,7 @@ RESMLP_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 RESMLP_VARIANTS = {
     "resmlp_12_224_fb_in1k": {
         "model": "resmlp_12",

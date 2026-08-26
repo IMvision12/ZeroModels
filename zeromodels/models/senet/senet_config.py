@@ -6,7 +6,7 @@ class SENetConfig(BaseConfig):
 
     SENet augments a ResNet (`bottleneck`) or ResNeXt (`resnext_block`, selected by
     `block_fn_name`) trunk with Squeeze-and-Excitation channel attention. One
-    `kf_config.json` (declaring the canonical [`SENetImageClassify`]) sits on each
+    `zm_config.json` (declaring the canonical [`SENetImageClassify`]) sits on each
     variant's repo, and both the backbone and classifier load from it. Fields mirror
     the model constructor and serialize flat.
 

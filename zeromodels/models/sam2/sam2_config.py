@@ -6,7 +6,7 @@ class Sam2Config(BaseConfig):
 
     The defaults describe the SAM 2 Hiera-Tiny image encoder. Other variants
     override the Hiera backbone dimensions. Fields serialize flat to a repo's
-    `kf_config.json`.
+    `zm_config.json`.
 
     Args:
         hidden_dim (`int`, *optional*, defaults to 96):

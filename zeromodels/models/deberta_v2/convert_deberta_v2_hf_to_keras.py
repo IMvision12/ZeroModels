@@ -102,7 +102,7 @@ def transfer_deberta_v2_weights(
 
 
 # Architecture per variant, moved here from deberta_v2_config.py: the package config no longer
-# carries arch (models load by Hub repo id / kf_config). Only this converter
+# carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer the HF weights into.
 DEBERTA_V2_MODEL_CONFIG = {
     "deberta_v2_xlarge": {

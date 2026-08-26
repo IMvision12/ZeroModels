@@ -6,7 +6,7 @@ class FlexiViTConfig(BaseConfig):
 
     FlexiViT is a ViT trained across a range of patch sizes so a single checkpoint can
     run at different patch resolutions; the released weights use `no_embed_class=True`.
-    One `kf_config.json` (declaring the canonical [`FlexiViTImageClassify`]) sits on
+    One `zm_config.json` (declaring the canonical [`FlexiViTImageClassify`]) sits on
     each variant's repo, and both the backbone and classifier load from it. Fields
     mirror the model constructor and serialize flat.
 

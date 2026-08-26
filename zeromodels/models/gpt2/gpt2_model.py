@@ -43,7 +43,7 @@ class GPT2Model(BaseModel):
     HF_MODEL_TYPE = "gpt2"
     BASE_MODEL_CONFIG = None
     # Weights load by Hub repo id, e.g. from_weights("zeromodels/gpt2"), via
-    # kf_config.json on the repo (no url table in the package).
+    # zm_config.json on the repo (no url table in the package).
     BASE_WEIGHT_CONFIG = None
     config_class = GPT2Config
     HUB_REPO_SIBLINGS = GPT2_HUB_SIBLINGS

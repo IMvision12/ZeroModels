@@ -90,7 +90,7 @@ loading, plotting, and the class-name lists.
 Three sources, one call:
 
 ```python
-# Preconverted Keras weights on the zeromodels Hub org (kf_config.json)
+# Preconverted Keras weights on the zeromodels Hub org (zm_config.json)
 model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
 
 # Bare variant: on-the-fly conversion from an upstream Hub checkpoint (LLMs / VLMs)

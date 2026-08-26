@@ -6,7 +6,7 @@ class MLPMixerConfig(BaseConfig):
 
     MLP-Mixer replaces attention and convolution entirely with two MLPs per block: a
     token-mixing MLP across patches and a channel-mixing MLP across features. One
-    `kf_config.json` (declaring the canonical [`MLPMixerImageClassify`]) sits on each
+    `zm_config.json` (declaring the canonical [`MLPMixerImageClassify`]) sits on each
     variant's repo, and both the backbone and classifier load from it. Fields mirror
     the model constructor and serialize flat.
 

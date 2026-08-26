@@ -6,7 +6,7 @@ class SwinConfig(BaseConfig):
 
     The Swin Transformer computes self-attention inside shifted local windows and
     merges patches between stages to build a hierarchical feature pyramid. One
-    `kf_config.json` (declaring the canonical [`SwinImageClassify`]) sits on each
+    `zm_config.json` (declaring the canonical [`SwinImageClassify`]) sits on each
     variant's repo, and both the backbone and classifier load from it. Fields mirror
     the model constructor and serialize flat.
 

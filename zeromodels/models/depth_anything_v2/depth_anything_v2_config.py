@@ -11,7 +11,7 @@ class DepthAnythingV2Config(DepthAnythingV1Config):
     differ), so this config inherits every field from [`DepthAnythingV1Config`].
     The defaults describe the V2 Small relative-depth variant; the metric
     fine-tunes override `depth_estimation_type="metric"` and `max_depth` (`20.0`
-    indoor, `80.0` outdoor). Fields serialize flat to a repo's `kf_config.json`.
+    indoor, `80.0` outdoor). Fields serialize flat to a repo's `zm_config.json`.
 
     Examples:
 

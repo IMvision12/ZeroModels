@@ -1,13 +1,13 @@
 """Model-level quantizers, the zeromodels analog of transformers' ``HfQuantizer``.
 
-A :class:`KfQuantizer` reads a repo's ``quantization_config`` and prepares a
+A :class:`ZmQuantizer` reads a repo's ``quantization_config`` and prepares a
 *quantization-agnostic* model for a quantized checkpoint: it swaps the relevant
 float modules for their packed equivalents **before** the weights load, mirroring
 ``HfQuantizer._process_model_before_weight_loading``. The model classes therefore
 carry no quantization flags; the quantizer is the single thing that produces packed
 layers, on load.
 
-Dispatch is a plain :func:`get_kf_quantizer` (keyed on ``quant_method``); there is no
+Dispatch is a plain :func:`get_zm_quantizer` (keyed on ``quant_method``); there is no
 ``Auto`` registry yet. The methods are ``mxfp4`` (GPT-OSS native packed experts) and the
 generic weight-only ``int8`` / ``int4`` / ``fp8``.
 """
@@ -16,7 +16,7 @@ from zeromodels.quantization.quantize import _named_children, _swap, _walk_layer
 from zeromodels.quantization.quantized_layers import GptOssMXFP4Experts
 
 
-class KfQuantizer:
+class ZmQuantizer:
     """Base class: prepare a float model to receive a natively-quantized checkpoint.
 
     Subclasses implement :meth:`_process_model_before_weight_loading` (the module
@@ -56,7 +56,7 @@ class KfQuantizer:
         return model
 
 
-class Mxfp4KfQuantizer(KfQuantizer):
+class Mxfp4ZmQuantizer(ZmQuantizer):
     """Swap GPT-OSS float expert banks for the packed ``GptOssMXFP4Experts``.
 
     Mirrors transformers' ``Mxfp4HfQuantizer``: the model builds plain
@@ -87,7 +87,7 @@ class Mxfp4KfQuantizer(KfQuantizer):
         return model
 
 
-class WeightOnlyKfQuantizer(KfQuantizer):
+class WeightOnlyZmQuantizer(ZmQuantizer):
     """int8 / int4 / fp8 weight-only quantization, applied before the weights load.
 
     Swaps every eligible ``Dense`` / ``Embedding`` for its int / fp8 quantized layer
@@ -104,29 +104,29 @@ class WeightOnlyKfQuantizer(KfQuantizer):
         return quantize_model(model, self.quantization_config["quant_method"])
 
 
-# quant_method -> KfQuantizer. mxfp4 is the GPT-OSS native packed-expert swap; the
+# quant_method -> ZmQuantizer. mxfp4 is the GPT-OSS native packed-expert swap; the
 # int/fp8 schemes are the generic weight-only path. (No Auto registry yet.)
-_KF_QUANTIZERS = {
-    "mxfp4": Mxfp4KfQuantizer,
-    "int8": WeightOnlyKfQuantizer,
-    "int4": WeightOnlyKfQuantizer,
-    "fp8": WeightOnlyKfQuantizer,
+_ZM_QUANTIZERS = {
+    "mxfp4": Mxfp4ZmQuantizer,
+    "int8": WeightOnlyZmQuantizer,
+    "int4": WeightOnlyZmQuantizer,
+    "fp8": WeightOnlyZmQuantizer,
 }
 
 
-def get_kf_quantizer(quantization_config):
-    """Return a :class:`KfQuantizer` for a ``quantization_config`` block, or None.
+def get_zm_quantizer(quantization_config):
+    """Return a :class:`ZmQuantizer` for a ``quantization_config`` block, or None.
 
     ``quantization_config`` is a ``{"quant_method": ...}`` dict (from a repo's
-    kf_config.json or an upstream config.json). Returns None when it is empty.
+    zm_config.json or an upstream config.json). Returns None when it is empty.
     """
     if not quantization_config:
         return None
     method = quantization_config.get("quant_method")
-    quantizer_cls = _KF_QUANTIZERS.get(method)
+    quantizer_cls = _ZM_QUANTIZERS.get(method)
     if quantizer_cls is None:
         raise ValueError(
-            f"no KfQuantizer registered for quant_method={method!r} "
-            f"(known: {sorted(_KF_QUANTIZERS)})"
+            f"no ZmQuantizer registered for quant_method={method!r} "
+            f"(known: {sorted(_ZM_QUANTIZERS)})"
         )
     return quantizer_cls(quantization_config)

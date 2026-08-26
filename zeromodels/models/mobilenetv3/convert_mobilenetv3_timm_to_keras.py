@@ -79,7 +79,7 @@ MOBILENETV3_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 MOBILENETV3_VARIANTS = {
     "mobilenetv3_small_050_lamb_in1k": {
         "model": "mobilenetv3_small_050",

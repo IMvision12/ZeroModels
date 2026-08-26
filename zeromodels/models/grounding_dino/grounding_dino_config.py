@@ -7,7 +7,7 @@ class GroundingDinoConfig(BaseConfig):
     Open-set / text-grounded detection: a Swin backbone + BERT text encoder + a
     deformable cross-modality encoder-decoder. The defaults describe the
     grounding_dino_tiny style; grounding_dino_base overrides the Swin backbone
-    fields. Fields serialize flat to a repo's `kf_config.json`.
+    fields. Fields serialize flat to a repo's `zm_config.json`.
 
     Args:
         d_model (`int`, *optional*, defaults to 256):

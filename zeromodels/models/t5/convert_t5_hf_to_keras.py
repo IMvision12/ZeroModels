@@ -86,7 +86,7 @@ def transfer_t5_weights(keras_model, hf_state_dict: Dict[str, np.ndarray]) -> No
 
 
 # Architecture per variant, for the standalone converter (models otherwise load by Hub
-# repo id / kf_config). Only this converter builds an untrained model to transfer into.
+# repo id / zm_config). Only this converter builds an untrained model to transfer into.
 T5_MODEL_CONFIG = {
     "t5_small": {
         "vocab_size": 32128,
@@ -166,7 +166,7 @@ if __name__ == "__main__":
 
         # Parity check on T5ConditionalGenerate (the generative view), then save the T5Model superset
         # (encoder + decoder + shared embedding = every pretrained weight; the tied lm_head
-        # adds none). kf_config declares T5Model; each class loads its subset from this file.
+        # adds none). zm_config declares T5Model; each class loads its subset from this file.
         keras_gen = T5ConditionalGenerate(**arch)
         keras_gen(k_inputs)  # build
         transfer_t5_weights(keras_gen, state)

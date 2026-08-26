@@ -6,7 +6,7 @@ class DeepLabV3Config(BaseConfig):
 
     Instantiating it with the defaults yields a configuration close to the
     torchvision deeplabv3_resnet50 (COCO/VOC) style. Fields mirror the model
-    constructor and serialize flat to a repo's `kf_config.json`.
+    constructor and serialize flat to a repo's `zm_config.json`.
 
     Args:
         backbone_variant (`str`, *optional*, defaults to `"ResNet50"`):

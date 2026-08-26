@@ -6,7 +6,7 @@ class T5Config(BaseConfig):
 
     T5 is a text-to-text encoder-decoder transformer with relative position bias (no
     absolute or rotary positions), T5-style RMSNorm (scale only, no bias), pre-LayerNorm
-    residual blocks, and bias-free projections. One `kf_config.json` (declaring the
+    residual blocks, and bias-free projections. One `zm_config.json` (declaring the
     canonical [`T5Model`]) sits on each variant's repo; the backbone, generative head,
     encoder, and task-head classes all load from it. Fields mirror the model constructor
     and serialize flat.

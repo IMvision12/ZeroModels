@@ -6,7 +6,7 @@ class ResNeXtConfig(BaseConfig):
 
     ResNeXt replaces ResNet's bottleneck with grouped ("cardinality") convolutions.
     The hosted variants override `depths` / `width_factor` (32x4d / 32x8d / 32x16d /
-    32x32d). One `kf_config.json` (declaring the canonical
+    32x32d). One `zm_config.json` (declaring the canonical
     [`ResNeXtImageClassify`]) sits on each variant's repo, and both the backbone and
     classifier load from it. Fields mirror the model constructor and serialize flat.
 

@@ -5,7 +5,7 @@ class NextViTConfig(BaseConfig):
     r"""Configuration for [`NextViTModel`] / [`NextViTImageClassify`].
 
     Next-ViT interleaves efficient convolutional (NCB) and transformer (NTB) blocks in
-    a hardware-friendly hybrid backbone. One `kf_config.json` (declaring the canonical
+    a hardware-friendly hybrid backbone. One `zm_config.json` (declaring the canonical
     [`NextViTImageClassify`]) sits on each variant's repo, and both the backbone and
     classifier load from it. Fields mirror the model constructor and serialize flat.
 

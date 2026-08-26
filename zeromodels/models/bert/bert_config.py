@@ -5,7 +5,7 @@ class BertConfig(BaseConfig):
     r"""Configuration for the BERT encoder ([`BertModel`]) and its task heads.
 
     BERT is a bidirectional transformer encoder pre-trained with masked-language and
-    next-sentence objectives. One `kf_config.json` (declaring the canonical
+    next-sentence objectives. One `zm_config.json` (declaring the canonical
     [`BertModel`]) sits on each variant's repo; the encoder, masked-LM, and task-head
     classes all load from it. Fields mirror the model constructor and serialize flat.
 

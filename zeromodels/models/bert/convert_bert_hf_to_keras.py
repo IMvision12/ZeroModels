@@ -101,7 +101,7 @@ def transfer_bert_weights(keras_model, hf_state_dict: Dict[str, np.ndarray]) -> 
 
 
 # Architecture per variant, moved here from bert_config.py: the package config no longer
-# carries arch (models load by Hub repo id / kf_config). Only this converter
+# carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer the HF weights into.
 BERT_MODEL_CONFIG = {
     "bert_base_uncased": {

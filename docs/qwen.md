@@ -36,7 +36,7 @@ Each family exposes two classes:
 - **`*Generate`**: adds the LM head + greedy `.generate()`; `call` returns `logits`.
 
 The canonical path is the **hosted repo id** `zeromodels/<variant>` (preconverted
-bf16 Keras weights + `kf_config.json`); a raw `hf:` id also converts any matching
+bf16 Keras weights + `zm_config.json`); a raw `hf:` id also converts any matching
 `model_type` on the fly:
 
 ```python

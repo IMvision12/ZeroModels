@@ -7,7 +7,7 @@ class GptConfig(BaseConfig):
 
     GPT (Radford et al. 2018) is a decoder-only transformer with learned token and
     absolute-position embeddings and post-LayerNorm blocks (no final norm). One
-    `kf_config.json` (declaring the canonical [`GptModel`]) sits on the variant's
+    `zm_config.json` (declaring the canonical [`GptModel`]) sits on the variant's
     repo; both the backbone and the generative head load from it. Fields mirror the
     model constructor and serialize flat.
 

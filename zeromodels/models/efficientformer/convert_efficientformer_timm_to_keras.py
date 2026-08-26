@@ -20,7 +20,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.efficientformer import EfficientFormerImageClassify
 
 # Architecture presets, moved here from efficientformer_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 EFFICIENTFORMER_MODEL_CONFIG = {
     "efficientformer_l1": {
@@ -47,7 +47,7 @@ EFFICIENTFORMER_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 EFFICIENTFORMER_VARIANTS = {
     "efficientformer_l1_snap_dist_in1k": {
         "model": "efficientformer_l1",

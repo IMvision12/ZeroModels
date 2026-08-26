@@ -703,7 +703,7 @@ class OneFormerUniversalSegment(OneFormerModel):
 
     config_class = OneFormerConfig
     # Weights load by Hub repo id, e.g.
-    # from_weights("zeromodels/oneformer_ade20k_swin_tiny"), via kf_config.json
+    # from_weights("zeromodels/oneformer_ade20k_swin_tiny"), via zm_config.json
     # on the repo (no url table in the package).
     BASE_WEIGHT_CONFIG = None
     HF_MODEL_TYPE = "oneformer"

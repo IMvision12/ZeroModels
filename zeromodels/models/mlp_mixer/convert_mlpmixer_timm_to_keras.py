@@ -19,7 +19,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.mlp_mixer import MLPMixerImageClassify
 
 # Architecture presets, moved here from mlp_mixer_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 MLP_MIXER_MODEL_CONFIG = {
     "mixer_b16_224_in21k": {
@@ -57,7 +57,7 @@ MLP_MIXER_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 MLP_MIXER_VARIANTS = {
     "mixer_b16_224_goog_in21k": {
         "model": "mixer_b16_224_in21k",

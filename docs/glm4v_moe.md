@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + a sharded <code>model.weights.json</code>).
+(each repo carries <code>zm_config.json</code> + a sharded <code>model.weights.json</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>, or convert an original
 checkpoint on the fly with <code>from_weights("hf:zai-org/GLM-4.5V")</code>. See
 <a href="../loading_weights/">Loading Weights</a>.
@@ -19,7 +19,7 @@ resident.
 Like the upstream checkpoints, the weights are stored **bfloat16** except the MoE
 router correction bias (`e_score_correction_bias`, one per MoE layer), kept in
 **float32** so bf16 rounding cannot flip the group / expert top-k selection. This
-mirrors transformers' `_keep_in_fp32_modules_strict`; the hosted `kf_config.json`
+mirrors transformers' `_keep_in_fp32_modules_strict`; the hosted `zm_config.json`
 records it as `weight_dtype: "bfloat16"` + `weight_dtype_overrides:
 {"e_score_correction_bias": "float32"}`.
 

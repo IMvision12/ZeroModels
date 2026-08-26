@@ -9,7 +9,7 @@ from zeromodels.utils.image_util import normalize_image_for_classify_models
 from .inception_next_config import InceptionNextConfig
 
 # The backbone (InceptionNextModel) and classifier (InceptionNextImageClassify) share
-# the variant's repo, whose kf_config.json declares InceptionNextImageClassify.
+# the variant's repo, whose zm_config.json declares InceptionNextImageClassify.
 INCEPTION_NEXT_HUB_SIBLINGS = frozenset(
     {"InceptionNextModel", "InceptionNextImageClassify"}
 )
@@ -291,7 +291,7 @@ class InceptionNextModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # Backbone shares the variant's repo with InceptionNextImageClassify (which the
-        # kf_config declares); build from kf_config, then copy the backbone weights.
+        # zm_config declares); build from zm_config, then copy the backbone weights.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = InceptionNextImageClassify.from_weights(

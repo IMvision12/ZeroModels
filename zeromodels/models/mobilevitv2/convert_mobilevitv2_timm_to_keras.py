@@ -19,7 +19,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.mobilevitv2 import MobileViTV2ImageClassify
 
 # Architecture presets, moved here from mobilevitv2_config.py: the package config no
-# longer carries classification arch (models load by Hub repo id / kf_config). Only
+# longer carries classification arch (models load by Hub repo id / zm_config). Only
 # this converter builds an untrained model to transfer timm weights into.
 MOBILEVITV2_MODEL_CONFIG = {
     "mobilevitv2_050": {"multiplier": 0.5, "image_size": 256, "num_classes": 1000},
@@ -35,7 +35,7 @@ MOBILEVITV2_MODEL_CONFIG = {
 }
 
 # Hosted classification variants -> (model arch key, timm id). Weights load by Hub
-# repo id (kf_config.json); this converter builds an untrained model from the arch
+# repo id (zm_config.json); this converter builds an untrained model from the arch
 # key above and transfers the matching timm weights.
 MOBILEVITV2_VARIANTS = {
     "mobilevitv2_050_cvnets_in1k": {

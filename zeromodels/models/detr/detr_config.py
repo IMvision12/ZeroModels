@@ -6,7 +6,7 @@ class DetrConfig(BaseConfig):
 
     Instantiating it with the defaults yields a configuration close to the DETR
     facebook/detr-resnet-50 style. Fields mirror the model constructor and
-    serialize flat to a repo's `kf_config.json`.
+    serialize flat to a repo's `zm_config.json`.
 
     Args:
         backbone_variant (`str`, *optional*, defaults to `"ResNet50"`):

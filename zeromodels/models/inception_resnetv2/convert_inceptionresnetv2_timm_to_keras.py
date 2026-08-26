@@ -19,7 +19,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.inception_resnetv2 import InceptionResNetV2ImageClassify
 
 # Architecture presets, moved here from inception_resnetv2_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 INCEPTION_RESNETV2_MODEL_CONFIG = {
     "inception_resnet_v2": {
@@ -29,7 +29,7 @@ INCEPTION_RESNETV2_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 INCEPTION_RESNETV2_VARIANTS = {
     "inception_resnet_v2_tf_in1k": {
         "model": "inception_resnet_v2",

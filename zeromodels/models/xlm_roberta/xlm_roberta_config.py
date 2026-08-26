@@ -5,7 +5,7 @@ class XLMRobertaConfig(RobertaConfig):
     r"""Configuration for the XLM-RoBERTa encoder ([`XLMRobertaModel`]) and heads.
 
     XLM-RoBERTa is RoBERTa trained on 100 languages of CommonCrawl; architecturally it
-    is RoBERTa with a much larger multilingual vocabulary. One `kf_config.json`
+    is RoBERTa with a much larger multilingual vocabulary. One `zm_config.json`
     (declaring the canonical [`XLMRobertaModel`]) sits on each variant's repo. Fields
     mirror the model constructor and serialize flat.
 

@@ -2,9 +2,9 @@
 
 Every model in ZeroModels carries a typed **config**: a `BaseConfig` subclass that holds
 the architecture hyperparameters as annotated fields. You rarely build one by hand, since
-`from_weights` reads it from a repo's `kf_config.json` for you, but the config is what
+`from_weights` reads it from a repo's `zm_config.json` for you, but the config is what
 turns a set of numbers into the right model, and it explains the shape of every
-`kf_config.json` and every model constructor.
+`zm_config.json` and every model constructor.
 
 ```python
 from zeromodels.base import BaseConfig
@@ -15,7 +15,7 @@ from zeromodels.base import BaseConfig
 A config lives a double life:
 
 - **Model constructors are flat.** `CLIPModel(embed_dim=512, vision_hidden_dim=768, text_hidden_dim=512, ...)` takes every hyperparameter as a plain keyword. No nesting, no config object required.
-- **Configs serialize nested.** `to_dict()` groups those same fields into `text_config` / `vision_config` blocks, mirroring the upstream Hugging Face config layout, and that nested dict is what gets written to `kf_config.json`.
+- **Configs serialize nested.** `to_dict()` groups those same fields into `text_config` / `vision_config` blocks, mirroring the upstream Hugging Face config layout, and that nested dict is what gets written to `zm_config.json`.
 
 `BaseConfig` is the bridge. It flattens a nested config down to the flat keyword set a
 model wants (`constructor_kwargs()`), and serializes a flat set of fields back up into
@@ -47,7 +47,7 @@ config = Gemma3Config(text_config=Gemma3TextConfig(embed_dim=2560, num_layers=34
 
 Two methods do the round trip:
 
-- **`to_dict()`** returns the nested serialization, the block written to `kf_config.json`.
+- **`to_dict()`** returns the nested serialization, the block written to `zm_config.json`.
 - **`from_dict(data)`** rebuilds a config from that dict. It accepts both the nested (v2) form and the older flat (v1) form, so every repo keeps loading.
 
 ```python
@@ -152,7 +152,7 @@ Declare these on a `BaseConfig` subclass to shape its serialization.
 
 ## Methods
 
-- **`to_dict()`**: nested serialization, the config block of `kf_config.json`.
+- **`to_dict()`**: nested serialization, the config block of `zm_config.json`.
 - **`from_dict(data)`** (*classmethod*): rebuild from a nested (v2) or flat (v1) dict.
 - **`constructor_kwargs()`**: the flat keyword set fed to the model constructor.
 - **`field_names()`** (*classmethod*): every field name, sub-configs included.
@@ -172,7 +172,7 @@ CLIPConfig(vision_config=CLIPVisionConfig(patch_size=16))
 ## Where the config comes from at load time
 
 You do not construct a config to load a model. `from_weights("org/repo")` reads
-`kf_config.json`, whose model fields are a `to_dict()` payload sitting alongside the repo
+`zm_config.json`, whose model fields are a `to_dict()` payload sitting alongside the repo
 metadata (`weights`, `weight_dtype`, and friends), rebuilds the config with `from_dict`,
 and flattens it through `constructor_kwargs()` into the model constructor. The `hf:` path
 does the same starting from an upstream `config.json`. See

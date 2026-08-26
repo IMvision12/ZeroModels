@@ -72,7 +72,7 @@ class BaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
     def get_config(self):
         """Config for keras serialization, carrying any applied quantization.
 
-        A no-op for unquantized models. When a :class:`KfQuantizer` has run, the
+        A no-op for unquantized models. When a :class:`ZmQuantizer` has run, the
         recipe is stamped into the config so a plain ``.keras`` save/reload
         rebuilds itself quantized (see :meth:`from_config`). Subclasses that
         override ``get_config`` call ``super().get_config()``, so they inherit
@@ -93,7 +93,7 @@ class BaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
         quantization_config = config.pop("quantization_config", None)
         model = super().from_config(config)
         if quantization_config:
-            from zeromodels.quantization import get_kf_quantizer
+            from zeromodels.quantization import get_zm_quantizer
 
-            get_kf_quantizer(quantization_config).preprocess_model(model)
+            get_zm_quantizer(quantization_config).preprocess_model(model)
         return model

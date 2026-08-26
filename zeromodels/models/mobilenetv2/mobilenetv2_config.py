@@ -6,7 +6,7 @@ class MobileNetV2Config(BaseConfig):
 
     MobileNetV2 is an efficient mobile backbone built from inverted-residual blocks
     with linear bottlenecks, scaled by width and depth multipliers. One
-    `kf_config.json` (declaring the canonical [`MobileNetV2ImageClassify`]) sits on
+    `zm_config.json` (declaring the canonical [`MobileNetV2ImageClassify`]) sits on
     each variant's repo, and both the backbone and classifier load from it. Fields
     mirror the model constructor and serialize flat.
 

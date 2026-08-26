@@ -181,7 +181,7 @@ def transfer_metaclip2_image_classify_weights(keras_model, hf_state_dict):
 
 
 # Per-variant recipes (relocated from metaclip2_config.py). The zeromodels repos
-# hold a MetaClip2ZeroShotClassify checkpoint; its kf_config.json declares
+# hold a MetaClip2ZeroShotClassify checkpoint; its zm_config.json declares
 # MetaClip2ZeroShotClassify and every MetaCLIP 2 head loads from it.
 def _mc2(embed, image_size, vl, vhd, vp, vh, vocab, th, thn, tl, act, seq=77, eos=None):
     r = {

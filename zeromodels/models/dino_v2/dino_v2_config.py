@@ -6,7 +6,7 @@ class DinoV2Config(BaseConfig):
 
     The defaults describe the DINOv2 ViT-S/14 variant; other variants override the
     transformer dimensions. Fields mirror the model constructor and serialize flat
-    to a repo's `kf_config.json`.
+    to a repo's `zm_config.json`.
 
     Args:
         as_backbone (`bool`, *optional*, defaults to `False`):

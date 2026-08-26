@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
@@ -74,7 +74,7 @@ SAM2Processor(target_length=1024, image_mean=None, image_std=None, data_format=N
 Stretches the image to a square `target_length`, normalizes, and rescales prompt
 coordinates the same way. Load it with
 `SAM2Processor.from_weights("zeromodels/sam2_hiera_<size>")`, which reads the repo's
-`kf_preprocessor.json`.
+`zm_preprocessor.json`.
 
 > **SAM2 stretches, SAM pads.** SAM resizes the long edge and pads the short one, so a
 > single scale factor covers both axes. SAM2 stretches each axis independently, so `x`

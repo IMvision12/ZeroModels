@@ -6,7 +6,7 @@ class DebertaV3Config(DebertaV2Config):
 
     DeBERTa-v3 keeps the DeBERTa-v2 architecture but is pre-trained ELECTRA-style
     (replaced-token detection with gradient-disentangled embedding sharing); the shipped
-    variants use no input convolution (`conv_kernel_size=0`). One `kf_config.json`
+    variants use no input convolution (`conv_kernel_size=0`). One `zm_config.json`
     (declaring the canonical [`DebertaV3Model`]) sits on each variant's repo. Defaults
     below are the `deberta-v3-base` values; see [`DebertaV2Config`] for field docs.
 

@@ -10,7 +10,7 @@ from zeromodels.models.resnet.convert_resnet_timm_to_keras import (
 from zeromodels.models.resnext import ResNeXtImageClassify
 
 # Architecture presets, moved here from resnext_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 RESNEXT_MODEL_CONFIG = {
     "resnext50_32x4d": {
@@ -46,7 +46,7 @@ RESNEXT_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 RESNEXT_VARIANTS = {
     "resnext50_32x4d_a1_in1k": {
         "model": "resnext50_32x4d",

@@ -6,7 +6,7 @@ class DebertaV2Config(BaseConfig):
 
     DeBERTa-v2 refines DeBERTa with a larger vocabulary, bucketed relative positions, a
     normalized relative embedding, and an optional convolutional token layer. One
-    `kf_config.json` (declaring the canonical [`DebertaV2Model`]) sits on each variant's
+    `zm_config.json` (declaring the canonical [`DebertaV2Model`]) sits on each variant's
     repo. Fields mirror the model constructor and serialize flat.
 
     Args:

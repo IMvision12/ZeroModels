@@ -172,7 +172,7 @@ def transfer_clip_image_classify_weights(
 
 # Per-variant recipes (relocated from clip_config.py). The zeromodels repos hold
 # a CLIPZeroShotClassify checkpoint (the superset with logit_scale); its
-# kf_config.json declares CLIPZeroShotClassify and every CLIP head loads from it.
+# zm_config.json declares CLIPZeroShotClassify and every CLIP head loads from it.
 CLIP_RECIPES = {
     "clip_vit_base_16": {
         "embed_dim": 512,

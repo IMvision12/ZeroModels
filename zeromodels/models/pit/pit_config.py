@@ -6,7 +6,7 @@ class PiTConfig(BaseConfig):
 
     PiT (Pooling-based Vision Transformer) introduces spatial pooling between three
     transformer stages so the token count shrinks while channels grow, ResNet-style.
-    One `kf_config.json` (declaring the canonical [`PiTImageClassify`]) sits on each
+    One `zm_config.json` (declaring the canonical [`PiTImageClassify`]) sits on each
     variant's repo, and both the backbone and classifier load from it. Fields mirror
     the model constructor and serialize flat.
 

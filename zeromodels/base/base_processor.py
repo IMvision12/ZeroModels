@@ -53,7 +53,7 @@ class BaseProcessor(PreprocessorMixin):
         Mirrors :meth:`from_hf`, but for a self-describing zeromodels repo: each
         component loads by repo id, so the tokenizer pulls the repo's
         ``tokenizer.json`` and the image processor / feature extractor its
-        ``kf_preprocessor.json`` (``Processor.from_weights("zeromodels/repo")``).
+        ``zm_preprocessor.json`` (``Processor.from_weights("zeromodels/repo")``).
         """
         parts = {}
         if cls.TOKENIZER_CLS is not None:

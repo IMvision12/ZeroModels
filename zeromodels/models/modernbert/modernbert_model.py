@@ -18,7 +18,7 @@ from .modernbert_layers import (
 # repo. The single hosted model.weights.h5 is the FULL masked-LM checkpoint (encoder +
 # prediction head + decoder), saved from ModernBertMaskedLM; each class loads its own
 # subset (the shared head_dense / head_norm feed the classify heads too, matching HF; the
-# random classifier / span head stay untrained). The kf_config.json declares the canonical
+# random classifier / span head stay untrained). The zm_config.json declares the canonical
 # ModernBertModel.
 MODERNBERT_HUB_SIBLINGS = frozenset(
     {
