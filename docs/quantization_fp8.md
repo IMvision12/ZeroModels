@@ -10,8 +10,8 @@ choosing when the weights are heavy-tailed.
 ## Usage
 
 ```python
-from kerasformers.models.qwen3 import Qwen3TextGenerate
-from kerasformers.quantization import quantize_model
+from zeromodels.models.qwen3 import Qwen3TextGenerate
+from zeromodels.quantization import quantize_model
 
 # load and quantize in one call
 model = Qwen3TextGenerate.from_weights("qwen3-4b", quantization="fp8")
@@ -23,7 +23,7 @@ quantize_model(model, "fp8")
 Check the backend before committing to it:
 
 ```python
-from kerasformers.quantization.fp8_quantize import fp8_supported
+from zeromodels.quantization.fp8_quantize import fp8_supported
 
 print(fp8_supported())
 ```
@@ -55,7 +55,7 @@ Resolution order for any layer is `skip_modules` first, then `overrides`, then t
 Pass it anywhere a scheme string is accepted, `from_weights` included:
 
 ```python
-from kerasformers.quantization import Fp8Config, quantize_model
+from zeromodels.quantization import Fp8Config, quantize_model
 
 cfg = Fp8Config(skip_modules=("lm_head",))
 
@@ -68,7 +68,7 @@ footprint: send the layers whose weights have wide dynamic range to fp8 and leav
 uniform.
 
 ```python
-from kerasformers.quantization import QuantizationConfig
+from zeromodels.quantization import QuantizationConfig
 
 QuantizationConfig(mode="int8", overrides={"attn": "fp8"})
 ```

@@ -4,7 +4,7 @@ Matplotlib helpers for the four output shapes the models produce. Every figure i
 pages was drawn with these.
 
 ```python
-from kerasformers.utils import (
+from zeromodels.utils import (
     plot_detections,
     plot_segmentation,
     plot_depth,
@@ -45,7 +45,7 @@ Feed it the output of `post_process_object_detection` directly.
 - **color**, **linewidth**, **fontsize**: rectangle and label-text styling.
 
 ```python
-from kerasformers.utils import plot_detections
+from zeromodels.utils import plot_detections
 
 result = processor.post_process_object_detection(
     outputs, threshold=0.9, target_sizes=[(image.height, image.width)]
@@ -90,8 +90,8 @@ work, since all three come back as an id map.
 - **seed**: palette seed for large label spaces.
 
 ```python
-from kerasformers.utils import plot_segmentation
-from kerasformers.utils.labels_util import ADE20K_150_CLASSES
+from zeromodels.utils import plot_segmentation
+from zeromodels.utils.labels_util import ADE20K_150_CLASSES
 
 seg = processor.post_process_semantic_segmentation(outputs, target_size=(h, w))
 plot_segmentation(image, seg["segmentation"], ADE20K_150_CLASSES)
@@ -123,7 +123,7 @@ plot_depth(
 Image and depth map side by side, or overlaid when `side_by_side=False`.
 
 ```python
-from kerasformers.utils import plot_depth
+from zeromodels.utils import plot_depth
 
 depth = processor.post_process_depth_estimation(outputs, target_sizes=[(h, w)])[0]
 plot_depth(image, depth["predicted_depth"])
@@ -170,7 +170,7 @@ clicked and what came back. Covers SAM, SAM 2, and SAM 3.
 - **colors** (*optional*): per-mask colors, otherwise `tab20` cycled.
 
 ```python
-from kerasformers.utils import plot_sam_masks
+from zeromodels.utils import plot_sam_masks
 
 plot_sam_masks(
     image, masks[0], scores=scores[0], points=input_points, point_labels=input_labels
@@ -185,7 +185,7 @@ Threshold first.
 ## Building your own
 
 The four helpers above are compositions of smaller pieces, all importable from
-`kerasformers.utils.visualization_util`:
+`zeromodels.utils.visualization_util`:
 
 | Helper | Does |
 |---|---|
@@ -202,7 +202,7 @@ masks together on one axis:
 
 ```python
 import matplotlib.pyplot as plt
-from kerasformers.utils.visualization_util import plot_image, plot_masks, plot_boxes
+from zeromodels.utils.visualization_util import plot_image, plot_masks, plot_boxes
 
 fig, ax = plt.subplots(figsize=(10, 7))
 plot_image(image, ax=ax)

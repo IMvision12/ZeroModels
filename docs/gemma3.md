@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 The third Gemma generation, ported to pure Keras 3, and the first multimodal one. The
@@ -101,10 +101,10 @@ either head. This is the shared-decoder half of the two-class API: `Gemma3TextGe
 (text) and `Gemma3ConditionalGenerate` (multimodal).
 
 ```python
-from kerasformers.models.gemma3 import Gemma3TextGenerate, Gemma3Tokenizer
+from zeromodels.models.gemma3 import Gemma3TextGenerate, Gemma3Tokenizer
 
-model = Gemma3TextGenerate.from_weights("kerasformers/gemma-3-1b-it")
-tokenizer = Gemma3Tokenizer.from_weights("kerasformers/gemma-3-1b-it")
+model = Gemma3TextGenerate.from_weights("zeromodels/gemma-3-1b-it")
+tokenizer = Gemma3Tokenizer.from_weights("zeromodels/gemma-3-1b-it")
 outputs = model.generate(**tokenizer("The capital of France is"), max_new_tokens=32)
 ```
 
@@ -180,7 +180,7 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.gemma3 import Gemma3TextGenerate, Gemma3Tokenizer
+from zeromodels.models.gemma3 import Gemma3TextGenerate, Gemma3Tokenizer
 
 model = Gemma3TextGenerate.from_weights("gemma-3-1b-it")
 tokenizer = Gemma3Tokenizer.from_weights("gemma-3-1b-it")
@@ -199,7 +199,7 @@ Use `Gemma3Processor` with a 4B or larger variant:
 
 ```python
 from PIL import Image
-from kerasformers.models.gemma3 import Gemma3ConditionalGenerate, Gemma3Processor
+from zeromodels.models.gemma3 import Gemma3ConditionalGenerate, Gemma3Processor
 
 model = Gemma3ConditionalGenerate.from_weights("gemma-3-4b-it")
 processor = Gemma3Processor.from_weights("gemma-3-4b-it")
@@ -239,7 +239,7 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.gemma3 import Gemma3Model
+from zeromodels.models.gemma3 import Gemma3Model
 
 backbone = Gemma3Model.from_weights("gemma-3-1b-pt")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)

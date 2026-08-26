@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 SAM (Segment Anything Model) segments whatever you point at. It has no class vocabulary at all: you give it a prompt, a click or a box, and it returns a mask. That makes it complementary to every other segmenter in this library, which decide *what* a region is; SAM only decides *where* it is.
@@ -62,7 +62,7 @@ SAMProcessor(target_length=1024, image_mean=None, image_std=None, data_format=No
 
 Resizes the long edge to `target_length`, pads to a square, normalizes, and rescales
 any prompt coordinates by the same factor. Load it with
-`SAMProcessor.from_weights("kerasformers/sam_vit_<size>")`, which reads the repo's
+`SAMProcessor.from_weights("zeromodels/sam_vit_<size>")`, which reads the repo's
 `kf_preprocessor.json`.
 
 **Call** `processor(image, input_points=None, input_labels=None, input_boxes=None)`.
@@ -124,13 +124,13 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.sam import (
+from zeromodels.models.sam import (
     SAMProcessor,
     SAMPromptableSegment,
 )
 
-model = SAMPromptableSegment.from_weights("kerasformers/sam_vit_base")
-processor = SAMProcessor.from_weights("kerasformers/sam_vit_base")
+model = SAMPromptableSegment.from_weights("zeromodels/sam_vit_base")
+processor = SAMProcessor.from_weights("zeromodels/sam_vit_base")
 
 image = Image.open("assets/data/coco_cats.jpg").convert("RGB")
 
@@ -238,16 +238,16 @@ passing boxes without it raises a confusing shape error about `input_points`.
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.sam import (
+from zeromodels.models.sam import (
     SAMProcessor,
     SAMPromptableSegment,
 )
 
 # enable_boxes adds input_boxes and has_boxes_input to the graph
 model = SAMPromptableSegment.from_weights(
-    "kerasformers/sam_vit_base", enable_boxes=True
+    "zeromodels/sam_vit_base", enable_boxes=True
 )
-processor = SAMProcessor.from_weights("kerasformers/sam_vit_base")
+processor = SAMProcessor.from_weights("zeromodels/sam_vit_base")
 
 image = Image.open("assets/data/coco_cats.jpg").convert("RGB")
 
@@ -280,9 +280,9 @@ keeps whatever survives quality and stability filtering. This is "segment everyt
 
 ```python
 import torch
-from kerasformers.models.sam import SAMGenerateMasks, SAMPromptableSegment
+from zeromodels.models.sam import SAMGenerateMasks, SAMPromptableSegment
 
-model = SAMPromptableSegment.from_weights("kerasformers/sam_vit_base")
+model = SAMPromptableSegment.from_weights("zeromodels/sam_vit_base")
 
 with torch.no_grad():
     result = SAMGenerateMasks(
@@ -352,10 +352,10 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.sam import SAMProcessor, SAMPromptableSegment
+from zeromodels.models.sam import SAMProcessor, SAMPromptableSegment
 
-model = SAMPromptableSegment.from_weights("kerasformers/sam_vit_base")
-processor = SAMProcessor.from_weights("kerasformers/sam_vit_base")
+model = SAMPromptableSegment.from_weights("zeromodels/sam_vit_base")
+processor = SAMProcessor.from_weights("zeromodels/sam_vit_base")
 image = Image.open("assets/data/coco_cats.jpg").convert("RGB")
 
 # Run the ViT once.
@@ -400,8 +400,8 @@ The prompt encoder and mask decoder are identical across all three variants, so 
 per-click cost does not change between `sam_vit_base` and `sam_vit_huge`; only the
 one-off encode does.
 
-> **`SAMModel` is the encoder-only class**, but it has no dedicated kerasformers Hub repo of its own, so
-> `SAMModel.from_weights("kerasformers/sam_vit_base")` raises. Use `hf:facebook/sam-vit-base` if you
+> **`SAMModel` is the encoder-only class**, but it has no dedicated zeromodels Hub repo of its own, so
+> `SAMModel.from_weights("zeromodels/sam_vit_base")` raises. Use `hf:facebook/sam-vit-base` if you
 > want it standalone, or the `vision_encoder_model` sub-model above.
 
 ## Data Format
@@ -421,14 +421,14 @@ channel axis to reorder.
 Any Hugging Face repo whose `model_type` is `"sam"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.sam import SAMPromptableSegment
+from zeromodels.models.sam import SAMPromptableSegment
 
 model = SAMPromptableSegment.from_weights("hf:facebook/sam-vit-base")
 model = SAMPromptableSegment.from_weights("hf:<user>/sam-finetuned-on-my-data")
 
 # Architecture only, randomly initialized
 model = SAMPromptableSegment.from_weights(
-    "kerasformers/sam_vit_base", load_weights=False
+    "zeromodels/sam_vit_base", load_weights=False
 )
 
 # Box prompts work through the hf: route too

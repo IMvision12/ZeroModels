@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Mask2Former keeps [MaskFormer](maskformer.md)'s formulation, a fixed set of (mask, class) query predictions, and fixes the part that made it slow to train: attention.
@@ -122,16 +122,16 @@ Each figure is the original image beside the predicted segmentation overlaid on 
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.mask2former import (
+from zeromodels.models.mask2former import (
     Mask2FormerImageProcessor,
     Mask2FormerUniversalSegment,
 )
 
 model = Mask2FormerUniversalSegment.from_weights(
-    "kerasformers/mask2former-swin-tiny-coco-panoptic"
+    "zeromodels/mask2former-swin-tiny-coco-panoptic"
 )
 processor = Mask2FormerImageProcessor.from_weights(
-    "kerasformers/mask2former-swin-tiny-coco-panoptic"
+    "zeromodels/mask2former-swin-tiny-coco-panoptic"
 )
 
 image = Image.open("assets/data/coco_elephant_trainer.jpg").convert("RGB")
@@ -172,16 +172,16 @@ Post-process one image at a time, since each has its own target size:
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.mask2former import (
+from zeromodels.models.mask2former import (
     Mask2FormerImageProcessor,
     Mask2FormerUniversalSegment,
 )
 
 model = Mask2FormerUniversalSegment.from_weights(
-    "kerasformers/mask2former-swin-tiny-coco-panoptic"
+    "zeromodels/mask2former-swin-tiny-coco-panoptic"
 )
 processor = Mask2FormerImageProcessor.from_weights(
-    "kerasformers/mask2former-swin-tiny-coco-panoptic"
+    "zeromodels/mask2former-swin-tiny-coco-panoptic"
 )
 
 paths = ["assets/data/coco_bear_cub.jpg", "assets/data/coco_couple.jpg"]
@@ -238,7 +238,7 @@ The post-processors emit `(H, W)` label maps and segment metadata, so they take 
 Any Hugging Face repo whose `model_type` is `"mask2former"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.mask2former import Mask2FormerUniversalSegment
+from zeromodels.models.mask2former import Mask2FormerUniversalSegment
 
 model = Mask2FormerUniversalSegment.from_weights(
     "hf:facebook/mask2former-swin-tiny-coco-panoptic"
@@ -247,7 +247,7 @@ model = Mask2FormerUniversalSegment.from_weights("hf:<user>/mask2former-finetune
 
 # Architecture only, randomly initialized
 model = Mask2FormerUniversalSegment.from_weights(
-    "kerasformers/mask2former-swin-tiny-coco-panoptic",
+    "zeromodels/mask2former-swin-tiny-coco-panoptic",
     load_weights=False,
 )
 ```

@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 OWL-ViT detects objects described by free text, with no fixed class list. It starts from a CLIP-style vision and text encoder, then drops CLIP's pooling and attaches a lightweight box head to **every patch token**. Each patch becomes a detection candidate, scored by cosine similarity against your text queries rather than against a learned classifier.
@@ -150,15 +150,15 @@ Smaller patches mean more candidates and better small-object recall, at more com
 
 ```python
 from PIL import Image
-from kerasformers.models.owlvit import (
+from zeromodels.models.owlvit import (
     OwlViTDetect,
     OwlViTImageProcessor,
     OwlViTProcessor,
 )
 
-model = OwlViTDetect.from_weights("kerasformers/owlvit-base-patch32")
-processor = OwlViTProcessor.from_weights("kerasformers/owlvit-base-patch32")
-image_processor = OwlViTImageProcessor.from_weights("kerasformers/owlvit-base-patch32")
+model = OwlViTDetect.from_weights("zeromodels/owlvit-base-patch32")
+processor = OwlViTProcessor.from_weights("zeromodels/owlvit-base-patch32")
+image_processor = OwlViTImageProcessor.from_weights("zeromodels/owlvit-base-patch32")
 
 image = Image.open("assets/data/coco_mug_knife.jpg").convert("RGB")
 prompts = ["a photo of a mug", "a photo of a knife", "a photo of an apple"]
@@ -208,15 +208,15 @@ Pass one query list per image. The prompts do not have to match across images:
 
 ```python
 from PIL import Image
-from kerasformers.models.owlvit import (
+from zeromodels.models.owlvit import (
     OwlViTDetect,
     OwlViTImageProcessor,
     OwlViTProcessor,
 )
 
-model = OwlViTDetect.from_weights("kerasformers/owlvit-base-patch32")
-processor = OwlViTProcessor.from_weights("kerasformers/owlvit-base-patch32")
-image_processor = OwlViTImageProcessor.from_weights("kerasformers/owlvit-base-patch32")
+model = OwlViTDetect.from_weights("zeromodels/owlvit-base-patch32")
+processor = OwlViTProcessor.from_weights("zeromodels/owlvit-base-patch32")
+image_processor = OwlViTImageProcessor.from_weights("zeromodels/owlvit-base-patch32")
 
 paths = ["assets/data/coco_apples.jpg", "assets/data/coco_bananas.jpg"]
 images = [Image.open(p).convert("RGB") for p in paths]
@@ -303,8 +303,8 @@ import keras
 
 keras.config.set_image_data_format("channels_first")
 
-model = OwlViTDetect.from_weights("kerasformers/owlvit-base-patch32")
-processor = OwlViTProcessor.from_weights("kerasformers/owlvit-base-patch32")
+model = OwlViTDetect.from_weights("zeromodels/owlvit-base-patch32")
+processor = OwlViTProcessor.from_weights("zeromodels/owlvit-base-patch32")
 ```
 
 Detections are the same under either layout. Set it once at the top of a script, since
@@ -319,7 +319,7 @@ Any Hugging Face repo whose `model_type` is `"owlvit"` loads directly with the `
 prefix.
 
 ```python
-from kerasformers.models.owlvit import OwlViTDetect
+from zeromodels.models.owlvit import OwlViTDetect
 
 # The original Google checkpoints
 model = OwlViTDetect.from_weights("hf:google/owlvit-base-patch32")
@@ -329,7 +329,7 @@ model = OwlViTDetect.from_weights("hf:<user>/owlvit-finetuned-on-my-data")
 
 # Architecture only, randomly initialized
 model = OwlViTDetect.from_weights(
-    "kerasformers/owlvit-base-patch32", load_weights=False
+    "zeromodels/owlvit-base-patch32", load_weights=False
 )
 ```
 
@@ -341,7 +341,7 @@ All five model classes accept `hf:`, as do `OwlViTProcessor` and
 processor = OwlViTProcessor.from_weights("hf:google/owlvit-base-patch32")
 ```
 
-Loading `hf:google/owlvit-base-patch32` and the `kerasformers/owlvit-base-patch32` Hub variant
+Loading `hf:google/owlvit-base-patch32` and the `zeromodels/owlvit-base-patch32` Hub variant
 produces identical outputs, since they are the same checkpoint by two routes.
 
 See also [OWLv2](owlv2.md), which scales this recipe with self-training and adds an

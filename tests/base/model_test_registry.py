@@ -1,4 +1,4 @@
-# Test registry for kerasformers.
+# Test registry for zeromodels.
 #
 # Each entry describes one parametrized test case for the integration suite:
 # - `module` + `model_cls`: how to import the class under test.
@@ -15,7 +15,7 @@
 MODEL_TEST_CONFIGS = {
     # ---------- Classification: XImageClassify (full classifier with head) ----------
     "CaiTImageClassify": {
-        "module": "kerasformers.models.cait",
+        "module": "zeromodels.models.cait",
         "model_cls": "CaiTImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -30,7 +30,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "ConvMixerImageClassify": {
-        "module": "kerasformers.models.convmixer",
+        "module": "zeromodels.models.convmixer",
         "model_cls": "ConvMixerImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -46,7 +46,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "ConvNeXtImageClassify": {
-        "module": "kerasformers.models.convnext",
+        "module": "zeromodels.models.convnext",
         "model_cls": "ConvNeXtImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -59,7 +59,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "ConvNeXtV2ImageClassify": {
-        "module": "kerasformers.models.convnextv2",
+        "module": "zeromodels.models.convnextv2",
         "model_cls": "ConvNeXtV2ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -75,7 +75,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "DeiTImageClassify": {
-        "module": "kerasformers.models.deit",
+        "module": "zeromodels.models.deit",
         "model_cls": "DeiTImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -90,7 +90,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "DenseNetImageClassify": {
-        "module": "kerasformers.models.densenet",
+        "module": "zeromodels.models.densenet",
         "model_cls": "DenseNetImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -104,7 +104,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "EfficientFormerImageClassify": {
-        "module": "kerasformers.models.efficientformer",
+        "module": "zeromodels.models.efficientformer",
         "model_cls": "EfficientFormerImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -118,7 +118,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "EfficientNetImageClassify": {
-        "module": "kerasformers.models.efficientnet",
+        "module": "zeromodels.models.efficientnet",
         "model_cls": "EfficientNetImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -133,7 +133,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "EfficientNetLiteImageClassify": {
-        "module": "kerasformers.models.efficientnet_lite",
+        "module": "zeromodels.models.efficientnet_lite",
         "model_cls": "EfficientNetLiteImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -148,7 +148,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "EfficientNetV2ImageClassify": {
-        "module": "kerasformers.models.efficientnetv2",
+        "module": "zeromodels.models.efficientnetv2",
         "model_cls": "EfficientNetV2ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -164,7 +164,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "FlexiViTImageClassify": {
-        "module": "kerasformers.models.flexivit",
+        "module": "zeromodels.models.flexivit",
         "model_cls": "FlexiViTImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -180,7 +180,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "InceptionNextImageClassify": {
-        "module": "kerasformers.models.inception_next",
+        "module": "zeromodels.models.inception_next",
         "model_cls": "InceptionNextImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -196,7 +196,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "InceptionResNetV2ImageClassify": {
-        "module": "kerasformers.models.inception_resnetv2",
+        "module": "zeromodels.models.inception_resnetv2",
         "model_cls": "InceptionResNetV2ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -207,7 +207,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "InceptionV3ImageClassify": {
-        "module": "kerasformers.models.inceptionv3",
+        "module": "zeromodels.models.inceptionv3",
         "model_cls": "InceptionV3ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -218,7 +218,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "InceptionV4ImageClassify": {
-        "module": "kerasformers.models.inceptionv4",
+        "module": "zeromodels.models.inceptionv4",
         "model_cls": "InceptionV4ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -229,7 +229,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "MaxViTImageClassify": {
-        "module": "kerasformers.models.maxvit",
+        "module": "zeromodels.models.maxvit",
         "model_cls": "MaxViTImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -245,7 +245,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "MiTImageClassify": {
-        "module": "kerasformers.models.mit",
+        "module": "zeromodels.models.mit",
         "model_cls": "MiTImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -258,7 +258,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "MLPMixerImageClassify": {
-        "module": "kerasformers.models.mlp_mixer",
+        "module": "zeromodels.models.mlp_mixer",
         "model_cls": "MLPMixerImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -273,7 +273,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "MobileNetV2ImageClassify": {
-        "module": "kerasformers.models.mobilenetv2",
+        "module": "zeromodels.models.mobilenetv2",
         "model_cls": "MobileNetV2ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -287,7 +287,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "MobileNetV3ImageClassify": {
-        "module": "kerasformers.models.mobilenetv3",
+        "module": "zeromodels.models.mobilenetv3",
         "model_cls": "MobileNetV3ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -302,7 +302,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "MobileNetV4ImageClassify": {
-        "module": "kerasformers.models.mobilenetv4",
+        "module": "zeromodels.models.mobilenetv4",
         "model_cls": "MobileNetV4ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -314,7 +314,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "MobileViTImageClassify": {
-        "module": "kerasformers.models.mobilevit",
+        "module": "zeromodels.models.mobilevit",
         "model_cls": "MobileViTImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -330,7 +330,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "MobileViTV2ImageClassify": {
-        "module": "kerasformers.models.mobilevitv2",
+        "module": "zeromodels.models.mobilevitv2",
         "model_cls": "MobileViTV2ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -342,7 +342,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "NextViTImageClassify": {
-        "module": "kerasformers.models.nextvit",
+        "module": "zeromodels.models.nextvit",
         "model_cls": "NextViTImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -359,7 +359,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "PiTImageClassify": {
-        "module": "kerasformers.models.pit",
+        "module": "zeromodels.models.pit",
         "model_cls": "PiTImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -377,7 +377,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "PoolFormerImageClassify": {
-        "module": "kerasformers.models.poolformer",
+        "module": "zeromodels.models.poolformer",
         "model_cls": "PoolFormerImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -391,7 +391,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "Res2NetImageClassify": {
-        "module": "kerasformers.models.res2net",
+        "module": "zeromodels.models.res2net",
         "model_cls": "Res2NetImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -406,7 +406,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "ResMLPImageClassify": {
-        "module": "kerasformers.models.resmlp",
+        "module": "zeromodels.models.resmlp",
         "model_cls": "ResMLPImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -422,7 +422,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "ResNetImageClassify": {
-        "module": "kerasformers.models.resnet",
+        "module": "zeromodels.models.resnet",
         "model_cls": "ResNetImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -435,7 +435,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "ResNetV2ImageClassify": {
-        "module": "kerasformers.models.resnetv2",
+        "module": "zeromodels.models.resnetv2",
         "model_cls": "ResNetV2ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -448,7 +448,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "ResNeXtImageClassify": {
-        "module": "kerasformers.models.resnext",
+        "module": "zeromodels.models.resnext",
         "model_cls": "ResNeXtImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -463,7 +463,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "SENetImageClassify": {
-        "module": "kerasformers.models.senet",
+        "module": "zeromodels.models.senet",
         "model_cls": "SENetImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -477,7 +477,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "SwinImageClassify": {
-        "module": "kerasformers.models.swin",
+        "module": "zeromodels.models.swin",
         "model_cls": "SwinImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -493,7 +493,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "SwinV2ImageClassify": {
-        "module": "kerasformers.models.swinv2",
+        "module": "zeromodels.models.swinv2",
         "model_cls": "SwinV2ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -510,7 +510,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "VGGImageClassify": {
-        "module": "kerasformers.models.vgg",
+        "module": "zeromodels.models.vgg",
         "model_cls": "VGGImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -523,7 +523,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "ViTImageClassify": {
-        "module": "kerasformers.models.vit",
+        "module": "zeromodels.models.vit",
         "model_cls": "ViTImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -541,7 +541,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 1000),
     },
     "XceptionImageClassify": {
-        "module": "kerasformers.models.xception",
+        "module": "zeromodels.models.xception",
         "model_cls": "XceptionImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -553,7 +553,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Self-supervised vision backbones ----------
     "DinoViTModel": {
-        "module": "kerasformers.models.dino",
+        "module": "zeromodels.models.dino",
         "model_cls": "DinoViTModel",
         "model_type": "backbone",
         "init_kwargs": {
@@ -568,7 +568,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "DinoResNetModel": {
-        "module": "kerasformers.models.dino",
+        "module": "zeromodels.models.dino",
         "model_cls": "DinoResNetModel",
         "model_type": "backbone",
         "init_kwargs": {
@@ -579,7 +579,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "DinoV2Model": {
-        "module": "kerasformers.models.dino_v2",
+        "module": "zeromodels.models.dino_v2",
         "model_cls": "DinoV2Model",
         "model_type": "backbone",
         "init_kwargs": {
@@ -594,7 +594,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "DinoV2ModelSwiGLU": {
-        "module": "kerasformers.models.dino_v2",
+        "module": "zeromodels.models.dino_v2",
         "model_cls": "DinoV2Model",
         "model_type": "backbone",
         "init_kwargs": {
@@ -610,7 +610,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "DinoV3ViTModel": {
-        "module": "kerasformers.models.dino_v3",
+        "module": "zeromodels.models.dino_v3",
         "model_cls": "DinoV3ViTModel",
         "model_type": "backbone",
         "init_kwargs": {
@@ -625,7 +625,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "DinoV3ConvNeXtModel": {
-        "module": "kerasformers.models.dino_v3",
+        "module": "zeromodels.models.dino_v3",
         "model_cls": "DinoV3ConvNeXtModel",
         "model_type": "backbone",
         "init_kwargs": {
@@ -639,7 +639,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Object detection ----------
     "DFineDetect": {
-        "module": "kerasformers.models.dfine",
+        "module": "zeromodels.models.dfine",
         "model_cls": "DFineDetect",
         "model_type": "object_detection",
         "init_kwargs": {
@@ -664,7 +664,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "DETRDetect": {
-        "module": "kerasformers.models.detr",
+        "module": "zeromodels.models.detr",
         "model_cls": "DETRDetect",
         "model_type": "object_detection",
         "init_kwargs": {
@@ -680,7 +680,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "DETRPanopticSegment": {
-        "module": "kerasformers.models.detr",
+        "module": "zeromodels.models.detr",
         "model_cls": "DETRPanopticSegment",
         "model_type": "instance_segmentation",
         "init_kwargs": {
@@ -697,7 +697,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "RTDETRDetect": {
-        "module": "kerasformers.models.rt_detr",
+        "module": "zeromodels.models.rt_detr",
         "model_cls": "RTDETRDetect",
         "model_type": "object_detection",
         "init_kwargs": {
@@ -718,7 +718,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "RTDETRV2Detect": {
-        "module": "kerasformers.models.rt_detr_v2",
+        "module": "zeromodels.models.rt_detr_v2",
         "model_cls": "RTDETRV2Detect",
         "model_type": "object_detection",
         "init_kwargs": {
@@ -739,7 +739,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "RFDETRDetect": {
-        "module": "kerasformers.models.rf_detr",
+        "module": "zeromodels.models.rf_detr",
         "model_cls": "RFDETRDetect",
         "model_type": "object_detection",
         "init_kwargs": {
@@ -759,7 +759,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "RFDETRInstanceSegment": {
-        "module": "kerasformers.models.rf_detr",
+        "module": "zeromodels.models.rf_detr",
         "model_cls": "RFDETRInstanceSegment",
         "model_type": "instance_segmentation",
         "init_kwargs": {
@@ -781,7 +781,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Open-set detection (Grounding DINO: Swin + BERT + deformable) ----------
     "GroundingDinoModel": {
-        "module": "kerasformers.models.grounding_dino",
+        "module": "zeromodels.models.grounding_dino",
         "model_cls": "GroundingDinoModel",
         "model_type": "object_detection",
         "init_kwargs": {
@@ -815,7 +815,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "GroundingDinoDetect": {
-        "module": "kerasformers.models.grounding_dino",
+        "module": "zeromodels.models.grounding_dino",
         "model_cls": "GroundingDinoDetect",
         "model_type": "object_detection",
         "init_kwargs": {
@@ -850,7 +850,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Depth estimation ----------
     "DepthAnythingV1DepthEstimation": {
-        "module": "kerasformers.models.depth_anything_v1",
+        "module": "zeromodels.models.depth_anything_v1",
         "model_cls": "DepthAnythingV1DepthEstimation",
         "model_type": "depth_estimation",
         "init_kwargs": {
@@ -860,7 +860,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 42, 42, 1),
     },
     "DepthAnythingV2DepthEstimation": {
-        "module": "kerasformers.models.depth_anything_v2",
+        "module": "zeromodels.models.depth_anything_v2",
         "model_cls": "DepthAnythingV2DepthEstimation",
         "model_type": "depth_estimation",
         "init_kwargs": {
@@ -870,7 +870,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 42, 42, 1),
     },
     "DepthAnythingV2DepthEstimation_metric": {
-        "module": "kerasformers.models.depth_anything_v2",
+        "module": "zeromodels.models.depth_anything_v2",
         "model_cls": "DepthAnythingV2DepthEstimation",
         "model_type": "depth_estimation",
         "init_kwargs": {
@@ -883,7 +883,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Semantic / universal segmentation ----------
     "DeepLabV3SemanticSegment": {
-        "module": "kerasformers.models.deeplabv3",
+        "module": "zeromodels.models.deeplabv3",
         "model_cls": "DeepLabV3SemanticSegment",
         "model_type": "segmentation",
         "init_kwargs": {
@@ -895,7 +895,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 64, 64, 21),
     },
     "EoMTUniversalSegment": {
-        "module": "kerasformers.models.eomt",
+        "module": "zeromodels.models.eomt",
         "model_cls": "EoMTUniversalSegment",
         "model_type": "segmentation",
         "init_kwargs": {
@@ -915,7 +915,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "MaskFormerUniversalSegment": {
-        "module": "kerasformers.models.maskformer",
+        "module": "zeromodels.models.maskformer",
         "model_cls": "MaskFormerUniversalSegment",
         "model_type": "segmentation",
         "init_kwargs": {
@@ -940,7 +940,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "Mask2FormerUniversalSegment": {
-        "module": "kerasformers.models.mask2former",
+        "module": "zeromodels.models.mask2former",
         "model_cls": "Mask2FormerUniversalSegment",
         "model_type": "segmentation",
         "init_kwargs": {
@@ -966,7 +966,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "MobileViTSemanticSegment": {
-        "module": "kerasformers.models.mobilevit",
+        "module": "zeromodels.models.mobilevit",
         "model_cls": "MobileViTSemanticSegment",
         "model_type": "segmentation",
         "init_kwargs": {
@@ -983,7 +983,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 8, 8, 21),
     },
     "MobileViTV2SemanticSegment": {
-        "module": "kerasformers.models.mobilevitv2",
+        "module": "zeromodels.models.mobilevitv2",
         "model_cls": "MobileViTV2SemanticSegment",
         "model_type": "segmentation",
         "init_kwargs": {
@@ -996,7 +996,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 8, 8, 21),
     },
     "OneFormerUniversalSegment": {
-        "module": "kerasformers.models.oneformer",
+        "module": "zeromodels.models.oneformer",
         "model_cls": "OneFormerUniversalSegment",
         "model_type": "segmentation",
         "init_kwargs": {
@@ -1025,7 +1025,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "SegFormerSemanticSegment": {
-        "module": "kerasformers.models.segformer",
+        "module": "zeromodels.models.segformer",
         "model_cls": "SegFormerSemanticSegment",
         "model_type": "segmentation",
         "init_kwargs": {
@@ -1037,7 +1037,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Promptable segmentation ----------
     "SAMModel": {
-        "module": "kerasformers.models.sam",
+        "module": "zeromodels.models.sam",
         "model_cls": "SAMModel",
         "model_type": "backbone",
         "init_kwargs": {
@@ -1052,7 +1052,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "SAMPromptableSegment": {
-        "module": "kerasformers.models.sam",
+        "module": "zeromodels.models.sam",
         "model_cls": "SAMPromptableSegment",
         "model_type": "promptable_segmentation",
         "init_kwargs": {
@@ -1071,7 +1071,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "SAM2Model": {
-        "module": "kerasformers.models.sam2",
+        "module": "zeromodels.models.sam2",
         "model_cls": "SAM2Model",
         "model_type": "backbone",
         "init_kwargs": {
@@ -1088,7 +1088,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "SAM2PromptableSegment": {
-        "module": "kerasformers.models.sam2",
+        "module": "zeromodels.models.sam2",
         "model_cls": "SAM2PromptableSegment",
         "model_type": "promptable_segmentation",
         "init_kwargs": {
@@ -1111,7 +1111,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Vision-language (CLIP family) ----------
     "CLIPModel": {
-        "module": "kerasformers.models.clip",
+        "module": "zeromodels.models.clip",
         "model_cls": "CLIPModel",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1131,7 +1131,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "CLIPZeroShotClassify": {
-        "module": "kerasformers.models.clip",
+        "module": "zeromodels.models.clip",
         "model_cls": "CLIPZeroShotClassify",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1154,7 +1154,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "CLIPImageClassify": {
-        "module": "kerasformers.models.clip",
+        "module": "zeromodels.models.clip",
         "model_cls": "CLIPImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -1169,7 +1169,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Vision-language (TIPSv2 family) ----------
     "Tipsv2Model": {
-        "module": "kerasformers.models.tipsv2",
+        "module": "zeromodels.models.tipsv2",
         "model_cls": "Tipsv2Model",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1198,7 +1198,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "Tipsv2VisionModel": {
-        "module": "kerasformers.models.tipsv2",
+        "module": "zeromodels.models.tipsv2",
         "model_cls": "Tipsv2VisionModel",
         "model_type": "backbone",
         "init_kwargs": {
@@ -1214,7 +1214,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"pooler_output": (2, 32)},
     },
     "Tipsv2TextModel": {
-        "module": "kerasformers.models.tipsv2",
+        "module": "zeromodels.models.tipsv2",
         "model_cls": "Tipsv2TextModel",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1231,7 +1231,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Dense prediction (TIPSv2-DPT) ----------
     "Tipsv2DptDensePredict": {
-        "module": "kerasformers.models.tipsv2_dpt",
+        "module": "zeromodels.models.tipsv2_dpt",
         "model_cls": "Tipsv2DptDensePredict",
         "model_type": "backbone",
         "init_kwargs": {
@@ -1255,7 +1255,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "Tipsv2DptDepthEstimation": {
-        "module": "kerasformers.models.tipsv2_dpt",
+        "module": "zeromodels.models.tipsv2_dpt",
         "model_cls": "Tipsv2DptDepthEstimation",
         "model_type": "backbone",
         "init_kwargs": {
@@ -1276,7 +1276,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"predicted_depth": (2, 16, 16)},
     },
     "Tipsv2DptSemanticSegment": {
-        "module": "kerasformers.models.tipsv2_dpt",
+        "module": "zeromodels.models.tipsv2_dpt",
         "model_cls": "Tipsv2DptSemanticSegment",
         "model_type": "backbone",
         "init_kwargs": {
@@ -1298,7 +1298,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Vision-language (SigLIP family) ----------
     "SigLIPModel": {
-        "module": "kerasformers.models.siglip",
+        "module": "zeromodels.models.siglip",
         "model_cls": "SigLIPModel",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1321,7 +1321,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "SigLIPZeroShotClassify": {
-        "module": "kerasformers.models.siglip",
+        "module": "zeromodels.models.siglip",
         "model_cls": "SigLIPZeroShotClassify",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1347,7 +1347,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "SigLIPImageClassify": {
-        "module": "kerasformers.models.siglip",
+        "module": "zeromodels.models.siglip",
         "model_cls": "SigLIPImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -1364,7 +1364,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Vision-language (SigLIP 2 family) ----------
     "SigLIP2Model": {
-        "module": "kerasformers.models.siglip2",
+        "module": "zeromodels.models.siglip2",
         "model_cls": "SigLIP2Model",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1387,7 +1387,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "SigLIP2ZeroShotClassify": {
-        "module": "kerasformers.models.siglip2",
+        "module": "zeromodels.models.siglip2",
         "model_cls": "SigLIP2ZeroShotClassify",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1413,7 +1413,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "SigLIP2ImageClassify": {
-        "module": "kerasformers.models.siglip2",
+        "module": "zeromodels.models.siglip2",
         "model_cls": "SigLIP2ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -1430,7 +1430,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Vision-language (MetaCLIP 2) ----------
     "MetaClip2Model": {
-        "module": "kerasformers.models.metaclip2",
+        "module": "zeromodels.models.metaclip2",
         "model_cls": "MetaClip2Model",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1450,7 +1450,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": None,
     },
     "MetaClip2ZeroShotClassify": {
-        "module": "kerasformers.models.metaclip2",
+        "module": "zeromodels.models.metaclip2",
         "model_cls": "MetaClip2ZeroShotClassify",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1473,7 +1473,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "MetaClip2ImageClassify": {
-        "module": "kerasformers.models.metaclip2",
+        "module": "zeromodels.models.metaclip2",
         "model_cls": "MetaClip2ImageClassify",
         "model_type": "classification",
         "init_kwargs": {
@@ -1488,7 +1488,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Audio (Whisper) ----------
     "WhisperModel": {
-        "module": "kerasformers.models.whisper",
+        "module": "zeromodels.models.whisper",
         "model_cls": "WhisperModel",
         "model_type": "audio",
         "init_kwargs": {
@@ -1516,7 +1516,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "WhisperConditionalGenerate": {
-        "module": "kerasformers.models.whisper",
+        "module": "zeromodels.models.whisper",
         "model_cls": "WhisperConditionalGenerate",
         "model_type": "audio",
         "init_kwargs": {
@@ -1544,7 +1544,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "WhisperAudioClassify": {
-        "module": "kerasformers.models.whisper",
+        "module": "zeromodels.models.whisper",
         "model_cls": "WhisperAudioClassify",
         "model_type": "audio",
         "init_kwargs": {
@@ -1563,7 +1563,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Audio (Speech2Text) ----------
     "Speech2TextModel": {
-        "module": "kerasformers.models.speech2text",
+        "module": "zeromodels.models.speech2text",
         "model_cls": "Speech2TextModel",
         "model_type": "audio",
         "init_kwargs": {
@@ -1594,7 +1594,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "Speech2TextConditionalGenerate": {
-        "module": "kerasformers.models.speech2text",
+        "module": "zeromodels.models.speech2text",
         "model_cls": "Speech2TextConditionalGenerate",
         "model_type": "audio",
         "init_kwargs": {
@@ -1626,7 +1626,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Audio (Moonshine) ----------
     "MoonshineModel": {
-        "module": "kerasformers.models.moonshine",
+        "module": "zeromodels.models.moonshine",
         "model_cls": "MoonshineModel",
         "model_type": "audio",
         "init_kwargs": {
@@ -1649,7 +1649,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "MoonshineConditionalGenerate": {
-        "module": "kerasformers.models.moonshine",
+        "module": "zeromodels.models.moonshine",
         "model_cls": "MoonshineConditionalGenerate",
         "model_type": "audio",
         "init_kwargs": {
@@ -1673,7 +1673,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Audio (Granite Speech, speech-LLM) ----------
     "GraniteSpeechModel": {
-        "module": "kerasformers.models.granite_speech",
+        "module": "zeromodels.models.granite_speech",
         "model_cls": "GraniteSpeechModel",
         "model_type": "audio",
         "init_kwargs": {
@@ -1709,7 +1709,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 5, 64)},
     },
     "GraniteSpeechConditionalGenerate": {
-        "module": "kerasformers.models.granite_speech",
+        "module": "zeromodels.models.granite_speech",
         "model_cls": "GraniteSpeechConditionalGenerate",
         "model_type": "audio",
         "init_kwargs": {
@@ -1749,7 +1749,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---------- Audio (Granite Speech Plus, cat_hidden_layers variant) ----------
     "GraniteSpeechPlusModel": {
-        "module": "kerasformers.models.granite_speech_plus",
+        "module": "zeromodels.models.granite_speech_plus",
         "model_cls": "GraniteSpeechPlusModel",
         "model_type": "audio",
         "init_kwargs": {
@@ -1786,7 +1786,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 5, 64)},
     },
     "GraniteSpeechPlusConditionalGenerate": {
-        "module": "kerasformers.models.granite_speech_plus",
+        "module": "zeromodels.models.granite_speech_plus",
         "model_cls": "GraniteSpeechPlusConditionalGenerate",
         "model_type": "audio",
         "init_kwargs": {
@@ -1826,7 +1826,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "OwlViTDetect": {
-        "module": "kerasformers.models.owlvit",
+        "module": "zeromodels.models.owlvit",
         "model_cls": "OwlViTDetect",
         "model_type": "object_detection",
         "init_kwargs": {
@@ -1854,7 +1854,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "Owlv2Detect": {
-        "module": "kerasformers.models.owlv2",
+        "module": "zeromodels.models.owlv2",
         "model_cls": "Owlv2Detect",
         "model_type": "object_detection",
         "init_kwargs": {
@@ -1884,7 +1884,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Multimodal LLMs (Qwen-VL): XModel -> features, XGenerate -> logits ----
     "Qwen2VLModel": {
-        "module": "kerasformers.models.qwen2_vl",
+        "module": "zeromodels.models.qwen2_vl",
         "model_cls": "Qwen2VLModel",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1912,7 +1912,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen2_5VLModel": {
-        "module": "kerasformers.models.qwen2_5_vl",
+        "module": "zeromodels.models.qwen2_5_vl",
         "model_cls": "Qwen2_5VLModel",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1945,7 +1945,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3VLModel": {
-        "module": "kerasformers.models.qwen3_vl",
+        "module": "zeromodels.models.qwen3_vl",
         "model_cls": "Qwen3VLModel",
         "model_type": "vlm",
         "init_kwargs": {
@@ -1979,7 +1979,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3_5MoeModel": {
-        "module": "kerasformers.models.qwen3_5_moe",
+        "module": "zeromodels.models.qwen3_5_moe",
         "model_cls": "Qwen3_5MoeModel",
         "model_type": "vlm",
         "init_kwargs": {
@@ -2021,7 +2021,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3VLMoeModel": {
-        "module": "kerasformers.models.qwen3_vl_moe",
+        "module": "zeromodels.models.qwen3_vl_moe",
         "model_cls": "Qwen3VLMoeModel",
         "model_type": "vlm",
         "init_kwargs": {
@@ -2060,7 +2060,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Text encoders (BERT) ----
     "T5Model": {
-        "module": "kerasformers.models.t5",
+        "module": "zeromodels.models.t5",
         "model_cls": "T5Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -2082,7 +2082,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "T5ConditionalGenerate": {
-        "module": "kerasformers.models.t5",
+        "module": "zeromodels.models.t5",
         "model_cls": "T5ConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -2105,7 +2105,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "T5EncoderModel": {
-        "module": "kerasformers.models.t5",
+        "module": "zeromodels.models.t5",
         "model_cls": "T5EncoderModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -2124,7 +2124,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 16, 32)},
     },
     "T5SequenceClassify": {
-        "module": "kerasformers.models.t5",
+        "module": "zeromodels.models.t5",
         "model_cls": "T5SequenceClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2144,7 +2144,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 4),
     },
     "T5TokenClassify": {
-        "module": "kerasformers.models.t5",
+        "module": "zeromodels.models.t5",
         "model_cls": "T5TokenClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2164,7 +2164,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 4),
     },
     "T5QnA": {
-        "module": "kerasformers.models.t5",
+        "module": "zeromodels.models.t5",
         "model_cls": "T5QnA",
         "model_type": "llm",
         "init_kwargs": {
@@ -2183,7 +2183,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"start_logits": (2, 16), "end_logits": (2, 16)},
     },
     "BertModel": {
-        "module": "kerasformers.models.bert",
+        "module": "zeromodels.models.bert",
         "model_cls": "BertModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -2203,7 +2203,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "BertMaskedLM": {
-        "module": "kerasformers.models.bert",
+        "module": "zeromodels.models.bert",
         "model_cls": "BertMaskedLM",
         "model_type": "llm",
         "init_kwargs": {
@@ -2220,7 +2220,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 128),
     },
     "BertSequenceClassify": {
-        "module": "kerasformers.models.bert",
+        "module": "zeromodels.models.bert",
         "model_cls": "BertSequenceClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2238,7 +2238,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 4),
     },
     "BertTokenClassify": {
-        "module": "kerasformers.models.bert",
+        "module": "zeromodels.models.bert",
         "model_cls": "BertTokenClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2256,7 +2256,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 5),
     },
     "BertNextSentencePredict": {
-        "module": "kerasformers.models.bert",
+        "module": "zeromodels.models.bert",
         "model_cls": "BertNextSentencePredict",
         "model_type": "llm",
         "init_kwargs": {
@@ -2273,7 +2273,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 2),
     },
     "BertQnA": {
-        "module": "kerasformers.models.bert",
+        "module": "zeromodels.models.bert",
         "model_cls": "BertQnA",
         "model_type": "llm",
         "init_kwargs": {
@@ -2290,7 +2290,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"start_logits": (2, 16), "end_logits": (2, 16)},
     },
     "BertMultipleChoice": {
-        "module": "kerasformers.models.bert",
+        "module": "zeromodels.models.bert",
         "model_cls": "BertMultipleChoice",
         "model_type": "llm",
         "init_kwargs": {
@@ -2309,7 +2309,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Text encoders (ModernBERT) ----
     "ModernBertModel": {
-        "module": "kerasformers.models.modernbert",
+        "module": "zeromodels.models.modernbert",
         "model_cls": "ModernBertModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -2326,7 +2326,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 16, 32)},
     },
     "ModernBertMaskedLM": {
-        "module": "kerasformers.models.modernbert",
+        "module": "zeromodels.models.modernbert",
         "model_cls": "ModernBertMaskedLM",
         "model_type": "llm",
         "init_kwargs": {
@@ -2343,7 +2343,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 128),
     },
     "ModernBertSequenceClassify": {
-        "module": "kerasformers.models.modernbert",
+        "module": "zeromodels.models.modernbert",
         "model_cls": "ModernBertSequenceClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2361,7 +2361,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 4),
     },
     "ModernBertTokenClassify": {
-        "module": "kerasformers.models.modernbert",
+        "module": "zeromodels.models.modernbert",
         "model_cls": "ModernBertTokenClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2379,7 +2379,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 5),
     },
     "ModernBertQnA": {
-        "module": "kerasformers.models.modernbert",
+        "module": "zeromodels.models.modernbert",
         "model_cls": "ModernBertQnA",
         "model_type": "llm",
         "init_kwargs": {
@@ -2396,7 +2396,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"start_logits": (2, 16), "end_logits": (2, 16)},
     },
     "ModernBertMultipleChoice": {
-        "module": "kerasformers.models.modernbert",
+        "module": "zeromodels.models.modernbert",
         "model_cls": "ModernBertMultipleChoice",
         "model_type": "llm",
         "init_kwargs": {
@@ -2415,7 +2415,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Text encoders (ELECTRA) ----
     "ElectraModel": {
-        "module": "kerasformers.models.electra",
+        "module": "zeromodels.models.electra",
         "model_cls": "ElectraModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -2432,7 +2432,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 16, 32)},
     },
     "ElectraMaskedLM": {
-        "module": "kerasformers.models.electra",
+        "module": "zeromodels.models.electra",
         "model_cls": "ElectraMaskedLM",
         "model_type": "llm",
         "init_kwargs": {
@@ -2449,7 +2449,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 128),
     },
     "ElectraSequenceClassify": {
-        "module": "kerasformers.models.electra",
+        "module": "zeromodels.models.electra",
         "model_cls": "ElectraSequenceClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2467,7 +2467,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 4),
     },
     "ElectraTokenClassify": {
-        "module": "kerasformers.models.electra",
+        "module": "zeromodels.models.electra",
         "model_cls": "ElectraTokenClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2485,7 +2485,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 5),
     },
     "ElectraQnA": {
-        "module": "kerasformers.models.electra",
+        "module": "zeromodels.models.electra",
         "model_cls": "ElectraQnA",
         "model_type": "llm",
         "init_kwargs": {
@@ -2502,7 +2502,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"start_logits": (2, 16), "end_logits": (2, 16)},
     },
     "ElectraMultipleChoice": {
-        "module": "kerasformers.models.electra",
+        "module": "zeromodels.models.electra",
         "model_cls": "ElectraMultipleChoice",
         "model_type": "llm",
         "init_kwargs": {
@@ -2521,7 +2521,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Text encoders (RoBERTa) ----
     "RobertaModel": {
-        "module": "kerasformers.models.roberta",
+        "module": "zeromodels.models.roberta",
         "model_cls": "RobertaModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -2541,7 +2541,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "RobertaMaskedLM": {
-        "module": "kerasformers.models.roberta",
+        "module": "zeromodels.models.roberta",
         "model_cls": "RobertaMaskedLM",
         "model_type": "llm",
         "init_kwargs": {
@@ -2558,7 +2558,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 128),
     },
     "RobertaSequenceClassify": {
-        "module": "kerasformers.models.roberta",
+        "module": "zeromodels.models.roberta",
         "model_cls": "RobertaSequenceClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2576,7 +2576,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 4),
     },
     "RobertaTokenClassify": {
-        "module": "kerasformers.models.roberta",
+        "module": "zeromodels.models.roberta",
         "model_cls": "RobertaTokenClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2594,7 +2594,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 5),
     },
     "RobertaQnA": {
-        "module": "kerasformers.models.roberta",
+        "module": "zeromodels.models.roberta",
         "model_cls": "RobertaQnA",
         "model_type": "llm",
         "init_kwargs": {
@@ -2611,7 +2611,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"start_logits": (2, 16), "end_logits": (2, 16)},
     },
     "RobertaMultipleChoice": {
-        "module": "kerasformers.models.roberta",
+        "module": "zeromodels.models.roberta",
         "model_cls": "RobertaMultipleChoice",
         "model_type": "llm",
         "init_kwargs": {
@@ -2630,7 +2630,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Text encoders (XLM-RoBERTa) ----
     "XLMRobertaModel": {
-        "module": "kerasformers.models.xlm_roberta",
+        "module": "zeromodels.models.xlm_roberta",
         "model_cls": "XLMRobertaModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -2650,7 +2650,7 @@ MODEL_TEST_CONFIGS = {
         },
     },
     "XLMRobertaMaskedLM": {
-        "module": "kerasformers.models.xlm_roberta",
+        "module": "zeromodels.models.xlm_roberta",
         "model_cls": "XLMRobertaMaskedLM",
         "model_type": "llm",
         "init_kwargs": {
@@ -2667,7 +2667,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 128),
     },
     "XLMRobertaSequenceClassify": {
-        "module": "kerasformers.models.xlm_roberta",
+        "module": "zeromodels.models.xlm_roberta",
         "model_cls": "XLMRobertaSequenceClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2685,7 +2685,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 4),
     },
     "XLMRobertaTokenClassify": {
-        "module": "kerasformers.models.xlm_roberta",
+        "module": "zeromodels.models.xlm_roberta",
         "model_cls": "XLMRobertaTokenClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2703,7 +2703,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 5),
     },
     "XLMRobertaQnA": {
-        "module": "kerasformers.models.xlm_roberta",
+        "module": "zeromodels.models.xlm_roberta",
         "model_cls": "XLMRobertaQnA",
         "model_type": "llm",
         "init_kwargs": {
@@ -2720,7 +2720,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"start_logits": (2, 16), "end_logits": (2, 16)},
     },
     "XLMRobertaMultipleChoice": {
-        "module": "kerasformers.models.xlm_roberta",
+        "module": "zeromodels.models.xlm_roberta",
         "model_cls": "XLMRobertaMultipleChoice",
         "model_type": "llm",
         "init_kwargs": {
@@ -2739,7 +2739,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Text encoders (DeBERTa v1) ----
     "DebertaModel": {
-        "module": "kerasformers.models.deberta",
+        "module": "zeromodels.models.deberta",
         "model_cls": "DebertaModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -2756,7 +2756,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 16, 32)},
     },
     "DebertaMaskedLM": {
-        "module": "kerasformers.models.deberta",
+        "module": "zeromodels.models.deberta",
         "model_cls": "DebertaMaskedLM",
         "model_type": "llm",
         "init_kwargs": {
@@ -2773,7 +2773,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 128),
     },
     "DebertaSequenceClassify": {
-        "module": "kerasformers.models.deberta",
+        "module": "zeromodels.models.deberta",
         "model_cls": "DebertaSequenceClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2791,7 +2791,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 4),
     },
     "DebertaTokenClassify": {
-        "module": "kerasformers.models.deberta",
+        "module": "zeromodels.models.deberta",
         "model_cls": "DebertaTokenClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2809,7 +2809,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 5),
     },
     "DebertaQnA": {
-        "module": "kerasformers.models.deberta",
+        "module": "zeromodels.models.deberta",
         "model_cls": "DebertaQnA",
         "model_type": "llm",
         "init_kwargs": {
@@ -2827,7 +2827,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Text encoders (DeBERTa v2) ----
     "DebertaV2Model": {
-        "module": "kerasformers.models.deberta_v2",
+        "module": "zeromodels.models.deberta_v2",
         "model_cls": "DebertaV2Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -2847,7 +2847,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 16, 32)},
     },
     "DebertaV2MaskedLM": {
-        "module": "kerasformers.models.deberta_v2",
+        "module": "zeromodels.models.deberta_v2",
         "model_cls": "DebertaV2MaskedLM",
         "model_type": "llm",
         "init_kwargs": {
@@ -2867,7 +2867,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 128),
     },
     "DebertaV2SequenceClassify": {
-        "module": "kerasformers.models.deberta_v2",
+        "module": "zeromodels.models.deberta_v2",
         "model_cls": "DebertaV2SequenceClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2888,7 +2888,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 4),
     },
     "DebertaV2TokenClassify": {
-        "module": "kerasformers.models.deberta_v2",
+        "module": "zeromodels.models.deberta_v2",
         "model_cls": "DebertaV2TokenClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -2909,7 +2909,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 5),
     },
     "DebertaV2QnA": {
-        "module": "kerasformers.models.deberta_v2",
+        "module": "zeromodels.models.deberta_v2",
         "model_cls": "DebertaV2QnA",
         "model_type": "llm",
         "init_kwargs": {
@@ -2929,7 +2929,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"start_logits": (2, 16), "end_logits": (2, 16)},
     },
     "DebertaV2MultipleChoice": {
-        "module": "kerasformers.models.deberta_v2",
+        "module": "zeromodels.models.deberta_v2",
         "model_cls": "DebertaV2MultipleChoice",
         "model_type": "llm",
         "init_kwargs": {
@@ -2951,7 +2951,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Text encoders (DeBERTa v3) ----
     "DebertaV3Model": {
-        "module": "kerasformers.models.deberta_v3",
+        "module": "zeromodels.models.deberta_v3",
         "model_cls": "DebertaV3Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -2971,7 +2971,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 16, 32)},
     },
     "DebertaV3MaskedLM": {
-        "module": "kerasformers.models.deberta_v3",
+        "module": "zeromodels.models.deberta_v3",
         "model_cls": "DebertaV3MaskedLM",
         "model_type": "llm",
         "init_kwargs": {
@@ -2991,7 +2991,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 128),
     },
     "DebertaV3SequenceClassify": {
-        "module": "kerasformers.models.deberta_v3",
+        "module": "zeromodels.models.deberta_v3",
         "model_cls": "DebertaV3SequenceClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -3012,7 +3012,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 4),
     },
     "DebertaV3TokenClassify": {
-        "module": "kerasformers.models.deberta_v3",
+        "module": "zeromodels.models.deberta_v3",
         "model_cls": "DebertaV3TokenClassify",
         "model_type": "llm",
         "init_kwargs": {
@@ -3033,7 +3033,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": (2, 16, 5),
     },
     "DebertaV3QnA": {
-        "module": "kerasformers.models.deberta_v3",
+        "module": "zeromodels.models.deberta_v3",
         "model_cls": "DebertaV3QnA",
         "model_type": "llm",
         "init_kwargs": {
@@ -3053,7 +3053,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"start_logits": (2, 16), "end_logits": (2, 16)},
     },
     "DebertaV3MultipleChoice": {
-        "module": "kerasformers.models.deberta_v3",
+        "module": "zeromodels.models.deberta_v3",
         "model_cls": "DebertaV3MultipleChoice",
         "model_type": "llm",
         "init_kwargs": {
@@ -3077,7 +3077,7 @@ MODEL_TEST_CONFIGS = {
     # Vision towers are built tiny but not forwarded; the vision path is covered
     # by the per-family converter parity scripts, not this offline suite. ----
     "DeepseekVLConditionalGenerate": {
-        "module": "kerasformers.models.deepseek_vl",
+        "module": "zeromodels.models.deepseek_vl",
         "model_cls": "DeepseekVLConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3100,7 +3100,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"logits": (2, 6, 128)},
     },
     "DeepseekVLHybridConditionalGenerate": {
-        "module": "kerasformers.models.deepseek_vl_hybrid",
+        "module": "zeromodels.models.deepseek_vl_hybrid",
         "model_cls": "DeepseekVLHybridConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3132,7 +3132,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"logits": (2, 6, 128)},
     },
     "Gemma3ConditionalGenerate": {
-        "module": "kerasformers.models.gemma3",
+        "module": "zeromodels.models.gemma3",
         "model_cls": "Gemma3ConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3157,7 +3157,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"logits": (2, 6, 128)},
     },
     "Glm4vConditionalGenerate": {
-        "module": "kerasformers.models.glm4v",
+        "module": "zeromodels.models.glm4v",
         "model_cls": "Glm4vConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3182,7 +3182,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"logits": (2, 6, 128)},
     },
     "Glm4vMoeConditionalGenerate": {
-        "module": "kerasformers.models.glm4v_moe",
+        "module": "zeromodels.models.glm4v_moe",
         "model_cls": "Glm4vMoeConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3215,7 +3215,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"logits": (2, 6, 128)},
     },
     "InternVLConditionalGenerate": {
-        "module": "kerasformers.models.internvl",
+        "module": "zeromodels.models.internvl",
         "model_cls": "InternVLConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3239,7 +3239,7 @@ MODEL_TEST_CONFIGS = {
     # InternVL3.5 dense: the same VLM with a Qwen3 text tower (QK-norm, bias-free
     # QKV). Only text_backbone / head_dim change vs the qwen2 entry above.
     "InternVLConditionalGenerate_qwen3": {
-        "module": "kerasformers.models.internvl",
+        "module": "zeromodels.models.internvl",
         "model_cls": "InternVLConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3264,7 +3264,7 @@ MODEL_TEST_CONFIGS = {
     },
     # InternVL3.5 MoE: Qwen3 attention + reused Qwen3MoeSparseBlock feed-forward.
     "InternVLConditionalGenerate_qwen3_moe": {
-        "module": "kerasformers.models.internvl",
+        "module": "zeromodels.models.internvl",
         "model_cls": "InternVLConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3291,7 +3291,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"logits": (2, 6, 128)},
     },
     "JanusConditionalGenerate": {
-        "module": "kerasformers.models.janus",
+        "module": "zeromodels.models.janus",
         "model_cls": "JanusConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3314,7 +3314,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"logits": (2, 6, 128)},
     },
     "KimiK25ConditionalGenerate": {
-        "module": "kerasformers.models.kimi_k25",
+        "module": "zeromodels.models.kimi_k25",
         "model_cls": "KimiK25ConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3346,7 +3346,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"logits": (2, 6, 128)},
     },
     "LocateAnythingConditionalGenerate": {
-        "module": "kerasformers.models.locateanything",
+        "module": "zeromodels.models.locateanything",
         "model_cls": "LocateAnythingConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3368,7 +3368,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"logits": (2, 6, 128)},
     },
     "MiniMaxM3VLConditionalGenerate": {
-        "module": "kerasformers.models.minimax_m3_vl",
+        "module": "zeromodels.models.minimax_m3_vl",
         "model_cls": "MiniMaxM3VLConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3397,7 +3397,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"logits": (2, 6, 128)},
     },
     "Mistral3ConditionalGenerate": {
-        "module": "kerasformers.models.mistral3",
+        "module": "zeromodels.models.mistral3",
         "model_cls": "Mistral3ConditionalGenerate",
         "model_type": "llm",
         "init_kwargs": {
@@ -3422,7 +3422,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Text LLMs (all remaining families): XModel -> features, XGenerate -> logits ----
     "DeepseekV2Model": {
-        "module": "kerasformers.models.deepseek_v2",
+        "module": "zeromodels.models.deepseek_v2",
         "model_cls": "DeepseekV2Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3449,7 +3449,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "DeepseekV3Model": {
-        "module": "kerasformers.models.deepseek_v3",
+        "module": "zeromodels.models.deepseek_v3",
         "model_cls": "DeepseekV3Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3476,7 +3476,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "DeepseekV4Model": {
-        "module": "kerasformers.models.deepseek_v4",
+        "module": "zeromodels.models.deepseek_v4",
         "model_cls": "DeepseekV4Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3497,7 +3497,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "GemmaModel": {
-        "module": "kerasformers.models.gemma",
+        "module": "zeromodels.models.gemma",
         "model_cls": "GemmaModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3514,7 +3514,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Gemma2Model": {
-        "module": "kerasformers.models.gemma2",
+        "module": "zeromodels.models.gemma2",
         "model_cls": "Gemma2Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3532,7 +3532,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Gemma4Model": {
-        "module": "kerasformers.models.gemma4",
+        "module": "zeromodels.models.gemma4",
         "model_cls": "Gemma4Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3556,7 +3556,7 @@ MODEL_TEST_CONFIGS = {
     # blocks + e8m0 scales, dequantized on the fly) through the serialization /
     # save / data-format suites. embed_dim and mlp_dim stay multiples of 32.
     "GptOssMXFP4Model": {
-        "module": "kerasformers.models.gpt_oss",
+        "module": "zeromodels.models.gpt_oss",
         "model_cls": "GptOssModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3576,7 +3576,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "GlmModel": {
-        "module": "kerasformers.models.glm",
+        "module": "zeromodels.models.glm",
         "model_cls": "GlmModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3593,7 +3593,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Glm4Model": {
-        "module": "kerasformers.models.glm4",
+        "module": "zeromodels.models.glm4",
         "model_cls": "Glm4Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3610,7 +3610,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Glm4MoeModel": {
-        "module": "kerasformers.models.glm4_moe",
+        "module": "zeromodels.models.glm4_moe",
         "model_cls": "Glm4MoeModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3633,7 +3633,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Glm5MoeModel": {
-        "module": "kerasformers.models.glm5_moe",
+        "module": "zeromodels.models.glm5_moe",
         "model_cls": "Glm5MoeModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3660,7 +3660,7 @@ MODEL_TEST_CONFIGS = {
     },
     # GLM-4.7-Flash: the DeepSeek-V3 MLA + DeepSeekMoE decoder (no DSA) under GLM names.
     "Glm4MoeLiteModel": {
-        "module": "kerasformers.models.glm4_moe_lite",
+        "module": "zeromodels.models.glm4_moe_lite",
         "model_cls": "Glm4MoeLiteModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3687,7 +3687,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "LlamaModel": {
-        "module": "kerasformers.models.llama",
+        "module": "zeromodels.models.llama",
         "model_cls": "LlamaModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3704,7 +3704,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Llama2Model": {
-        "module": "kerasformers.models.llama2",
+        "module": "zeromodels.models.llama2",
         "model_cls": "Llama2Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3721,7 +3721,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Llama4Model": {
-        "module": "kerasformers.models.llama4",
+        "module": "zeromodels.models.llama4",
         "model_cls": "Llama4Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3740,7 +3740,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "MiniMaxModel": {
-        "module": "kerasformers.models.minimax",
+        "module": "zeromodels.models.minimax",
         "model_cls": "MiniMaxModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3759,7 +3759,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "MiniMaxM2Model": {
-        "module": "kerasformers.models.minimax_m2",
+        "module": "zeromodels.models.minimax_m2",
         "model_cls": "MiniMaxM2Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3778,7 +3778,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "MistralModel": {
-        "module": "kerasformers.models.mistral",
+        "module": "zeromodels.models.mistral",
         "model_cls": "MistralModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3796,7 +3796,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "MixtralModel": {
-        "module": "kerasformers.models.mixtral",
+        "module": "zeromodels.models.mixtral",
         "model_cls": "MixtralModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3816,7 +3816,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen2MoeModel": {
-        "module": "kerasformers.models.qwen2_moe",
+        "module": "zeromodels.models.qwen2_moe",
         "model_cls": "Qwen2MoeModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3837,7 +3837,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3MoeModel": {
-        "module": "kerasformers.models.qwen3_moe",
+        "module": "zeromodels.models.qwen3_moe",
         "model_cls": "Qwen3MoeModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3858,7 +3858,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3NextModel": {
-        "module": "kerasformers.models.qwen3_next",
+        "module": "zeromodels.models.qwen3_next",
         "model_cls": "Qwen3NextModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3886,7 +3886,7 @@ MODEL_TEST_CONFIGS = {
     },
     # ---- Text LLMs (Qwen): XModel -> features, XGenerate -> logits ----
     "Qwen2Model": {
-        "module": "kerasformers.models.qwen2",
+        "module": "zeromodels.models.qwen2",
         "model_cls": "Qwen2Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3903,7 +3903,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3Model": {
-        "module": "kerasformers.models.qwen3",
+        "module": "zeromodels.models.qwen3",
         "model_cls": "Qwen3Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3920,7 +3920,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3_5Model": {
-        "module": "kerasformers.models.qwen3_5",
+        "module": "zeromodels.models.qwen3_5",
         "model_cls": "Qwen3_5Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -3944,7 +3944,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "GptOssModel": {
-        "module": "kerasformers.models.gpt_oss",
+        "module": "zeromodels.models.gpt_oss",
         "model_cls": "GptOssModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3963,7 +3963,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "GptModel": {
-        "module": "kerasformers.models.gpt",
+        "module": "zeromodels.models.gpt",
         "model_cls": "GptModel",
         "model_type": "llm",
         "init_kwargs": {
@@ -3978,7 +3978,7 @@ MODEL_TEST_CONFIGS = {
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "GPT2Model": {
-        "module": "kerasformers.models.gpt2",
+        "module": "zeromodels.models.gpt2",
         "model_cls": "GPT2Model",
         "model_type": "llm",
         "init_kwargs": {
@@ -4066,7 +4066,7 @@ MODEL_TEST_CONFIGS["Gemma4ConditionalGenerate"] = {
 # gemma4_unified mirrors gemma4: the encoder-free towers are keyed by vision_config /
 # audio_config, so a text_config-only build is a plain Gemma 4 text generator.
 MODEL_TEST_CONFIGS["Gemma4UnifiedModel"] = {
-    "module": "kerasformers.models.gemma4_unified",
+    "module": "zeromodels.models.gemma4_unified",
     "model_cls": "Gemma4UnifiedModel",
     "model_type": "llm",
     "init_kwargs": {"text_config": dict(_g4["init_kwargs"])},
@@ -4074,7 +4074,7 @@ MODEL_TEST_CONFIGS["Gemma4UnifiedModel"] = {
     "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
 }
 MODEL_TEST_CONFIGS["Gemma4UnifiedConditionalGenerate"] = {
-    "module": "kerasformers.models.gemma4_unified",
+    "module": "zeromodels.models.gemma4_unified",
     "model_cls": "Gemma4UnifiedConditionalGenerate",
     "model_type": "llm",
     "init_kwargs": {"text_config": dict(_g4["init_kwargs"])},
@@ -4103,7 +4103,7 @@ _g3n_text = {
     "tie_embeddings": True,
 }
 MODEL_TEST_CONFIGS["Gemma3nTextModel"] = {
-    "module": "kerasformers.models.gemma3n",
+    "module": "zeromodels.models.gemma3n",
     "model_cls": "Gemma3nTextModel",
     "model_type": "llm",
     "init_kwargs": dict(_g3n_text),
@@ -4113,7 +4113,7 @@ MODEL_TEST_CONFIGS["Gemma3nTextModel"] = {
 # Test the multimodal generate class built text-only (matches Gemma4's convention);
 # Gemma3nTextGenerate is the same head behind the TextOnlyGeneration mixin.
 MODEL_TEST_CONFIGS["Gemma3nConditionalGenerate"] = {
-    "module": "kerasformers.models.gemma3n",
+    "module": "zeromodels.models.gemma3n",
     "model_cls": "Gemma3nConditionalGenerate",
     "model_type": "llm",
     "init_kwargs": {"text_config": dict(_g3n_text)},
@@ -4149,7 +4149,7 @@ def instantiate_model(config):
     model = import_model_class(config)(**config["init_kwargs"])
     quantization_config = config.get("quantization_config")
     if quantization_config:
-        from kerasformers.quantization import get_kf_quantizer
+        from zeromodels.quantization import get_kf_quantizer
 
         get_kf_quantizer(quantization_config).preprocess_model(model)
     return model

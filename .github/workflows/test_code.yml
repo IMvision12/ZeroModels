@@ -59,7 +59,7 @@ jobs:
                  tests/integration/test_serialization.py \
                  tests/integration/test_model_saving.py \
                  tests/integration/test_data_formats.py \
-                 -v --durations=20 --cov=kerasformers --cov-append \
+                 -v --durations=20 --cov=zeromodels --cov-append \
                  -m "not slow and not gpu"
       - name: Generate coverage
         run: coverage xml -o coverage.xml

@@ -13,8 +13,8 @@ or `quantize_model` and Dense / EinsumDense / fused-expert kernels are stored pa
 dequantized on the fly. Runs on **all three backends** (pure `keras.ops`).
 
 ```python
-from kerasformers.models.qwen3 import Qwen3TextGenerate
-from kerasformers.quantization import quantize_model, Mxfp4Config
+from zeromodels.models.qwen3 import Qwen3TextGenerate
+from zeromodels.quantization import quantize_model, Mxfp4Config
 
 # load + quantize in one call
 model = Qwen3TextGenerate.from_weights("qwen3-4b", quantization="mxfp4")  # ~8x smaller
@@ -54,7 +54,7 @@ Resolution order for any layer is `skip_modules` first, then `overrides`, then t
 Pass the config anywhere a scheme string is accepted, `from_weights` included:
 
 ```python
-from kerasformers.quantization import Mxfp4Config, quantize_model
+from zeromodels.quantization import Mxfp4Config, quantize_model
 
 cfg = Mxfp4Config(skip_modules=("lm_head", "router"))
 
@@ -64,11 +64,11 @@ quantize_model(model, cfg)
 
 ## Primitives
 
-`kerasformers/quantization/mxfp4_quantize.py` holds the pure-`keras.ops`,
+`zeromodels/quantization/mxfp4_quantize.py` holds the pure-`keras.ops`,
 backend-agnostic pack / unpack and the `BaseQuantizer` that wraps them:
 
 ```python
-from kerasformers.quantization import (
+from zeromodels.quantization import (
     MXFP4Quantizer,
     quantize_to_mxfp4,
     dequantize_mxfp4,

@@ -2,10 +2,10 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> and <code>kf_preprocessor.json</code> plus a
 sharded <code>model.weights.json</code> + shards and a <code>tokenizer.json</code>). Load the
-model and processor with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+model and processor with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 The Mixture-of-Experts variant of Qwen3-VL, ported to pure Keras 3. It is **exactly**
@@ -19,7 +19,7 @@ Memory is governed by **total** parameters, not active ones.
 
 Links:
 
-- HF collection: [Qwen3-VL-MoE](https://huggingface.co/collections/kerasformers/qwen3-vl-moe-6a7eb7d3e6d95b296dae7d0d)
+- HF collection: [Qwen3-VL-MoE](https://huggingface.co/collections/zeromodels/qwen3-vl-moe-6a7eb7d3e6d95b296dae7d0d)
 - Paper: [Qwen3 Technical Report (arXiv:2505.09388)](https://arxiv.org/abs/2505.09388)
 - HF docs: [transformers/model_doc/qwen3_vl_moe](https://huggingface.co/docs/transformers/model_doc/qwen3_vl_moe)
 
@@ -29,17 +29,17 @@ Qwen3.5 MoE VLM, a different hybrid backbone).
 
 ## Variants
 
-Preconverted, bf16 weights are hosted under `kerasformers/`. Load the model and processor
-with `from_weights("kerasformers/<variant>")`; the `-instruct` sizes are the
+Preconverted, bf16 weights are hosted under `zeromodels/`. Load the model and processor
+with `from_weights("zeromodels/<variant>")`; the `-instruct` sizes are the
 instruction-tuned checkpoints and `-thinking` the reasoning checkpoints. Qwen3-VL-MoE is
 Apache 2.0.
 
 | Variant | Hub |
 |---|---|
-| `qwen3-vl-30b-a3b-instruct` | [`kerasformers/qwen3-vl-30b-a3b-instruct`](https://huggingface.co/kerasformers/qwen3-vl-30b-a3b-instruct) |
-| `qwen3-vl-30b-a3b-thinking` | [`kerasformers/qwen3-vl-30b-a3b-thinking`](https://huggingface.co/kerasformers/qwen3-vl-30b-a3b-thinking) |
-| `qwen3-vl-235b-a22b-instruct` | [`kerasformers/qwen3-vl-235b-a22b-instruct`](https://huggingface.co/kerasformers/qwen3-vl-235b-a22b-instruct) |
-| `qwen3-vl-235b-a22b-thinking` | [`kerasformers/qwen3-vl-235b-a22b-thinking`](https://huggingface.co/kerasformers/qwen3-vl-235b-a22b-thinking) |
+| `qwen3-vl-30b-a3b-instruct` | [`zeromodels/qwen3-vl-30b-a3b-instruct`](https://huggingface.co/zeromodels/qwen3-vl-30b-a3b-instruct) |
+| `qwen3-vl-30b-a3b-thinking` | [`zeromodels/qwen3-vl-30b-a3b-thinking`](https://huggingface.co/zeromodels/qwen3-vl-30b-a3b-thinking) |
+| `qwen3-vl-235b-a22b-instruct` | [`zeromodels/qwen3-vl-235b-a22b-instruct`](https://huggingface.co/zeromodels/qwen3-vl-235b-a22b-instruct) |
+| `qwen3-vl-235b-a22b-thinking` | [`zeromodels/qwen3-vl-235b-a22b-thinking`](https://huggingface.co/zeromodels/qwen3-vl-235b-a22b-thinking) |
 
 Upstream Qwen safetensors also load directly via the `hf:` prefix, e.g.
 `from_weights("hf:Qwen/Qwen3-VL-30B-A3B-Instruct")`, which converts them in process (pass
@@ -87,14 +87,14 @@ through prefill), then text-only decode. The MoE MLP does not change the cache s
 Text-only counterpart of `Qwen3VLMoeConditionalGenerate`, built with no vision tower
 (`build_vision=False`), so `.generate()` takes just token ids. It reads only the MoE
 language model out of a Qwen3-VL-MoE checkpoint: `hf:` conversion copies just the text
-weights, and a kerasformers repo declaring `Qwen3VLMoeConditionalGenerate` is read through
+weights, and a zeromodels repo declaring `Qwen3VLMoeConditionalGenerate` is read through
 `FULL_CHECKPOINT_SOURCES`. Set `config_class = Qwen3VLMoeTextConfig`.
 
 ```python
-from kerasformers.models.qwen3_vl_moe import Qwen3VLMoeTextGenerate, Qwen3VLMoeTokenizer
+from zeromodels.models.qwen3_vl_moe import Qwen3VLMoeTextGenerate, Qwen3VLMoeTokenizer
 
-model = Qwen3VLMoeTextGenerate.from_weights("kerasformers/qwen3-vl-30b-a3b-instruct")
-tokenizer = Qwen3VLMoeTokenizer.from_weights("kerasformers/qwen3-vl-30b-a3b-instruct")
+model = Qwen3VLMoeTextGenerate.from_weights("zeromodels/qwen3-vl-30b-a3b-instruct")
+tokenizer = Qwen3VLMoeTokenizer.from_weights("zeromodels/qwen3-vl-30b-a3b-instruct")
 outputs = model.generate(**tokenizer("Who wrote Dune?"), max_new_tokens=32)
 print(tokenizer.decode(outputs[0]))
 ```
@@ -112,15 +112,15 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.qwen3_vl_moe import (
+from zeromodels.models.qwen3_vl_moe import (
     Qwen3VLMoeConditionalGenerate,
     Qwen3VLMoeProcessor,
 )
 
 model = Qwen3VLMoeConditionalGenerate.from_weights(
-    "kerasformers/qwen3-vl-30b-a3b-instruct"
+    "zeromodels/qwen3-vl-30b-a3b-instruct"
 )
-processor = Qwen3VLMoeProcessor.from_weights("kerasformers/qwen3-vl-30b-a3b-instruct")
+processor = Qwen3VLMoeProcessor.from_weights("zeromodels/qwen3-vl-30b-a3b-instruct")
 
 inputs = processor(
     conversation=[
@@ -145,6 +145,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Qwen3VLMoeConditionalGenerate.from_weights(
-    "kerasformers/qwen3-vl-30b-a3b-instruct", quantization="int8", load_dtype="bfloat16"
+    "zeromodels/qwen3-vl-30b-a3b-instruct", quantization="int8", load_dtype="bfloat16"
 )
 ```

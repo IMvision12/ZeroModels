@@ -2,7 +2,7 @@
 
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
-<code>.weights.h5</code> under <code>kerasformers/</code>.
+<code>.weights.h5</code> under <code>zeromodels/</code>.
 <code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
@@ -174,7 +174,7 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.kimi_k25 import KimiK25ConditionalGenerate, KimiK25Processor
+from zeromodels.models.kimi_k25 import KimiK25ConditionalGenerate, KimiK25Processor
 
 model = KimiK25ConditionalGenerate.from_weights("kimi-k2.5")
 processor = KimiK25Processor.from_weights("kimi-k2.5")
@@ -230,7 +230,7 @@ for text in processor.batch_decode(outputs):
 have rendered yourself (or go through the processor above).
 
 ```python
-from kerasformers.models.kimi_k25 import KimiK25Tokenizer
+from zeromodels.models.kimi_k25 import KimiK25Tokenizer
 
 tokenizer = KimiK25Tokenizer.from_weights("kimi-k2.5")
 inputs = tokenizer("Who wrote Dune?")

@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Moonshine is built for live transcription and voice commands, where latency matters more
@@ -162,13 +162,13 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 import soundfile as sf
-from kerasformers.models.moonshine import (
+from zeromodels.models.moonshine import (
     MoonshineProcessor,
     MoonshineConditionalGenerate,
 )
 
-model = MoonshineConditionalGenerate.from_weights("kerasformers/moonshine_tiny")
-processor = MoonshineProcessor.from_weights("kerasformers/moonshine_tiny")
+model = MoonshineConditionalGenerate.from_weights("zeromodels/moonshine_tiny")
+processor = MoonshineProcessor.from_weights("zeromodels/moonshine_tiny")
 
 audio, sr = sf.read("assets/speech_etchings.wav", dtype="float32")  # 16 kHz mono
 text = model.generate(audio, processor)
@@ -243,7 +243,7 @@ commands, so cut long recordings into segments rather than feeding a whole meeti
 Any Hugging Face repo whose `model_type` is `"moonshine"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.moonshine import (
+from zeromodels.models.moonshine import (
     MoonshineProcessor,
     MoonshineConditionalGenerate,
 )
@@ -253,7 +253,7 @@ processor = MoonshineProcessor.from_weights("hf:UsefulSensors/moonshine-tiny")
 
 # Architecture only, randomly initialized
 model = MoonshineConditionalGenerate.from_weights(
-    "kerasformers/moonshine_tiny", load_weights=False
+    "zeromodels/moonshine_tiny", load_weights=False
 )
 ```
 

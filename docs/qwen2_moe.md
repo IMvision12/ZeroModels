@@ -2,10 +2,10 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> plus the Keras weights, sharded as
 <code>model.weights.json</code> + <code>model_*.weights.h5</code>). Load with
-<code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+<code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 The Mixture-of-Experts variant of Qwen2, ported to pure Keras 3. The attention
@@ -16,7 +16,7 @@ Memory is governed by **total** parameters, not active ones.
 
 Links:
 
-- HF collection: [Qwen2-MoE](https://huggingface.co/collections/kerasformers/qwen2-moe-6a7f9afdca48ae23da66c04e)
+- HF collection: [Qwen2-MoE](https://huggingface.co/collections/zeromodels/qwen2-moe-6a7f9afdca48ae23da66c04e)
 - Paper: [Qwen2 Technical Report (arXiv:2407.10671)](https://arxiv.org/abs/2407.10671)
 - HF docs: [transformers/model_doc/qwen2_moe](https://huggingface.co/docs/transformers/model_doc/qwen2_moe)
 
@@ -24,16 +24,16 @@ See also [qwen2.md](qwen2.md), [qwen3_moe.md](qwen3_moe.md).
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`. The `-instruct` / `-chat`
+Load any of these with `from_weights("zeromodels/<variant>")`. The `-instruct` / `-chat`
 suffix marks instruction-tuned checkpoints (use the chat template); bare names are base
 models.
 
 | Variant | Hub |
 |---|---|
-| `qwen1.5-moe-a2.7b` | [`kerasformers/qwen1.5-moe-a2.7b`](https://huggingface.co/kerasformers/qwen1.5-moe-a2.7b) |
-| `qwen1.5-moe-a2.7b-chat` | [`kerasformers/qwen1.5-moe-a2.7b-chat`](https://huggingface.co/kerasformers/qwen1.5-moe-a2.7b-chat) |
-| `qwen2-57b-a14b` | [`kerasformers/qwen2-57b-a14b`](https://huggingface.co/kerasformers/qwen2-57b-a14b) |
-| `qwen2-57b-a14b-instruct` | [`kerasformers/qwen2-57b-a14b-instruct`](https://huggingface.co/kerasformers/qwen2-57b-a14b-instruct) |
+| `qwen1.5-moe-a2.7b` | [`zeromodels/qwen1.5-moe-a2.7b`](https://huggingface.co/zeromodels/qwen1.5-moe-a2.7b) |
+| `qwen1.5-moe-a2.7b-chat` | [`zeromodels/qwen1.5-moe-a2.7b-chat`](https://huggingface.co/zeromodels/qwen1.5-moe-a2.7b-chat) |
+| `qwen2-57b-a14b` | [`zeromodels/qwen2-57b-a14b`](https://huggingface.co/zeromodels/qwen2-57b-a14b) |
+| `qwen2-57b-a14b-instruct` | [`zeromodels/qwen2-57b-a14b-instruct`](https://huggingface.co/zeromodels/qwen2-57b-a14b-instruct) |
 
 ## API
 
@@ -114,10 +114,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.qwen2_moe import Qwen2MoeTextGenerate, Qwen2MoeTokenizer
+from zeromodels.models.qwen2_moe import Qwen2MoeTextGenerate, Qwen2MoeTokenizer
 
-model = Qwen2MoeTextGenerate.from_weights("kerasformers/qwen1.5-moe-a2.7b-chat")
-tokenizer = Qwen2MoeTokenizer.from_weights("kerasformers/qwen1.5-moe-a2.7b-chat")
+model = Qwen2MoeTextGenerate.from_weights("zeromodels/qwen1.5-moe-a2.7b-chat")
+tokenizer = Qwen2MoeTokenizer.from_weights("zeromodels/qwen1.5-moe-a2.7b-chat")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -148,9 +148,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.qwen2_moe import Qwen2MoeModel
+from zeromodels.models.qwen2_moe import Qwen2MoeModel
 
-backbone = Qwen2MoeModel.from_weights("kerasformers/qwen1.5-moe-a2.7b")
+backbone = Qwen2MoeModel.from_weights("zeromodels/qwen1.5-moe-a2.7b")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -171,7 +171,7 @@ needs quantization to fit comfortably on a single 80GB GPU. See
 
 ```python
 model = Qwen2MoeTextGenerate.from_weights(
-    "kerasformers/qwen2-57b-a14b-instruct",
+    "zeromodels/qwen2-57b-a14b-instruct",
     quantization="int8",
 )
 ```

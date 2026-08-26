@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 LocateAnything-3B is NVIDIA's visual-grounding VLM: a native-resolution **MoonViT**
@@ -31,13 +31,13 @@ width or height to get pixels.
 | `LocateAnythingTokenizer` | Qwen2.5 BPE extended with the grounding tokens, plus `parse_*`. |
 | `LocateAnythingImageProcessor` | the native-resolution MoonViT patch preprocessor. |
 
-`from_weights("kerasformers/locateanything_3b")` loads any of them. The 3B decoder is large; load it in
+`from_weights("zeromodels/locateanything_3b")` loads any of them. The 3B decoder is large; load it in
 bf16 (`load_dtype="bfloat16"`) unless you have the memory for fp32.
 
 ### Building an instruction
 
 ```python
-from kerasformers.models.locateanything import locate_prompt
+from zeromodels.models.locateanything import locate_prompt
 
 locate_prompt("detection", "car")  # -> "Locate all the instances ...: car."
 ```
@@ -68,16 +68,16 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 import keras
 import numpy as np
 from PIL import Image, ImageDraw
-from kerasformers.models.locateanything import (
+from zeromodels.models.locateanything import (
     LocateAnythingConditionalGenerate,
     LocateAnythingProcessor,
     locate_prompt,
 )
 
 model = LocateAnythingConditionalGenerate.from_weights(
-    "kerasformers/locateanything_3b", load_dtype="bfloat16"
+    "zeromodels/locateanything_3b", load_dtype="bfloat16"
 )
-processor = LocateAnythingProcessor.from_weights("kerasformers/locateanything_3b")
+processor = LocateAnythingProcessor.from_weights("zeromodels/locateanything_3b")
 
 
 def run(task, image, text="", **gen):
@@ -327,7 +327,7 @@ The 3B decoder loads in bf16 or weight-only quantized. See [quantization.md](qua
 
 ```python
 model = LocateAnythingConditionalGenerate.from_weights(
-    "kerasformers/locateanything_3b",
+    "zeromodels/locateanything_3b",
     quantization="int8",
     load_dtype="bfloat16",
 )

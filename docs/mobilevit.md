@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 MobileViT interleaves MobileNetV2 inverted-residual blocks with small transformer blocks. The convolutions carry local detail cheaply, and the transformer blocks give global context where it is worth paying for, so the model stays mobile-sized without giving up long-range receptive field.
@@ -98,7 +98,7 @@ MobileViTImageProcessor(
 
 Resizes the shortest edge, center-crops, rescales, and flips RGB to BGR.
 
-> **Prefer `MobileViTImageProcessor.from_weights("kerasformers/<variant>")`.** The
+> **Prefer `MobileViTImageProcessor.from_weights("zeromodels/<variant>")`.** The
 > classification and segmentation checkpoints train at different resolutions, and the
 > bare constructor gives the classification pair (288/256). Loading a `*_deeplabv3` Hub
 > repo (with `kf_preprocessor.json`) resolves the segmentation pair (544/512) instead.
@@ -156,13 +156,13 @@ Each figure is the original image beside the predicted segmentation overlaid on 
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.mobilevit import (
+from zeromodels.models.mobilevit import (
     MobileViTImageProcessor,
     MobileViTSemanticSegment,
 )
 
-model = MobileViTSemanticSegment.from_weights("kerasformers/mobilevit_s_deeplabv3")
-processor = MobileViTImageProcessor.from_weights("kerasformers/mobilevit_s_deeplabv3")
+model = MobileViTSemanticSegment.from_weights("zeromodels/mobilevit_s_deeplabv3")
+processor = MobileViTImageProcessor.from_weights("zeromodels/mobilevit_s_deeplabv3")
 
 image = Image.open("assets/data/hf_cat_2.jpg").convert("RGB")
 
@@ -220,13 +220,13 @@ model see the entire frame, at the cost of distorting the aspect ratio.
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.mobilevit import (
+from zeromodels.models.mobilevit import (
     MobileViTImageProcessor,
     MobileViTSemanticSegment,
 )
 
-model = MobileViTSemanticSegment.from_weights("kerasformers/mobilevit_s_deeplabv3")
-processor = MobileViTImageProcessor.from_weights("kerasformers/mobilevit_s_deeplabv3")
+model = MobileViTSemanticSegment.from_weights("zeromodels/mobilevit_s_deeplabv3")
+processor = MobileViTImageProcessor.from_weights("zeromodels/mobilevit_s_deeplabv3")
 
 
 def seen_box(image):
@@ -291,7 +291,7 @@ run at another size, set it on both:
 
 ```python
 model = MobileViTSemanticSegment.from_weights(
-    "kerasformers/mobilevit_s_deeplabv3", image_size=384
+    "zeromodels/mobilevit_s_deeplabv3", image_size=384
 )
 processor = MobileViTImageProcessor(
     size={"shortest_edge": 416},
@@ -316,7 +316,7 @@ which axis holds the classes. It always returns `(H, W)`.
 Any Hugging Face repo whose `model_type` is `"mobilevit"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.mobilevit import MobileViTSemanticSegment
+from zeromodels.models.mobilevit import MobileViTSemanticSegment
 
 model = MobileViTSemanticSegment.from_weights("hf:apple/deeplabv3-mobilevit-small")
 model = MobileViTSemanticSegment.from_weights(
@@ -325,7 +325,7 @@ model = MobileViTSemanticSegment.from_weights(
 
 # Architecture only, randomly initialized
 model = MobileViTSemanticSegment.from_weights(
-    "kerasformers/mobilevit_s_deeplabv3", load_weights=False
+    "zeromodels/mobilevit_s_deeplabv3", load_weights=False
 )
 ```
 

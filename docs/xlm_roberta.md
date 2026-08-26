@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Facebook AI's XLM-RoBERTa in pure Keras 3: the multilingual variant of RoBERTa, pretrained on
@@ -22,12 +22,12 @@ See also [roberta.md](roberta.md), [bert.md](bert.md), [deberta.md](deberta.md),
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`.
+Load any of these with `from_weights("zeromodels/<variant>")`.
 
 | Variant | Hub | layers / dim |
 |---|---|---|
-| `xlm_roberta_base` | [`kerasformers/xlm_roberta_base`](https://huggingface.co/kerasformers/xlm_roberta_base) | 12 / 768 |
-| `xlm_roberta_large` | [`kerasformers/xlm_roberta_large`](https://huggingface.co/kerasformers/xlm_roberta_large) | 24 / 1024 |
+| `xlm_roberta_base` | [`zeromodels/xlm_roberta_base`](https://huggingface.co/zeromodels/xlm_roberta_base) | 12 / 768 |
+| `xlm_roberta_large` | [`zeromodels/xlm_roberta_large`](https://huggingface.co/zeromodels/xlm_roberta_large) | 24 / 1024 |
 
 ## API
 
@@ -88,10 +88,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.xlm_roberta import XLMRobertaMaskedLM, XLMRobertaTokenizer
+from zeromodels.models.xlm_roberta import XLMRobertaMaskedLM, XLMRobertaTokenizer
 
-mlm = XLMRobertaMaskedLM.from_weights("kerasformers/xlm_roberta_base")
-tokenizer = XLMRobertaTokenizer.from_weights("kerasformers/xlm_roberta_base")
+mlm = XLMRobertaMaskedLM.from_weights("zeromodels/xlm_roberta_base")
+tokenizer = XLMRobertaTokenizer.from_weights("zeromodels/xlm_roberta_base")
 
 inputs = tokenizer("La capitale de la France est <mask>.")
 logits = mlm(inputs)  # (1, L, vocab_size)
@@ -102,10 +102,10 @@ print(tokenizer.decode([int(logits[0, mask].argmax())]))  # -> "Paris"
 ### Backbone features
 
 ```python
-from kerasformers.models.xlm_roberta import XLMRobertaModel, XLMRobertaTokenizer
+from zeromodels.models.xlm_roberta import XLMRobertaModel, XLMRobertaTokenizer
 
-model = XLMRobertaModel.from_weights("kerasformers/xlm_roberta_base")
-tokenizer = XLMRobertaTokenizer.from_weights("kerasformers/xlm_roberta_base")
+model = XLMRobertaModel.from_weights("zeromodels/xlm_roberta_base")
+tokenizer = XLMRobertaTokenizer.from_weights("zeromodels/xlm_roberta_base")
 out = model(tokenizer(["Hello, world.", "Bonjour le monde."]))
 out["last_hidden_state"]  # (2, L, 768)
 ```
@@ -113,7 +113,7 @@ out["last_hidden_state"]  # (2, L, 768)
 ### Classification (community fine-tunes)
 
 ```python
-from kerasformers.models.xlm_roberta import XLMRobertaSequenceClassify, XLMRobertaQnA
+from zeromodels.models.xlm_roberta import XLMRobertaSequenceClassify, XLMRobertaQnA
 
 clf = XLMRobertaSequenceClassify.from_weights(
     "hf:cardiffnlp/twitter-xlm-roberta-base-sentiment"

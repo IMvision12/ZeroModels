@@ -1,62 +1,61 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/f096ff6e-25d9-42ae-93f6-943d0252a3f0" width="100">
+  <img src="https://github.com/user-attachments/assets/34764a5a-5959-4c76-b5b8-3fc1fd3b52c5" width="100">
 </p>
 
-<h1 align="center">KerasFormers</h1>
+<h1 align="center">ZeroModels</h1>
 
 <div align="center">
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Keras](https://img.shields.io/badge/keras-v3.5.0+-success.svg)](https://github.com/keras-team/keras)
 ![Python](https://img.shields.io/badge/python-v3.10.0+-success.svg)
-[![PyPI Downloads](https://static.pepy.tech/personalized-badge/kerasformers?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/kerasformers)
 
 </div>
 
   > [!IMPORTANT]
-  > **kerasformers is under active development**, and we are currently migrating
+  > **zeromodels is under active development**, and we are currently migrating
   > from GitHub-hosted release weights to the Hugging Face Hub.
   > The PyPI package may lag behind the latest models, fixes, and API updates.
   > This migration includes properly typed configuration files and dedicated
   > weights for each model. Until the migration is complete, we recommend
-  > installing `kerasformers` directly from the `main` branch on GitHub rather
+  > installing `zeromodels` directly from the `main` branch on GitHub rather
   > than from PyPI:
   >
   > ```bash
-  > pip install git+https://github.com/IMvision12/KerasFormers.git
+  > pip install git+https://github.com/IMvision12/ZeroModels.git
   > ```
   >
   > Or clone it for local development:
   >
   > ```bash
-  > git clone https://github.com/IMvision12/KerasFormers.git
-  > cd KerasFormers
+  > git clone https://github.com/IMvision12/ZeroModels.git
+  > cd ZeroModels
   > pip install -e .
   > ```
 >
 ## 📖 Introduction
 
-KerasFormers is a collection of models with pretrained weights, built entirely with Keras 3. It supports a range of tasks, including classification, object detection (DETR, RT-DETR, RT-DETRv2, RF-DETR, D-FINE, OWL-ViT, OWLv2, Grounding DINO), segmentation (SAM, SAM2, SAM3, SegFormer, DeepLabV3, EoMT, MaskFormer, Mask2Former, OneFormer, MobileViT-DeepLabV3, RF-DETR), monocular depth estimation (Depth Anything V1, Depth Anything V2, TIPSv2-DPT), feature extraction (DINO, DINOv2, DINOv3), vision-language modeling (CLIP, SigLIP, SigLIP2, MetaCLIP 2, TIPSv2), speech recognition (Whisper, Speech2Text, Moonshine), speech-aware language modeling (Granite Speech, Granite Speech Plus), text encoding and masked language modeling (BERT, ModernBERT, ELECTRA, RoBERTa, XLM-RoBERTa, DeBERTa, DeBERTa-v2, DeBERTa-v3), text generation with large language models (GPT, GPT-2, Qwen2, Qwen2-MoE, Qwen3, Qwen3-MoE, Qwen3-Next, Qwen3.5, GPT-OSS, Llama 2, Llama 3, Llama 4, Mistral, Mixtral, Gemma, Gemma 2, MiniMax-Text-01, MiniMax-M2, DeepSeek-V2, DeepSeek-V3, DeepSeek-V4, GLM-4, GLM-4-0414, GLM-4.5/GLM-4.6, GLM-5/GLM-5.1/GLM-5.2), text-to-text encoder-decoder modeling (T5), multimodal vision-language generation (Qwen2-VL, Qwen2.5-VL, Qwen3-VL, Qwen3-VL-MoE, Qwen3.5-MoE, InternVL3, Gemma 3, Gemma 3n, Gemma 4, Gemma 4 Unified, Mistral 3, DeepSeek-VL, Janus-Pro, MiniMax-M3-VL, GLM-4V, GLM-4.5V, Kimi K2.5, Kimi K2.6, Kimi K2.7-Code), vision-language grounding across object detection, OCR, pointing, and referring (LocateAnything), and more. It includes hybrid architectures like MaxViT alongside traditional CNNs and pure transformers. kerasformers includes custom layers and backbone support, providing flexibility and efficiency across various applications. For backbones, there are various weight variants like `in1k`, `in21k`, `fb_dist_in1k`, `ms_in22k`, `fb_in22k_ft_in1k`, `ns_jft_in1k`, `aa_in1k`, `cvnets_in1k`, `augreg_in21k_ft_in1k`, `augreg_in21k`, and many more.
+ZeroModels is a collection of models with pretrained weights, built entirely with Keras 3. It supports a range of tasks, including classification, object detection (DETR, RT-DETR, RT-DETRv2, RF-DETR, D-FINE, OWL-ViT, OWLv2, Grounding DINO), segmentation (SAM, SAM2, SAM3, SegFormer, DeepLabV3, EoMT, MaskFormer, Mask2Former, OneFormer, MobileViT-DeepLabV3, RF-DETR), monocular depth estimation (Depth Anything V1, Depth Anything V2, TIPSv2-DPT), feature extraction (DINO, DINOv2, DINOv3), vision-language modeling (CLIP, SigLIP, SigLIP2, MetaCLIP 2, TIPSv2), speech recognition (Whisper, Speech2Text, Moonshine), speech-aware language modeling (Granite Speech, Granite Speech Plus), text encoding and masked language modeling (BERT, ModernBERT, ELECTRA, RoBERTa, XLM-RoBERTa, DeBERTa, DeBERTa-v2, DeBERTa-v3), text generation with large language models (GPT, GPT-2, Qwen2, Qwen2-MoE, Qwen3, Qwen3-MoE, Qwen3-Next, Qwen3.5, GPT-OSS, Llama 2, Llama 3, Llama 4, Mistral, Mixtral, Gemma, Gemma 2, MiniMax-Text-01, MiniMax-M2, DeepSeek-V2, DeepSeek-V3, DeepSeek-V4, GLM-4, GLM-4-0414, GLM-4.5/GLM-4.6, GLM-5/GLM-5.1/GLM-5.2), text-to-text encoder-decoder modeling (T5), multimodal vision-language generation (Qwen2-VL, Qwen2.5-VL, Qwen3-VL, Qwen3-VL-MoE, Qwen3.5-MoE, InternVL3, Gemma 3, Gemma 3n, Gemma 4, Gemma 4 Unified, Mistral 3, DeepSeek-VL, Janus-Pro, MiniMax-M3-VL, GLM-4V, GLM-4.5V, Kimi K2.5, Kimi K2.6, Kimi K2.7-Code), vision-language grounding across object detection, OCR, pointing, and referring (LocateAnything), and more. It includes hybrid architectures like MaxViT alongside traditional CNNs and pure transformers. zeromodels includes custom layers and backbone support, providing flexibility and efficiency across various applications. For backbones, there are various weight variants like `in1k`, `in21k`, `fb_dist_in1k`, `ms_in22k`, `fb_in22k_ft_in1k`, `ns_jft_in1k`, `aa_in1k`, `cvnets_in1k`, `augreg_in21k_ft_in1k`, `augreg_in21k`, and many more.
 
 ## ⚡ Installation
 
 From PyPI (recommended)
 
 ```shell
-pip install -U kerasformers
+pip install -U zeromodels
 ```
 
 From Source
 
 ```shell
-pip install -U git+https://github.com/IMvision12/KerasFormers
+pip install -U git+https://github.com/IMvision12/ZeroModels
 ```
 
 ## 📑 Documentation
 
-📖 **[imvision12.github.io/KerasFormers](https://imvision12.github.io/KerasFormers/)** — the rendered docs, with search.
+📖 **[imvision12.github.io/ZeroModels](https://imvision12.github.io/ZeroModels/)** — the rendered docs, with search.
 
-Per-model guides - with architecture notes, usage examples, and available pretrained weights, cover one page per model across every supported task (classification, object detection, segmentation, depth estimation, feature extraction, vision-language, speech recognition, text encoding, and language modeling). Classification backbones share a single [page](https://imvision12.github.io/KerasFormers/classification_backbones/) since they all follow the same `XModel` / `XImageClassify` two-class structure; each other model has its own. Every example on those pages prints its real, measured output.
+Per-model guides - with architecture notes, usage examples, and available pretrained weights, cover one page per model across every supported task (classification, object detection, segmentation, depth estimation, feature extraction, vision-language, speech recognition, text encoding, and language modeling). Classification backbones share a single [page](https://imvision12.github.io/ZeroModels/classification_backbones/) since they all follow the same `XModel` / `XImageClassify` two-class structure; each other model has its own. Every example on those pages prints its real, measured output.
 
 The Markdown sources live in [`docs/`](docs/) if you would rather read them in the repo.
 
@@ -280,7 +279,7 @@ The Markdown sources live in [`docs/`](docs/) if you would rather read them in t
 
 This project leverages [timm](https://github.com/huggingface/pytorch-image-models#licenses) and [transformers](https://github.com/huggingface/transformers#license) for converting pretrained weights from PyTorch to Keras. For licensing details, please refer to the respective repositories.
 
-- 🔖 **kerasformers Code**: This repository is licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0).
+- 🔖 **zeromodels Code**: This repository is licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0).
 
 
 ## 🌟 Credits
@@ -295,11 +294,11 @@ This project leverages [timm](https://github.com/huggingface/pytorch-image-model
 ### BibTeX
 
 ```bash
-@misc{gc2025kerasformers,
+@misc{gc2025zeromodels,
   author = {Gitesh Chawda},
-  title = {KerasFormers},
+  title = {ZeroModels},
   year = {2025},
   publisher = {GitHub},
   journal = {GitHub repository},
-  howpublished = {\url{https://github.com/IMvision12/KerasFormers}}
+  howpublished = {\url{https://github.com/IMvision12/ZeroModels}}
 ```

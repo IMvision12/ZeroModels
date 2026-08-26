@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 MetaCLIP 2 is a CLIP-architecture dual encoder trained on a worldwide,
@@ -332,7 +332,7 @@ Combined image + text processor for MetaCLIP 2.
 
 ## Model Variants
 
-Load any of these with `from_weights("kerasformers/<variant id>")`.
+Load any of these with `from_weights("zeromodels/<variant id>")`.
 
 | Variant id | Image size | Patch | Weights |
 |---|---:|---:|---|
@@ -355,12 +355,12 @@ Load any of these with `from_weights("kerasformers/<variant id>")`.
 
 ### Variants without Hub Keras weights
 
-The five variants marked *on the fly* have **no preconverted kerasformers Hub
+The five variants marked *on the fly* have **no preconverted zeromodels Hub
 repo**. Calling `from_weights` on them silently falls back to downloading the
 upstream Hugging Face checkpoint and converting it in-process. That still works,
 but it differs from the other eleven in ways worth knowing:
 
-- It downloads from the upstream Hub repo, not a kerasformers `.weights.h5`, so it
+- It downloads from the upstream Hub repo, not a zeromodels `.weights.h5`, so it
   depends on that repo staying available and on any gating it may have.
 - Conversion runs every time the weights are not already cached, which is slower
   than fetching a prebuilt `.weights.h5`.
@@ -374,14 +374,14 @@ If you want the fast path, prefer one of the eleven Hub Keras variants.
 
 ```python
 import keras
-from kerasformers.models.metaclip2 import (
+from zeromodels.models.metaclip2 import (
     MetaClip2Processor,
     MetaClip2ZeroShotClassify,
 )
 
-processor = MetaClip2Processor.from_weights("kerasformers/metaclip2_worldwide_s16_224")
+processor = MetaClip2Processor.from_weights("zeromodels/metaclip2_worldwide_s16_224")
 model = MetaClip2ZeroShotClassify.from_weights(
-    "kerasformers/metaclip2_worldwide_s16_224"
+    "zeromodels/metaclip2_worldwide_s16_224"
 )
 
 labels = [
@@ -536,7 +536,7 @@ You are not limited to the variants above. Any Hugging Face repo whose
 community fine-tunes.
 
 ```python
-from kerasformers.models.metaclip2 import MetaClip2ZeroShotClassify
+from zeromodels.models.metaclip2 import MetaClip2ZeroShotClassify
 
 model = MetaClip2ZeroShotClassify.from_weights("hf:facebook/metaclip-2-worldwide-s16")
 model = MetaClip2ZeroShotClassify.from_weights("hf:<user>/my-finetune")

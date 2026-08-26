@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.json</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Google's on-device Gemma 3n, ported to pure Keras 3: a novel text decoder paired with
@@ -49,17 +49,17 @@ See also [gemma.md](gemma.md), [gemma2.md](gemma2.md), [gemma3.md](gemma3.md),
 
 ## Variants
 
-Preconverted, bf16 weights are hosted under `kerasformers/`. Load with
-`from_weights("kerasformers/<variant>")`; the `-it` suffix marks instruction-tuned
+Preconverted, bf16 weights are hosted under `zeromodels/`. Load with
+`from_weights("zeromodels/<variant>")`; the `-it` suffix marks instruction-tuned
 checkpoints (use the chat template). Gemma 3n is under the **Gemma license** (gated):
 accept the terms on the upstream Google card before downloading.
 
 | Variant | Hub | Architecture | Modalities |
 |---|---|---|---|
-| `gemma-3n-e2b` | [`kerasformers/gemma-3n-e2b`](https://huggingface.co/kerasformers/gemma-3n-e2b) | MatFormer slice (30 layers) | text + image + audio |
-| `gemma-3n-e2b-it` | [`kerasformers/gemma-3n-e2b-it`](https://huggingface.co/kerasformers/gemma-3n-e2b-it) | MatFormer slice (30 layers) | text + image + audio |
-| `gemma-3n-e4b` | [`kerasformers/gemma-3n-e4b`](https://huggingface.co/kerasformers/gemma-3n-e4b) | full (35 layers) | text + image + audio |
-| `gemma-3n-e4b-it` | [`kerasformers/gemma-3n-e4b-it`](https://huggingface.co/kerasformers/gemma-3n-e4b-it) | full (35 layers) | text + image + audio |
+| `gemma-3n-e2b` | [`zeromodels/gemma-3n-e2b`](https://huggingface.co/zeromodels/gemma-3n-e2b) | MatFormer slice (30 layers) | text + image + audio |
+| `gemma-3n-e2b-it` | [`zeromodels/gemma-3n-e2b-it`](https://huggingface.co/zeromodels/gemma-3n-e2b-it) | MatFormer slice (30 layers) | text + image + audio |
+| `gemma-3n-e4b` | [`zeromodels/gemma-3n-e4b`](https://huggingface.co/zeromodels/gemma-3n-e4b) | full (35 layers) | text + image + audio |
+| `gemma-3n-e4b-it` | [`zeromodels/gemma-3n-e4b-it`](https://huggingface.co/zeromodels/gemma-3n-e4b-it) | full (35 layers) | text + image + audio |
 
 `Gemma3nConditionalGenerate` builds the towers automatically from the checkpoint:
 the MobileNet-V5 vision tower and the USM audio tower for every variant. E2B is a
@@ -142,10 +142,10 @@ backbone from the checkpoint (its `FULL_CHECKPOINT_SOURCES` builds the full mode
 copies the decoder weights out, dropping the towers). Set `config_class = Gemma3nTextConfig`.
 
 ```python
-from kerasformers.models.gemma3n import Gemma3nTextGenerate, Gemma3nTokenizer
+from zeromodels.models.gemma3n import Gemma3nTextGenerate, Gemma3nTokenizer
 
-model = Gemma3nTextGenerate.from_weights("kerasformers/gemma-3n-e2b-it")
-tokenizer = Gemma3nTokenizer.from_weights("kerasformers/gemma-3n-e2b-it")
+model = Gemma3nTextGenerate.from_weights("zeromodels/gemma-3n-e2b-it")
+tokenizer = Gemma3nTokenizer.from_weights("zeromodels/gemma-3n-e2b-it")
 outputs = model.generate(
     **tokenizer([{"role": "user", "content": "What is on-device inference?"}]),
     max_new_tokens=64,
@@ -177,7 +177,7 @@ The towers can be used on their own. `MobileNetV5Encoder` takes
 `pixel_values` (channels-last `(batch, H, W, 3)`, or `channels_first` `(batch, 3, H, W)`)
 and returns a `(batch, 16, 16, 2048)` feature map (256
 soft tokens after flatten); `Gemma3nAudioEncoder` takes `(input_features, mask)` and
-returns `(soft_tokens, valid_mask)`. Both are exposed from `kerasformers.models.gemma3n`.
+returns `(soft_tokens, valid_mask)`. Both are exposed from `zeromodels.models.gemma3n`.
 
 ### `Gemma3nImageProcessor`
 
@@ -236,13 +236,13 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.gemma3n import (
+from zeromodels.models.gemma3n import (
     Gemma3nConditionalGenerate,
     Gemma3nTokenizer,
 )
 
-model = Gemma3nConditionalGenerate.from_weights("kerasformers/gemma-3n-e2b-it")
-tokenizer = Gemma3nTokenizer.from_weights("kerasformers/gemma-3n-e2b-it")
+model = Gemma3nConditionalGenerate.from_weights("zeromodels/gemma-3n-e2b-it")
+tokenizer = Gemma3nTokenizer.from_weights("zeromodels/gemma-3n-e2b-it")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -256,13 +256,13 @@ print(tokenizer.decode(outputs[0]))
 
 ```python
 from PIL import Image
-from kerasformers.models.gemma3n import (
+from zeromodels.models.gemma3n import (
     Gemma3nConditionalGenerate,
     Gemma3nProcessor,
 )
 
-model = Gemma3nConditionalGenerate.from_weights("kerasformers/gemma-3n-e4b-it")
-processor = Gemma3nProcessor.from_weights("kerasformers/gemma-3n-e4b-it")
+model = Gemma3nConditionalGenerate.from_weights("zeromodels/gemma-3n-e4b-it")
+processor = Gemma3nProcessor.from_weights("zeromodels/gemma-3n-e4b-it")
 
 inputs = processor(
     conversation=[
@@ -319,9 +319,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.gemma3n import Gemma3nTextModel
+from zeromodels.models.gemma3n import Gemma3nTextModel
 
-backbone = Gemma3nTextModel.from_weights("kerasformers/gemma-3n-e2b")
+backbone = Gemma3nTextModel.from_weights("zeromodels/gemma-3n-e2b")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -339,7 +339,7 @@ E4B). See [quantization.md](quantization.md):
 
 ```python
 model = Gemma3nConditionalGenerate.from_weights(
-    "kerasformers/gemma-3n-e4b-it",
+    "zeromodels/gemma-3n-e4b-it",
     quantization="int8",
     load_dtype="bfloat16",
 )

@@ -2,10 +2,10 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> plus the Keras weights:
 <code>model.weights.h5</code>, or a sharded <code>model.weights.json</code> + shards for the
-larger checkpoints). Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+larger checkpoints). Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Alibaba's Qwen2 dense decoder-only LLM, ported to pure Keras 3. A pre-norm
@@ -15,7 +15,7 @@ LM head.
 
 Links:
 
-- HF collection: [Qwen2](https://huggingface.co/collections/kerasformers/qwen2-6a69d274d16370be5d0221c8)
+- HF collection: [Qwen2](https://huggingface.co/collections/zeromodels/qwen2-6a69d274d16370be5d0221c8)
 - Paper: [Qwen2 Technical Report (arXiv:2407.10671)](https://arxiv.org/abs/2407.10671)
 - HF docs: [transformers/model_doc/qwen2](https://huggingface.co/docs/transformers/model_doc/qwen2)
 
@@ -23,19 +23,19 @@ See also [qwen2_moe.md](qwen2_moe.md), [qwen3.md](qwen3.md).
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`. The `-instruct` suffix
+Load any of these with `from_weights("zeromodels/<variant>")`. The `-instruct` suffix
 marks instruction-tuned checkpoints (use the chat template); bare names are base models.
 
 | Variant | Hub |
 |---|---|
-| `qwen2-0.5b` | [`kerasformers/qwen2-0.5b`](https://huggingface.co/kerasformers/qwen2-0.5b) |
-| `qwen2-0.5b-instruct` | [`kerasformers/qwen2-0.5b-instruct`](https://huggingface.co/kerasformers/qwen2-0.5b-instruct) |
-| `qwen2-1.5b` | [`kerasformers/qwen2-1.5b`](https://huggingface.co/kerasformers/qwen2-1.5b) |
-| `qwen2-1.5b-instruct` | [`kerasformers/qwen2-1.5b-instruct`](https://huggingface.co/kerasformers/qwen2-1.5b-instruct) |
-| `qwen2-7b` | [`kerasformers/qwen2-7b`](https://huggingface.co/kerasformers/qwen2-7b) |
-| `qwen2-7b-instruct` | [`kerasformers/qwen2-7b-instruct`](https://huggingface.co/kerasformers/qwen2-7b-instruct) |
-| `qwen2-72b` | [`kerasformers/qwen2-72b`](https://huggingface.co/kerasformers/qwen2-72b) |
-| `qwen2-72b-instruct` | [`kerasformers/qwen2-72b-instruct`](https://huggingface.co/kerasformers/qwen2-72b-instruct) |
+| `qwen2-0.5b` | [`zeromodels/qwen2-0.5b`](https://huggingface.co/zeromodels/qwen2-0.5b) |
+| `qwen2-0.5b-instruct` | [`zeromodels/qwen2-0.5b-instruct`](https://huggingface.co/zeromodels/qwen2-0.5b-instruct) |
+| `qwen2-1.5b` | [`zeromodels/qwen2-1.5b`](https://huggingface.co/zeromodels/qwen2-1.5b) |
+| `qwen2-1.5b-instruct` | [`zeromodels/qwen2-1.5b-instruct`](https://huggingface.co/zeromodels/qwen2-1.5b-instruct) |
+| `qwen2-7b` | [`zeromodels/qwen2-7b`](https://huggingface.co/zeromodels/qwen2-7b) |
+| `qwen2-7b-instruct` | [`zeromodels/qwen2-7b-instruct`](https://huggingface.co/zeromodels/qwen2-7b-instruct) |
+| `qwen2-72b` | [`zeromodels/qwen2-72b`](https://huggingface.co/zeromodels/qwen2-72b) |
+| `qwen2-72b-instruct` | [`zeromodels/qwen2-72b-instruct`](https://huggingface.co/zeromodels/qwen2-72b-instruct) |
 
 ## API
 
@@ -109,10 +109,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.qwen2 import Qwen2TextGenerate, Qwen2Tokenizer
+from zeromodels.models.qwen2 import Qwen2TextGenerate, Qwen2Tokenizer
 
-model = Qwen2TextGenerate.from_weights("kerasformers/qwen2-0.5b-instruct")
-tokenizer = Qwen2Tokenizer.from_weights("kerasformers/qwen2-0.5b-instruct")
+model = Qwen2TextGenerate.from_weights("zeromodels/qwen2-0.5b-instruct")
+tokenizer = Qwen2Tokenizer.from_weights("zeromodels/qwen2-0.5b-instruct")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -143,9 +143,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.qwen2 import Qwen2Model
+from zeromodels.models.qwen2 import Qwen2Model
 
-backbone = Qwen2Model.from_weights("kerasformers/qwen2-0.5b")
+backbone = Qwen2Model.from_weights("zeromodels/qwen2-0.5b")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -165,7 +165,7 @@ The 72B checkpoint needs quantization to fit comfortably on a single 80GB GPU. S
 
 ```python
 model = Qwen2TextGenerate.from_weights(
-    "kerasformers/qwen2-72b-instruct",
+    "zeromodels/qwen2-72b-instruct",
     quantization="int8",
 )
 ```

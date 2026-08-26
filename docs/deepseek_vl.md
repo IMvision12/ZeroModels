@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 DeepSeek's first vision-language models, ported to pure Keras 3. A SigLIP tower
@@ -19,12 +19,12 @@ See also [deepseek_vl_hybrid.md](deepseek_vl_hybrid.md), [janus.md](janus.md).
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`.
+Load any of these with `from_weights("zeromodels/<variant>")`.
 
 | Variant | Hub |
 |---|---|
-| `deepseek_vl_1.3b_chat` | [`kerasformers/deepseek_vl_1.3b_chat`](https://huggingface.co/kerasformers/deepseek_vl_1.3b_chat) |
-| `deepseek_vl_1.3b_base` | [`kerasformers/deepseek_vl_1.3b_base`](https://huggingface.co/kerasformers/deepseek_vl_1.3b_base) |
+| `deepseek_vl_1.3b_chat` | [`zeromodels/deepseek_vl_1.3b_chat`](https://huggingface.co/zeromodels/deepseek_vl_1.3b_chat) |
+| `deepseek_vl_1.3b_base` | [`zeromodels/deepseek_vl_1.3b_base`](https://huggingface.co/zeromodels/deepseek_vl_1.3b_base) |
 
 ## API
 
@@ -131,13 +131,13 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.deepseek_vl import (
+from zeromodels.models.deepseek_vl import (
     DeepseekVLConditionalGenerate,
     DeepseekVLProcessor,
 )
 
-model = DeepseekVLConditionalGenerate.from_weights("kerasformers/deepseek_vl_1.3b_chat")
-processor = DeepseekVLProcessor.from_weights("kerasformers/deepseek_vl_1.3b_chat")
+model = DeepseekVLConditionalGenerate.from_weights("zeromodels/deepseek_vl_1.3b_chat")
+processor = DeepseekVLProcessor.from_weights("zeromodels/deepseek_vl_1.3b_chat")
 
 image = Image.open("photo.jpg")
 inputs = processor(
@@ -220,9 +220,9 @@ Text-only prompts batch the same way: pass `text=[...]` with no `images`.
 have rendered yourself (or go through the processor above).
 
 ```python
-from kerasformers.models.deepseek_vl import DeepseekVLTokenizer
+from zeromodels.models.deepseek_vl import DeepseekVLTokenizer
 
-tokenizer = DeepseekVLTokenizer.from_weights("kerasformers/deepseek_vl_1.3b_chat")
+tokenizer = DeepseekVLTokenizer.from_weights("zeromodels/deepseek_vl_1.3b_chat")
 inputs = tokenizer("Who wrote Dune?")
 outputs = model.generate(**inputs, max_new_tokens=32)
 print(tokenizer.decode(outputs[0]))
@@ -235,7 +235,7 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = DeepseekVLConditionalGenerate.from_weights(
-    "kerasformers/deepseek_vl_1.3b_chat",
+    "zeromodels/deepseek_vl_1.3b_chat",
     quantization="int8",
     load_dtype="bfloat16",
 )

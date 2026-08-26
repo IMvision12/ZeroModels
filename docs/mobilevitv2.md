@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 MobileViTV2 keeps [MobileViT](mobilevit.md)'s convolution-and-transformer layout and replaces multi-head self-attention with **separable self-attention**. Standard attention costs O(k²) in the token count; the separable form computes a single context vector from the keys and broadcasts it, which is O(k). On a mobile CPU that is the difference between a latency budget met and missed.
@@ -92,7 +92,7 @@ Identical to [MobileViT's processor](mobilevit.md#mobilevitimageprocessor); the
 reference ships one class for both generations. Resizes the shortest edge,
 center-crops, rescales, and flips RGB to BGR. No mean/std normalization.
 
-> **Prefer `MobileViTV2ImageProcessor.from_weights("kerasformers/<variant>")`.** Classification trains at
+> **Prefer `MobileViTV2ImageProcessor.from_weights("zeromodels/<variant>")`.** Classification trains at
 > 256 (or 384) and segmentation at 512, so the bare constructor is wrong for one of
 > them. Passing the variant resolves the right pair.
 
@@ -132,16 +132,16 @@ Each figure is the original image beside the predicted segmentation overlaid on 
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.mobilevitv2 import (
+from zeromodels.models.mobilevitv2 import (
     MobileViTV2ImageProcessor,
     MobileViTV2SemanticSegment,
 )
 
 model = MobileViTV2SemanticSegment.from_weights(
-    "kerasformers/mobilevitv2_100_deeplabv3"
+    "zeromodels/mobilevitv2_100_deeplabv3"
 )
 processor = MobileViTV2ImageProcessor.from_weights(
-    "kerasformers/mobilevitv2_100_deeplabv3"
+    "zeromodels/mobilevitv2_100_deeplabv3"
 )
 
 image = Image.open("assets/data/coco_horse_trolley.jpg").convert("RGB")
@@ -197,16 +197,16 @@ model see the entire frame, at the cost of distorting the aspect ratio.
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.mobilevitv2 import (
+from zeromodels.models.mobilevitv2 import (
     MobileViTV2ImageProcessor,
     MobileViTV2SemanticSegment,
 )
 
 model = MobileViTV2SemanticSegment.from_weights(
-    "kerasformers/mobilevitv2_100_deeplabv3"
+    "zeromodels/mobilevitv2_100_deeplabv3"
 )
 processor = MobileViTV2ImageProcessor.from_weights(
-    "kerasformers/mobilevitv2_100_deeplabv3"
+    "zeromodels/mobilevitv2_100_deeplabv3"
 )
 
 
@@ -289,7 +289,7 @@ which axis holds the classes. It always returns `(H, W)`.
 Any Hugging Face repo whose `model_type` is `"mobilevitv2"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.mobilevitv2 import MobileViTV2SemanticSegment
+from zeromodels.models.mobilevitv2 import MobileViTV2SemanticSegment
 
 model = MobileViTV2SemanticSegment.from_weights(
     "hf:shehan97/mobilevitv2-1.0-voc-deeplabv3"
@@ -298,7 +298,7 @@ model = MobileViTV2SemanticSegment.from_weights("hf:<user>/mobilevitv2-finetuned
 
 # Architecture only, randomly initialized
 model = MobileViTV2SemanticSegment.from_weights(
-    "kerasformers/mobilevitv2_100_deeplabv3",
+    "zeromodels/mobilevitv2_100_deeplabv3",
     load_weights=False,
 )
 ```

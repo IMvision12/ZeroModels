@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - 'kerasformers/version.py'
+      - 'zeromodels/version.py'
 
 jobs:
   create-release:
@@ -21,7 +21,7 @@ jobs:
       - name: Get version
         id: get_version
         run: |
-          VERSION=$(grep -o '"[0-9]*\.[0-9]*\.[0-9]*"' kerasformers/version.py | tr -d '"')
+          VERSION=$(grep -o '"[0-9]*\.[0-9]*\.[0-9]*"' zeromodels/version.py | tr -d '"')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Create release

@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 OpenAI's GPT-2 in pure Keras 3: the classic decoder-only language model with learned
@@ -31,16 +31,16 @@ See also [gpt.md](gpt.md).
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`. `gpt2_large` /
+Load any of these with `from_weights("zeromodels/<variant>")`. `gpt2_large` /
 `gpt2_xl` are **sharded** on the Hub (a `.weights.json` index plus shards); the two
 smaller sizes are a single `.weights.h5`.
 
 | Variant | Hub | Layers | Width | Heads | Params |
 |---|---|---|---|---|---|
-| `gpt2` | [`kerasformers/gpt2`](https://huggingface.co/kerasformers/gpt2) | 12 | 768 | 12 | 124M |
-| `gpt2_medium` | [`kerasformers/gpt2_medium`](https://huggingface.co/kerasformers/gpt2_medium) | 24 | 1024 | 16 | 355M |
-| `gpt2_large` | [`kerasformers/gpt2_large`](https://huggingface.co/kerasformers/gpt2_large) | 36 | 1280 | 20 | 774M |
-| `gpt2_xl` | [`kerasformers/gpt2_xl`](https://huggingface.co/kerasformers/gpt2_xl) | 48 | 1600 | 25 | 1.5B |
+| `gpt2` | [`zeromodels/gpt2`](https://huggingface.co/zeromodels/gpt2) | 12 | 768 | 12 | 124M |
+| `gpt2_medium` | [`zeromodels/gpt2_medium`](https://huggingface.co/zeromodels/gpt2_medium) | 24 | 1024 | 16 | 355M |
+| `gpt2_large` | [`zeromodels/gpt2_large`](https://huggingface.co/zeromodels/gpt2_large) | 36 | 1280 | 20 | 774M |
+| `gpt2_xl` | [`zeromodels/gpt2_xl`](https://huggingface.co/zeromodels/gpt2_xl) | 48 | 1600 | 25 | 1.5B |
 
 ## API
 
@@ -99,7 +99,7 @@ GPT2Tokenizer(variant="gpt2", hf_id=None, tokenizer_file=None)
 
 | Arg | Default | Meaning |
 |---|---|---|
-| `variant` | `"gpt2"` | resolves to the `kerasformers/<variant>` repo's `tokenizer.json` |
+| `variant` | `"gpt2"` | resolves to the `zeromodels/<variant>` repo's `tokenizer.json` |
 | `hf_id` | `None` | explicit Hub repo to pull `tokenizer.json` from (overrides `variant`) |
 | `tokenizer_file` | `None` | explicit path to a `tokenizer.json` |
 
@@ -115,10 +115,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.gpt2 import GPT2TextGenerate, GPT2Tokenizer
+from zeromodels.models.gpt2 import GPT2TextGenerate, GPT2Tokenizer
 
-model = GPT2TextGenerate.from_weights("kerasformers/gpt2")
-tokenizer = GPT2Tokenizer.from_weights("kerasformers/gpt2")
+model = GPT2TextGenerate.from_weights("zeromodels/gpt2")
+tokenizer = GPT2Tokenizer.from_weights("zeromodels/gpt2")
 
 inputs = tokenizer("The meaning of life is")
 outputs = model.generate(**inputs, max_new_tokens=40)
@@ -144,9 +144,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.gpt2 import GPT2Model
+from zeromodels.models.gpt2 import GPT2Model
 
-backbone = GPT2Model.from_weights("kerasformers/gpt2")
+backbone = GPT2Model.from_weights("zeromodels/gpt2")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, 768)
 ```
 
@@ -164,8 +164,8 @@ model = GPT2TextGenerate.from_weights("hf:openai-community/gpt2-medium")
 both the model and the tokenizer:
 
 ```python
-model = GPT2TextGenerate.from_weights("kerasformers/gpt2_xl")
-tokenizer = GPT2Tokenizer.from_weights("kerasformers/gpt2_xl")
+model = GPT2TextGenerate.from_weights("zeromodels/gpt2_xl")
+tokenizer = GPT2Tokenizer.from_weights("zeromodels/gpt2_xl")
 ```
 
 ## Verified parity

@@ -2,7 +2,7 @@
 
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
-<code>.weights.h5</code> under <code>kerasformers/</code>.
+<code>.weights.h5</code> under <code>zeromodels/</code>.
 <code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
@@ -125,7 +125,7 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.glm5_moe import Glm5MoeTextGenerate, Glm5MoeTokenizer
+from zeromodels.models.glm5_moe import Glm5MoeTextGenerate, Glm5MoeTokenizer
 
 model = Glm5MoeTextGenerate.from_weights("glm5")
 tokenizer = Glm5MoeTokenizer.from_weights("glm5")
@@ -157,7 +157,7 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.glm5_moe import Glm5MoeModel
+from zeromodels.models.glm5_moe import Glm5MoeModel
 
 backbone = Glm5MoeModel.from_weights("glm5")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)

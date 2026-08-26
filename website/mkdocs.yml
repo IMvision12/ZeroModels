@@ -1,8 +1,8 @@
-site_name: KerasFormers
+site_name: ZeroModels
 site_description: Pretrained transformer models in pure Keras 3, runnable on JAX, PyTorch and TensorFlow.
-site_url: https://imvision12.github.io/KerasFormers/
-repo_url: https://github.com/IMvision12/KerasFormers
-repo_name: IMvision12/KerasFormers
+site_url: https://imvision12.github.io/ZeroModels/
+repo_url: https://github.com/IMvision12/ZeroModels
+repo_name: IMvision12/ZeroModels
 edit_uri: edit/main/docs/
 
 # This config lives in website/, while the pages and media stay at the repo root.
@@ -14,7 +14,7 @@ theme:
   # overrides/ holds the landing-page template (home.html), the stylesheets and
   # the favicon. Registering it as the theme dir means MkDocs copies those files
   # itself and resolves them through `| url`, which matters because the site is
-  # served from the /KerasFormers/ subpath on GitHub Pages, not from a root.
+  # served from the /ZeroModels/ subpath on GitHub Pages, not from a root.
   custom_dir: overrides
   logo: logo.png
   favicon: logo.png

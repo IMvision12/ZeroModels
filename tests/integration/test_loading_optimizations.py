@@ -5,12 +5,12 @@ import numpy as np
 import pytest
 from keras import layers, ops
 
-from kerasformers.base import BaseModel
-from kerasformers.conversion import converted_cache
-from kerasformers.conversion.hf_download_utils import LazyStateDict
+from zeromodels.base import BaseModel
+from zeromodels.conversion import converted_cache
+from zeromodels.conversion.hf_download_utils import LazyStateDict
 
 
-@keras.saving.register_keras_serializable(package="kerasformers_tests")
+@keras.saving.register_keras_serializable(package="zeromodels_tests")
 class _CacheToy(BaseModel):
     """A minimal functional model for exercising the converted-weight cache."""
 
@@ -121,7 +121,7 @@ def test_mxfp4_quantize_is_exact_inverse_of_dequant():
     zero round-trip pins the quantizer to the same values HF's downcast produces
     on every representable point (no GPU triton kernel needed to check).
     """
-    from kerasformers.quantization.mxfp4_quantize import (
+    from zeromodels.quantization.mxfp4_quantize import (
         FP4_VALUES,
         dequantize_mxfp4,
         quantize_to_mxfp4,

@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 EoMT (Encoder-only Mask Transformer) takes the opposite direction from the MaskFormer line. Where [Mask2Former](mask2former.md) adds a pixel decoder, a transformer decoder and multi-scale deformable attention on top of its backbone, EoMT deletes all of it.
@@ -112,10 +112,10 @@ Each figure is the original image beside the predicted segmentation overlaid on 
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.eomt import EoMTImageProcessor, EoMTUniversalSegment
+from zeromodels.models.eomt import EoMTImageProcessor, EoMTUniversalSegment
 
-model = EoMTUniversalSegment.from_weights("kerasformers/eomt_small_coco_panoptic_640")
-processor = EoMTImageProcessor.from_weights("kerasformers/eomt_small_coco_panoptic_640")
+model = EoMTUniversalSegment.from_weights("zeromodels/eomt_small_coco_panoptic_640")
+processor = EoMTImageProcessor.from_weights("zeromodels/eomt_small_coco_panoptic_640")
 
 image = Image.open("assets/data/coco_produce.jpg").convert("RGB")
 output = model(processor(image)["pixel_values"], training=False)
@@ -159,10 +159,10 @@ Post-process one image at a time, since each has its own target size:
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.eomt import EoMTImageProcessor, EoMTUniversalSegment
+from zeromodels.models.eomt import EoMTImageProcessor, EoMTUniversalSegment
 
-model = EoMTUniversalSegment.from_weights("kerasformers/eomt_small_coco_panoptic_640")
-processor = EoMTImageProcessor.from_weights("kerasformers/eomt_small_coco_panoptic_640")
+model = EoMTUniversalSegment.from_weights("zeromodels/eomt_small_coco_panoptic_640")
+processor = EoMTImageProcessor.from_weights("zeromodels/eomt_small_coco_panoptic_640")
 
 paths = ["assets/data/coco_broccoli.jpg", "assets/data/coco_man_tie.jpg"]
 
@@ -231,14 +231,14 @@ The post-processors emit `(H, W)` label maps and segment metadata, so they take 
 Any Hugging Face repo whose `model_type` is `"eomt"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.eomt import EoMTUniversalSegment
+from zeromodels.models.eomt import EoMTUniversalSegment
 
 model = EoMTUniversalSegment.from_weights("hf:tue-mps/coco_panoptic_eomt_large_640")
 model = EoMTUniversalSegment.from_weights("hf:<user>/eomt-finetuned")
 
 # Architecture only, randomly initialized
 model = EoMTUniversalSegment.from_weights(
-    "kerasformers/eomt_small_coco_panoptic_640",
+    "zeromodels/eomt_small_coco_panoptic_640",
     load_weights=False,
 )
 ```

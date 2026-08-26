@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Microsoft's DeBERTa in pure Keras 3: the disentangled-attention bidirectional text encoder, in
@@ -22,20 +22,20 @@ See also [bert.md](bert.md), [roberta.md](roberta.md), [electra.md](electra.md),
 
 ## Variants
 
-Each generation lives in its own package (`kerasformers.models.deberta` / `deberta_v2` /
+Each generation lives in its own package (`zeromodels.models.deberta` / `deberta_v2` /
 `deberta_v3`) with the same class set and a `V2` / `V3` class prefix. Load with
-`from_weights("kerasformers/<variant>")`.
+`from_weights("zeromodels/<variant>")`.
 
 | Version | Variant | Hub | layers / dim |
 |---|---|---|---|
-| v1 | `deberta_base` | [`kerasformers/deberta_base`](https://huggingface.co/kerasformers/deberta_base) | 12 / 768 |
-| v1 | `deberta_large` | [`kerasformers/deberta_large`](https://huggingface.co/kerasformers/deberta_large) | 24 / 1024 |
-| v2 | `deberta_v2_xlarge` | [`kerasformers/deberta_v2_xlarge`](https://huggingface.co/kerasformers/deberta_v2_xlarge) | 24 / 1536 |
-| v2 | `deberta_v2_xxlarge` | [`kerasformers/deberta_v2_xxlarge`](https://huggingface.co/kerasformers/deberta_v2_xxlarge) | 48 / 1536 |
-| v3 | `deberta_v3_xsmall` | [`kerasformers/deberta_v3_xsmall`](https://huggingface.co/kerasformers/deberta_v3_xsmall) | 12 / 384 |
-| v3 | `deberta_v3_small` | [`kerasformers/deberta_v3_small`](https://huggingface.co/kerasformers/deberta_v3_small) | 6 / 768 |
-| v3 | `deberta_v3_base` | [`kerasformers/deberta_v3_base`](https://huggingface.co/kerasformers/deberta_v3_base) | 12 / 768 |
-| v3 | `deberta_v3_large` | [`kerasformers/deberta_v3_large`](https://huggingface.co/kerasformers/deberta_v3_large) | 24 / 1024 |
+| v1 | `deberta_base` | [`zeromodels/deberta_base`](https://huggingface.co/zeromodels/deberta_base) | 12 / 768 |
+| v1 | `deberta_large` | [`zeromodels/deberta_large`](https://huggingface.co/zeromodels/deberta_large) | 24 / 1024 |
+| v2 | `deberta_v2_xlarge` | [`zeromodels/deberta_v2_xlarge`](https://huggingface.co/zeromodels/deberta_v2_xlarge) | 24 / 1536 |
+| v2 | `deberta_v2_xxlarge` | [`zeromodels/deberta_v2_xxlarge`](https://huggingface.co/zeromodels/deberta_v2_xxlarge) | 48 / 1536 |
+| v3 | `deberta_v3_xsmall` | [`zeromodels/deberta_v3_xsmall`](https://huggingface.co/zeromodels/deberta_v3_xsmall) | 12 / 384 |
+| v3 | `deberta_v3_small` | [`zeromodels/deberta_v3_small`](https://huggingface.co/zeromodels/deberta_v3_small) | 6 / 768 |
+| v3 | `deberta_v3_base` | [`zeromodels/deberta_v3_base`](https://huggingface.co/zeromodels/deberta_v3_base) | 12 / 768 |
+| v3 | `deberta_v3_large` | [`zeromodels/deberta_v3_large`](https://huggingface.co/zeromodels/deberta_v3_large) | 24 / 1024 |
 
 ## API
 
@@ -93,10 +93,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.deberta_v3 import DebertaV3MaskedLM, DebertaV3Tokenizer
+from zeromodels.models.deberta_v3 import DebertaV3MaskedLM, DebertaV3Tokenizer
 
-mlm = DebertaV3MaskedLM.from_weights("kerasformers/deberta_v3_base")
-tokenizer = DebertaV3Tokenizer.from_weights("kerasformers/deberta_v3_base")
+mlm = DebertaV3MaskedLM.from_weights("zeromodels/deberta_v3_base")
+tokenizer = DebertaV3Tokenizer.from_weights("zeromodels/deberta_v3_base")
 
 inputs = tokenizer("The capital of France is [MASK].")
 logits = mlm(inputs)  # (1, L, vocab_size)
@@ -107,17 +107,17 @@ print(tokenizer.decode([int(logits[0, mask].argmax())]))
 ### Backbone features
 
 ```python
-from kerasformers.models.deberta_v3 import DebertaV3Model, DebertaV3Tokenizer
+from zeromodels.models.deberta_v3 import DebertaV3Model, DebertaV3Tokenizer
 
-model = DebertaV3Model.from_weights("kerasformers/deberta_v3_base")
-tokenizer = DebertaV3Tokenizer.from_weights("kerasformers/deberta_v3_base")
+model = DebertaV3Model.from_weights("zeromodels/deberta_v3_base")
+tokenizer = DebertaV3Tokenizer.from_weights("zeromodels/deberta_v3_base")
 out = model(tokenizer("Hello, world."))["last_hidden_state"]  # (1, L, 768)
 ```
 
 ### Classification (community fine-tunes)
 
 ```python
-from kerasformers.models.deberta_v3 import DebertaV3SequenceClassify, DebertaV3QnA
+from zeromodels.models.deberta_v3 import DebertaV3SequenceClassify, DebertaV3QnA
 
 nli = DebertaV3SequenceClassify.from_weights(
     "hf:org/deberta-v3-base-mnli"

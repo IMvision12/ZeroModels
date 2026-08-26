@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 MaskFormer's insight is in its title: per-pixel classification is not the only way to segment. Instead of labelling every pixel independently, it predicts a fixed set of **binary masks**, each paired with one class. A DETR-style transformer decoder turns 100 learned queries into 100 (mask, class) pairs, and how you combine them decides the task.
@@ -60,7 +60,7 @@ MaskFormerImageProcessor(
 Resizes the longest edge to `target_size` preserving aspect ratio, pads to a square
 canvas, rescales, and normalizes with ImageNet statistics.
 
-> **Prefer `MaskFormerImageProcessor.from_weights("kerasformers/<variant>")`.** The COCO checkpoints
+> **Prefer `MaskFormerImageProcessor.from_weights("zeromodels/<variant>")`.** The COCO checkpoints
 > build at 384 and the ADE ones at 512, so a fixed default mismatches the model for one
 > of the two and the forward pass raises on shape.
 
@@ -128,16 +128,16 @@ Each figure is the original image beside the predicted segmentation overlaid on 
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.maskformer import (
+from zeromodels.models.maskformer import (
     MaskFormerImageProcessor,
     MaskFormerUniversalSegment,
 )
 
 model = MaskFormerUniversalSegment.from_weights(
-    "kerasformers/maskformer-swin-tiny-coco"
+    "zeromodels/maskformer-swin-tiny-coco"
 )
 processor = MaskFormerImageProcessor.from_weights(
-    "kerasformers/maskformer-swin-tiny-coco"
+    "zeromodels/maskformer-swin-tiny-coco"
 )  # 384
 
 image = Image.open("assets/data/coco_surfer_wave.jpg").convert("RGB")
@@ -176,16 +176,16 @@ Post-process one image at a time, since each has its own target size:
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.maskformer import (
+from zeromodels.models.maskformer import (
     MaskFormerImageProcessor,
     MaskFormerUniversalSegment,
 )
 
 model = MaskFormerUniversalSegment.from_weights(
-    "kerasformers/maskformer-swin-tiny-coco"
+    "zeromodels/maskformer-swin-tiny-coco"
 )
 processor = MaskFormerImageProcessor.from_weights(
-    "kerasformers/maskformer-swin-tiny-coco"
+    "zeromodels/maskformer-swin-tiny-coco"
 )
 
 paths = ["assets/data/coco_frisbee.jpg", "assets/data/coco_pizza_kid.jpg"]
@@ -261,14 +261,14 @@ them.
 Any Hugging Face repo whose `model_type` is `"maskformer"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.maskformer import MaskFormerUniversalSegment
+from zeromodels.models.maskformer import MaskFormerUniversalSegment
 
 model = MaskFormerUniversalSegment.from_weights("hf:facebook/maskformer-swin-tiny-coco")
 model = MaskFormerUniversalSegment.from_weights("hf:<user>/maskformer-finetuned")
 
 # Architecture only, randomly initialized
 model = MaskFormerUniversalSegment.from_weights(
-    "kerasformers/maskformer-swin-tiny-coco",
+    "zeromodels/maskformer-swin-tiny-coco",
     load_weights=False,
 )
 ```

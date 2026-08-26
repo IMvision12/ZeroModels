@@ -4,7 +4,7 @@ Decoding a video and choosing which frames to keep. This is the input path for t
 video-capable VLMs such as [Qwen2.5-VL](qwen2_5_vl.md).
 
 ```python
-from kerasformers.utils import (
+from zeromodels.utils import (
     load_video,
     sample_frames,
     default_sample_indices_fn,
@@ -33,7 +33,7 @@ Decode a video and sample frames from it. Returns `(frames, metadata)`, where `f
 - **kwargs**: forwarded to `sample_indices_fn`.
 
 ```python
-from kerasformers.utils import load_video
+from zeromodels.utils import load_video
 
 frames, meta = load_video("clip.mp4", num_frames=16)
 print(frames.shape, meta.total_num_frames, meta.fps)
@@ -50,7 +50,7 @@ Dispatch goes through a dict, so the dependency is only needed for the backend y
 name:
 
 ```python
-from kerasformers.utils import VIDEO_DECODERS
+from zeromodels.utils import VIDEO_DECODERS
 
 print(list(VIDEO_DECODERS))
 ```
@@ -104,7 +104,7 @@ sample_frames(num_total, num_samples, mode="uniform", seed=None) -> List[int]
 Pick `num_samples` indices out of `num_total`, standalone from any decoding.
 
 ```python
-from kerasformers.utils import sample_frames
+from zeromodels.utils import sample_frames
 
 print(sample_frames(100, 8))
 ```
@@ -137,7 +137,7 @@ does not.
 Wrap it when you want the default behavior with one adjustment, such as skipping a lead-in:
 
 ```python
-from kerasformers.utils import default_sample_indices_fn, load_video
+from zeromodels.utils import default_sample_indices_fn, load_video
 
 
 def skip_intro(metadata, **kwargs):

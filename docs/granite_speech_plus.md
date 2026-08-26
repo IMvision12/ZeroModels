@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Granite Speech Plus is the **Granite 4.0-based** successor to
@@ -47,7 +47,7 @@ no adapter to toggle.
 
 ## API
 
-The classes mirror Granite Speech exactly, under `kerasformers.models.granite_speech_plus`.
+The classes mirror Granite Speech exactly, under `zeromodels.models.granite_speech_plus`.
 
 ### GraniteSpeechPlusConditionalGenerate
 
@@ -137,16 +137,16 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 import keras
 import numpy as np
 import soundfile as sf
-from kerasformers.models.granite_speech_plus import (
+from zeromodels.models.granite_speech_plus import (
     GraniteSpeechPlusConditionalGenerate,
     GraniteSpeechPlusProcessor,
 )
 
 model = GraniteSpeechPlusConditionalGenerate.from_weights(
-    "kerasformers/granite_speech_4_1_2b_plus", load_dtype="bfloat16"
+    "zeromodels/granite_speech_4_1_2b_plus", load_dtype="bfloat16"
 )
 processor = GraniteSpeechPlusProcessor.from_weights(
-    "kerasformers/granite_speech_4_1_2b_plus"
+    "zeromodels/granite_speech_4_1_2b_plus"
 )
 
 audio, sr = sf.read("assets/speech_leighton.wav", dtype="float32")  # 16 kHz mono
@@ -204,7 +204,7 @@ if sr != 16000:
 ## Loading Fine-tuned and Community Weights
 
 ```python
-from kerasformers.models.granite_speech_plus import (
+from zeromodels.models.granite_speech_plus import (
     GraniteSpeechPlusConditionalGenerate,
     GraniteSpeechPlusProcessor,
 )
@@ -218,7 +218,7 @@ processor = GraniteSpeechPlusProcessor.from_weights(
 
 # Architecture only, randomly initialized
 model = GraniteSpeechPlusConditionalGenerate.from_weights(
-    "kerasformers/granite_speech_4_1_2b_plus", load_weights=False
+    "zeromodels/granite_speech_4_1_2b_plus", load_weights=False
 )
 ```
 

@@ -27,7 +27,7 @@ template: home.html
   </p>
   <div class="kf-actions">
     <a class="kf-btn kf-btn--primary" href="getting_started/">Get started</a>
-    <a class="kf-btn kf-btn--ghost" href="https://github.com/IMvision12/KerasFormers">GitHub</a>
+    <a class="kf-btn kf-btn--ghost" href="https://github.com/IMvision12/ZeroModels">GitHub</a>
   </div>
 </div>
 
@@ -120,10 +120,10 @@ detector, a depth estimator and an LLM costs you nothing.
 <div markdown="1">
 
 ```shell
-pip install -U kerasformers
+pip install -U zeromodels
 ```
 
-Weights come from the [`kerasformers`](https://huggingface.co/kerasformers) org
+Weights come from the [`zeromodels`](https://huggingface.co/zeromodels) org
 on the Hub, and the same identifier builds both the model and its processor, so
 the resolution and normalization always match the checkpoint.
 
@@ -137,10 +137,10 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.detr import DETRDetect, DETRImageProcessor
+from zeromodels.models.detr import DETRDetect, DETRImageProcessor
 
-model = DETRDetect.from_weights("kerasformers/detr-resnet-50")
-processor = DETRImageProcessor.from_weights("kerasformers/detr-resnet-50")
+model = DETRDetect.from_weights("zeromodels/detr-resnet-50")
+processor = DETRImageProcessor.from_weights("zeromodels/detr-resnet-50")
 
 image = Image.open("photo.jpg").convert("RGB")
 output = model(processor(image)["pixel_values"], training=False)
@@ -179,11 +179,11 @@ including the class count of a fine-tune, are read from the repo config.
 <div markdown="1">
 
 ```python
-from kerasformers.models.qwen3 import Qwen3TextGenerate
-from kerasformers.models.segformer import SegFormerSemanticSegment
+from zeromodels.models.qwen3 import Qwen3TextGenerate
+from zeromodels.models.segformer import SegFormerSemanticSegment
 
 # Preconverted Keras weights (kf_config.json)
-SegFormerSemanticSegment.from_weights("kerasformers/segformer_b0_ade_512")
+SegFormerSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
 
 # Bare variant: converted from upstream on the fly
 Qwen3TextGenerate.from_weights("qwen3-8b")
@@ -193,7 +193,7 @@ SegFormerSemanticSegment.from_weights("hf:nvidia/segformer-b0-finetuned-ade-512-
 
 # Architecture only, randomly initialized
 SegFormerSemanticSegment.from_weights(
-    "kerasformers/segformer_b0_ade_512", load_weights=False
+    "zeromodels/segformer_b0_ade_512", load_weights=False
 )
 ```
 
@@ -276,14 +276,14 @@ keras.config.set_image_data_format("channels_first")
 <div markdown="1">
 
 ```python
-from kerasformers.models.gpt_oss import GptOssTextGenerate
+from zeromodels.models.gpt_oss import GptOssTextGenerate
 
 # Experts stay packed in MXFP4, dequantized in the expert layer's call
-model = GptOssTextGenerate.from_weights("kerasformers/gpt-oss-120b")
+model = GptOssTextGenerate.from_weights("zeromodels/gpt-oss-120b")
 
 # Quantize weight-only on the way in, for a smaller footprint again
 model = GptOssTextGenerate.from_weights(
-    "kerasformers/gpt-oss-120b", quantization="int8"
+    "zeromodels/gpt-oss-120b", quantization="int8"
 )
 ```
 
@@ -348,10 +348,10 @@ Transcription and speech-aware language models.
 </div>
 
 <div class="kf-cta">
-  <h2>Ready to use KerasFormers?</h2>
+  <h2>Ready to use ZeroModels?</h2>
   <p>One install, 118 model families, three backends.</p>
   <div class="kf-actions">
     <a class="kf-btn kf-btn--primary" href="getting_started/">Get started</a>
-    <a class="kf-btn kf-btn--ghost" href="https://huggingface.co/kerasformers">Weights on the Hub</a>
+    <a class="kf-btn kf-btn--ghost" href="https://huggingface.co/zeromodels">Weights on the Hub</a>
   </div>
 </div>

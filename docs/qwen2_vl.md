@@ -2,11 +2,11 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code>, <code>kf_preprocessor.json</code> and
 <code>tokenizer.json</code> plus the Keras weights: <code>model.weights.h5</code>, or a
 sharded <code>model.weights.json</code> + shards for the 72B). Load the model and
-processor with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+processor with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Alibaba's Qwen2-VL vision-language models, ported to pure Keras 3. A
@@ -17,7 +17,7 @@ uses M-RoPE (multimodal rotary embeddings split across time/height/width).
 
 Links:
 
-- HF collection: [Qwen2-VL](https://huggingface.co/collections/kerasformers/qwen2-vl-6a7cda6f1cbf2cf66e7b5d36)
+- HF collection: [Qwen2-VL](https://huggingface.co/collections/zeromodels/qwen2-vl-6a7cda6f1cbf2cf66e7b5d36)
 - Paper: [Qwen2-VL: Enhancing Vision-Language Model's Perception of the World at Any Resolution (arXiv:2409.12191)](https://arxiv.org/abs/2409.12191)
 - HF docs: [transformers/model_doc/qwen2_vl](https://huggingface.co/docs/transformers/model_doc/qwen2_vl)
 
@@ -25,20 +25,20 @@ See also [qwen2_5_vl.md](qwen2_5_vl.md), [qwen3_vl.md](qwen3_vl.md).
 
 ## Variants
 
-Preconverted, bf16 weights are hosted under `kerasformers/`. Load with
-`from_weights("kerasformers/<variant>")`; the `-instruct` suffix marks
+Preconverted, bf16 weights are hosted under `zeromodels/`. Load with
+`from_weights("zeromodels/<variant>")`; the `-instruct` suffix marks
 instruction-tuned checkpoints (use the chat template via `Qwen2VLProcessor`), bare
 names are base models. The 2B / 7B sizes are Apache 2.0; the 72B is under the Qwen
 license.
 
 | Variant | Hub |
 |---|---|
-| `qwen2-vl-2b` | [`kerasformers/qwen2-vl-2b`](https://huggingface.co/kerasformers/qwen2-vl-2b) |
-| `qwen2-vl-2b-instruct` | [`kerasformers/qwen2-vl-2b-instruct`](https://huggingface.co/kerasformers/qwen2-vl-2b-instruct) |
-| `qwen2-vl-7b` | [`kerasformers/qwen2-vl-7b`](https://huggingface.co/kerasformers/qwen2-vl-7b) |
-| `qwen2-vl-7b-instruct` | [`kerasformers/qwen2-vl-7b-instruct`](https://huggingface.co/kerasformers/qwen2-vl-7b-instruct) |
-| `qwen2-vl-72b` | [`kerasformers/qwen2-vl-72b`](https://huggingface.co/kerasformers/qwen2-vl-72b) |
-| `qwen2-vl-72b-instruct` | [`kerasformers/qwen2-vl-72b-instruct`](https://huggingface.co/kerasformers/qwen2-vl-72b-instruct) |
+| `qwen2-vl-2b` | [`zeromodels/qwen2-vl-2b`](https://huggingface.co/zeromodels/qwen2-vl-2b) |
+| `qwen2-vl-2b-instruct` | [`zeromodels/qwen2-vl-2b-instruct`](https://huggingface.co/zeromodels/qwen2-vl-2b-instruct) |
+| `qwen2-vl-7b` | [`zeromodels/qwen2-vl-7b`](https://huggingface.co/zeromodels/qwen2-vl-7b) |
+| `qwen2-vl-7b-instruct` | [`zeromodels/qwen2-vl-7b-instruct`](https://huggingface.co/zeromodels/qwen2-vl-7b-instruct) |
+| `qwen2-vl-72b` | [`zeromodels/qwen2-vl-72b`](https://huggingface.co/zeromodels/qwen2-vl-72b) |
+| `qwen2-vl-72b-instruct` | [`zeromodels/qwen2-vl-72b-instruct`](https://huggingface.co/zeromodels/qwen2-vl-72b-instruct) |
 
 Upstream Qwen safetensors also load directly via the `hf:` prefix, e.g.
 `from_weights("hf:Qwen/Qwen2-VL-7B-Instruct")`, which converts them in process (pass
@@ -99,15 +99,15 @@ produces them for you.
 Text-only counterpart of `Qwen2VLConditionalGenerate`, built with no vision tower
 (`build_vision=False`), so `.generate()` takes just token ids. It reads only the language
 model out of a Qwen2-VL checkpoint: `hf:` conversion copies just the text weights (the
-vision keys are never touched), and a kerasformers repo declaring
+vision keys are never touched), and a zeromodels repo declaring
 `Qwen2VLConditionalGenerate` is read through `FULL_CHECKPOINT_SOURCES`.
 Set `config_class = Qwen2VLTextConfig`.
 
 ```python
-from kerasformers.models.qwen2_vl import Qwen2VLTextGenerate, Qwen2VLTokenizer
+from zeromodels.models.qwen2_vl import Qwen2VLTextGenerate, Qwen2VLTokenizer
 
-model = Qwen2VLTextGenerate.from_weights("kerasformers/qwen2-vl-2b")
-tokenizer = Qwen2VLTokenizer.from_weights("kerasformers/qwen2-vl-2b")
+model = Qwen2VLTextGenerate.from_weights("zeromodels/qwen2-vl-2b")
+tokenizer = Qwen2VLTokenizer.from_weights("zeromodels/qwen2-vl-2b")
 outputs = model.generate(**tokenizer("Who wrote Dune?"), max_new_tokens=32)
 print(tokenizer.decode(outputs[0]))
 ```
@@ -186,10 +186,10 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.qwen2_vl import Qwen2VLConditionalGenerate, Qwen2VLProcessor
+from zeromodels.models.qwen2_vl import Qwen2VLConditionalGenerate, Qwen2VLProcessor
 
-model = Qwen2VLConditionalGenerate.from_weights("kerasformers/qwen2-vl-2b")
-processor = Qwen2VLProcessor.from_weights("kerasformers/qwen2-vl-2b")
+model = Qwen2VLConditionalGenerate.from_weights("zeromodels/qwen2-vl-2b")
+processor = Qwen2VLProcessor.from_weights("zeromodels/qwen2-vl-2b")
 
 image = Image.open("photo.jpg")
 inputs = processor(
@@ -273,10 +273,10 @@ loads just the language model. `Qwen2VLTokenizer` encodes raw text (no chat temp
 pass a prompt you have rendered yourself).
 
 ```python
-from kerasformers.models.qwen2_vl import Qwen2VLTextGenerate, Qwen2VLTokenizer
+from zeromodels.models.qwen2_vl import Qwen2VLTextGenerate, Qwen2VLTokenizer
 
-model = Qwen2VLTextGenerate.from_weights("kerasformers/qwen2-vl-2b")
-tokenizer = Qwen2VLTokenizer.from_weights("kerasformers/qwen2-vl-2b")
+model = Qwen2VLTextGenerate.from_weights("zeromodels/qwen2-vl-2b")
+tokenizer = Qwen2VLTokenizer.from_weights("zeromodels/qwen2-vl-2b")
 outputs = model.generate(**tokenizer("Who wrote Dune?"), max_new_tokens=32)
 print(tokenizer.decode(outputs[0]))
 ```
@@ -288,6 +288,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Qwen2VLConditionalGenerate.from_weights(
-    "kerasformers/qwen2-vl-2b", quantization="int8", load_dtype="bfloat16"
+    "zeromodels/qwen2-vl-2b", quantization="int8", load_dtype="bfloat16"
 )
 ```

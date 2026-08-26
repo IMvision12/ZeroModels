@@ -2,10 +2,10 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> the 30B-A3B checkpoints are hosted as pretrained Keras weights on Hugging
-Face under <a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+Face under <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> and <code>tokenizer.json</code> plus a sharded
 <code>model.weights.json</code> + shards). Load with
-<code>from_weights("kerasformers/&lt;variant&gt;")</code>. The 235B-A22B is not re-hosted;
+<code>from_weights("zeromodels/&lt;variant&gt;")</code>. The 235B-A22B is not re-hosted;
 load it on the fly with the <code>hf:</code> prefix.
 </div>
 
@@ -17,7 +17,7 @@ Memory is governed by **total** parameters, not active ones.
 
 Links:
 
-- HF collection: [Qwen3-MoE](https://huggingface.co/collections/kerasformers/qwen3-moe-6a7f9b1eacaba9aba25a1d63)
+- HF collection: [Qwen3-MoE](https://huggingface.co/collections/zeromodels/qwen3-moe-6a7f9b1eacaba9aba25a1d63)
 - Paper: [Qwen3 Technical Report (arXiv:2505.09388)](https://arxiv.org/abs/2505.09388)
 - HF docs: [transformers/model_doc/qwen3_moe](https://huggingface.co/docs/transformers/model_doc/qwen3_moe)
 
@@ -25,16 +25,16 @@ See also [qwen3.md](qwen3.md), [qwen2_moe.md](qwen2_moe.md).
 
 ## Variants
 
-The 30B-A3B sizes are hosted, preconverted, under `kerasformers/`. Load with
-`from_weights("kerasformers/<variant>")`; the `-base` suffix marks the base checkpoint and
+The 30B-A3B sizes are hosted, preconverted, under `zeromodels/`. Load with
+`from_weights("zeromodels/<variant>")`; the `-base` suffix marks the base checkpoint and
 `-2507` the July 2025 refresh. Qwen3-MoE is Apache 2.0.
 
 | Variant | Hub |
 |---|---|
-| `qwen3-30b-a3b` | [`kerasformers/qwen3-30b-a3b`](https://huggingface.co/kerasformers/qwen3-30b-a3b) |
-| `qwen3-30b-a3b-base` | [`kerasformers/qwen3-30b-a3b-base`](https://huggingface.co/kerasformers/qwen3-30b-a3b-base) |
-| `qwen3-30b-a3b-instruct-2507` | [`kerasformers/qwen3-30b-a3b-instruct-2507`](https://huggingface.co/kerasformers/qwen3-30b-a3b-instruct-2507) |
-| `qwen3-30b-a3b-thinking-2507` | [`kerasformers/qwen3-30b-a3b-thinking-2507`](https://huggingface.co/kerasformers/qwen3-30b-a3b-thinking-2507) |
+| `qwen3-30b-a3b` | [`zeromodels/qwen3-30b-a3b`](https://huggingface.co/zeromodels/qwen3-30b-a3b) |
+| `qwen3-30b-a3b-base` | [`zeromodels/qwen3-30b-a3b-base`](https://huggingface.co/zeromodels/qwen3-30b-a3b-base) |
+| `qwen3-30b-a3b-instruct-2507` | [`zeromodels/qwen3-30b-a3b-instruct-2507`](https://huggingface.co/zeromodels/qwen3-30b-a3b-instruct-2507) |
+| `qwen3-30b-a3b-thinking-2507` | [`zeromodels/qwen3-30b-a3b-thinking-2507`](https://huggingface.co/zeromodels/qwen3-30b-a3b-thinking-2507) |
 
 The **235B-A22B** flagship is not re-hosted (too large); load it on the fly via the `hf:`
 prefix, e.g. `from_weights("hf:Qwen/Qwen3-235B-A22B")` (pass `cache_converted=True` to keep
@@ -118,10 +118,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.qwen3_moe import Qwen3MoeTextGenerate, Qwen3MoeTokenizer
+from zeromodels.models.qwen3_moe import Qwen3MoeTextGenerate, Qwen3MoeTokenizer
 
-model = Qwen3MoeTextGenerate.from_weights("kerasformers/qwen3-30b-a3b")
-tokenizer = Qwen3MoeTokenizer.from_weights("kerasformers/qwen3-30b-a3b")
+model = Qwen3MoeTextGenerate.from_weights("zeromodels/qwen3-30b-a3b")
+tokenizer = Qwen3MoeTokenizer.from_weights("zeromodels/qwen3-30b-a3b")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -152,9 +152,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.qwen3_moe import Qwen3MoeModel
+from zeromodels.models.qwen3_moe import Qwen3MoeModel
 
-backbone = Qwen3MoeModel.from_weights("kerasformers/qwen3-30b-a3b")
+backbone = Qwen3MoeModel.from_weights("zeromodels/qwen3-30b-a3b")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -174,6 +174,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Qwen3MoeTextGenerate.from_weights(
-    "kerasformers/qwen3-30b-a3b", quantization="int8", load_dtype="bfloat16"
+    "zeromodels/qwen3-30b-a3b", quantization="int8", load_dtype="bfloat16"
 )
 ```

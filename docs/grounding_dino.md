@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Grounding DINO detects objects named by a free-text prompt rather than a fixed label set. A Swin image backbone and a BERT text encoder are fused by a cross-modality encoder, query proposals are selected by image-text similarity, and boxes are refined DINO-style across six decoder layers. Every output box is scored against the prompt's tokens, so the "classes" are whatever you asked for.
@@ -150,13 +150,13 @@ Both use the same BERT text encoder and a 6-layer decoder with 900 queries.
 ```python
 import torch
 from PIL import Image
-from kerasformers.models.grounding_dino import (
+from zeromodels.models.grounding_dino import (
     GroundingDinoForObjectDetection,
     GroundingDinoProcessor,
 )
 
-model = GroundingDinoForObjectDetection.from_weights("kerasformers/grounding_dino_tiny")
-processor = GroundingDinoProcessor.from_weights("kerasformers/grounding_dino_tiny")
+model = GroundingDinoForObjectDetection.from_weights("zeromodels/grounding_dino_tiny")
+processor = GroundingDinoProcessor.from_weights("zeromodels/grounding_dino_tiny")
 
 image = Image.open("assets/data/coco_paddleboard.jpg").convert("RGB")
 
@@ -203,16 +203,16 @@ across images:
 ```python
 import torch
 from PIL import Image
-from kerasformers.models.grounding_dino import (
+from zeromodels.models.grounding_dino import (
     GroundingDinoForObjectDetection,
     GroundingDinoProcessor,
 )
 
-model = GroundingDinoForObjectDetection.from_weights("kerasformers/grounding_dino_tiny")
+model = GroundingDinoForObjectDetection.from_weights("zeromodels/grounding_dino_tiny")
 # Batching a portrait with a landscape pads to the union of both. At the default
 # 800/1333 that is ~29k tokens per image, enough to exhaust an 8 GB card.
 processor = GroundingDinoProcessor.from_weights(
-    "kerasformers/grounding_dino_tiny",
+    "zeromodels/grounding_dino_tiny",
     shortest_edge=600,
     longest_edge=1000,
 )
@@ -279,7 +279,7 @@ the resolution on the processor alone:
 
 ```python
 processor = GroundingDinoProcessor.from_weights(
-    "kerasformers/grounding_dino_tiny",
+    "zeromodels/grounding_dino_tiny",
     shortest_edge=480,
     longest_edge=800,
 )
@@ -309,8 +309,8 @@ import keras
 
 keras.config.set_image_data_format("channels_first")
 
-model = GroundingDinoForObjectDetection.from_weights("kerasformers/grounding_dino_tiny")
-processor = GroundingDinoProcessor.from_weights("kerasformers/grounding_dino_tiny")
+model = GroundingDinoForObjectDetection.from_weights("zeromodels/grounding_dino_tiny")
+processor = GroundingDinoProcessor.from_weights("zeromodels/grounding_dino_tiny")
 ```
 
 Detections are identical under either layout; only the tensor shape changes. The
@@ -323,7 +323,7 @@ Any Hugging Face repo whose `model_type` is `"grounding-dino"` loads directly wi
 `hf:` prefix.
 
 ```python
-from kerasformers.models.grounding_dino import GroundingDinoForObjectDetection
+from zeromodels.models.grounding_dino import GroundingDinoForObjectDetection
 
 # The original IDEA-Research checkpoints
 model = GroundingDinoForObjectDetection.from_weights(
@@ -344,5 +344,5 @@ Both model classes accept `hf:`, as do `GroundingDinoProcessor`,
 processor = GroundingDinoProcessor.from_weights("hf:IDEA-Research/grounding-dino-tiny")
 ```
 
-Loading `hf:IDEA-Research/grounding-dino-tiny` and the `kerasformers/grounding_dino_tiny` Hub
+Loading `hf:IDEA-Research/grounding-dino-tiny` and the `zeromodels/grounding_dino_tiny` Hub
 variant produces identical outputs, since they are the same checkpoint by two routes.

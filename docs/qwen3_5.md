@@ -2,11 +2,11 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> and <code>tokenizer.json</code> plus the
 Keras weights: <code>model.weights.h5</code>, or a sharded <code>model.weights.json</code> +
 shards for the larger checkpoints). Load with
-<code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+<code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Alibaba's Qwen3.5 (Qwen3-Next) hybrid-attention model, ported to pure Keras 3. It
@@ -22,30 +22,30 @@ just the text backbone, dropping the vision tower.
 
 See also [qwen3.md](qwen3.md), [qwen3_next.md](qwen3_next.md).
 
-Collection: [Qwen3.5](https://huggingface.co/collections/kerasformers/qwen35-6a7e5421737d73e63669ebb9)
+Collection: [Qwen3.5](https://huggingface.co/collections/zeromodels/qwen35-6a7e5421737d73e63669ebb9)
 
 ## Variants
 
-Preconverted, bf16 weights are hosted under `kerasformers/`. Load with
-`from_weights("kerasformers/<variant>")`; the `-base` suffix marks the base
+Preconverted, bf16 weights are hosted under `zeromodels/`. Load with
+`from_weights("zeromodels/<variant>")`; the `-base` suffix marks the base
 (non-instruction-tuned) checkpoints. Qwen3.5 is Apache 2.0. The MoE sizes live on
 [qwen3_5_moe.md](qwen3_5_moe.md).
 
 | Variant | Hub |
 |---|---|
-| `qwen3.5-0.8b` | [`kerasformers/qwen3.5-0.8b`](https://huggingface.co/kerasformers/qwen3.5-0.8b) |
-| `qwen3.5-0.8b-base` | [`kerasformers/qwen3.5-0.8b-base`](https://huggingface.co/kerasformers/qwen3.5-0.8b-base) |
-| `qwen3.5-2b` | [`kerasformers/qwen3.5-2b`](https://huggingface.co/kerasformers/qwen3.5-2b) |
-| `qwen3.5-2b-base` | [`kerasformers/qwen3.5-2b-base`](https://huggingface.co/kerasformers/qwen3.5-2b-base) |
-| `qwen3.5-4b` | [`kerasformers/qwen3.5-4b`](https://huggingface.co/kerasformers/qwen3.5-4b) |
-| `qwen3.5-4b-base` | [`kerasformers/qwen3.5-4b-base`](https://huggingface.co/kerasformers/qwen3.5-4b-base) |
-| `qwen3.5-9b` | [`kerasformers/qwen3.5-9b`](https://huggingface.co/kerasformers/qwen3.5-9b) |
-| `qwen3.5-9b-base` | [`kerasformers/qwen3.5-9b-base`](https://huggingface.co/kerasformers/qwen3.5-9b-base) |
-| `qwen3.5-27b` | [`kerasformers/qwen3.5-27b`](https://huggingface.co/kerasformers/qwen3.5-27b) |
-| `qwen3.8-27b` | [`kerasformers/qwen3.8-27b`](https://huggingface.co/kerasformers/qwen3.8-27b) |
+| `qwen3.5-0.8b` | [`zeromodels/qwen3.5-0.8b`](https://huggingface.co/zeromodels/qwen3.5-0.8b) |
+| `qwen3.5-0.8b-base` | [`zeromodels/qwen3.5-0.8b-base`](https://huggingface.co/zeromodels/qwen3.5-0.8b-base) |
+| `qwen3.5-2b` | [`zeromodels/qwen3.5-2b`](https://huggingface.co/zeromodels/qwen3.5-2b) |
+| `qwen3.5-2b-base` | [`zeromodels/qwen3.5-2b-base`](https://huggingface.co/zeromodels/qwen3.5-2b-base) |
+| `qwen3.5-4b` | [`zeromodels/qwen3.5-4b`](https://huggingface.co/zeromodels/qwen3.5-4b) |
+| `qwen3.5-4b-base` | [`zeromodels/qwen3.5-4b-base`](https://huggingface.co/zeromodels/qwen3.5-4b-base) |
+| `qwen3.5-9b` | [`zeromodels/qwen3.5-9b`](https://huggingface.co/zeromodels/qwen3.5-9b) |
+| `qwen3.5-9b-base` | [`zeromodels/qwen3.5-9b-base`](https://huggingface.co/zeromodels/qwen3.5-9b-base) |
+| `qwen3.5-27b` | [`zeromodels/qwen3.5-27b`](https://huggingface.co/zeromodels/qwen3.5-27b) |
+| `qwen3.8-27b` | [`zeromodels/qwen3.8-27b`](https://huggingface.co/zeromodels/qwen3.8-27b) |
 
 `qwen3.8-27b` is Alibaba's Qwen3.8-27B, which shares this same Qwen3.5 architecture (it
-loads under `kerasformers.models.qwen3_5`): the full vision-language checkpoint, driven by
+loads under `zeromodels.models.qwen3_5`): the full vision-language checkpoint, driven by
 `Qwen3_5ConditionalGenerate` for image + text or `Qwen3_5TextGenerate` for text-only.
 
 Upstream Qwen safetensors also load directly via the `hf:` prefix, e.g.
@@ -172,10 +172,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.qwen3_5 import Qwen3_5TextGenerate, Qwen3_5Tokenizer
+from zeromodels.models.qwen3_5 import Qwen3_5TextGenerate, Qwen3_5Tokenizer
 
-model = Qwen3_5TextGenerate.from_weights("kerasformers/qwen3.5-0.8b")
-tokenizer = Qwen3_5Tokenizer.from_weights("kerasformers/qwen3.5-0.8b")
+model = Qwen3_5TextGenerate.from_weights("zeromodels/qwen3.5-0.8b")
+tokenizer = Qwen3_5Tokenizer.from_weights("zeromodels/qwen3.5-0.8b")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -188,10 +188,10 @@ print(tokenizer.decode(outputs[0]))
 ### Single input (image + text)
 
 ```python
-from kerasformers.models.qwen3_5 import Qwen3_5ConditionalGenerate, Qwen3_5Processor
+from zeromodels.models.qwen3_5 import Qwen3_5ConditionalGenerate, Qwen3_5Processor
 
-model = Qwen3_5ConditionalGenerate.from_weights("kerasformers/qwen3.5-4b")
-processor = Qwen3_5Processor.from_weights("kerasformers/qwen3.5-4b")
+model = Qwen3_5ConditionalGenerate.from_weights("zeromodels/qwen3.5-4b")
+processor = Qwen3_5Processor.from_weights("zeromodels/qwen3.5-4b")
 
 conversation = [
     {
@@ -230,9 +230,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.qwen3_5 import Qwen3_5Model
+from zeromodels.models.qwen3_5 import Qwen3_5Model
 
-backbone = Qwen3_5Model.from_weights("kerasformers/qwen3.5-0.8b")
+backbone = Qwen3_5Model.from_weights("zeromodels/qwen3.5-0.8b")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -252,6 +252,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Qwen3_5TextGenerate.from_weights(
-    "kerasformers/qwen3.5-0.8b", quantization="int8", load_dtype="bfloat16"
+    "zeromodels/qwen3.5-0.8b", quantization="int8", load_dtype="bfloat16"
 )
 ```

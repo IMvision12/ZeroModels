@@ -44,7 +44,7 @@ def test_quantized_layer_serialization():
 
     int8 / int4 only so it is backend-portable (fp8 is torch/jax-only).
     """
-    from kerasformers.quantization import (
+    from zeromodels.quantization import (
         QuantizedDense,
         QuantizedEinsumDense,
         QuantizedEmbedding,
@@ -110,7 +110,7 @@ def _toy_quantizable_model(name="toy"):
 def test_quantize_in_place_paths_have_no_collisions():
     """In-place swap keeps full layer paths (no `block_*/q` -> bare `q` collapse),
     so the sharded `.weights.json` format round-trips."""
-    from kerasformers.quantization import quantize_model
+    from zeromodels.quantization import quantize_model
 
     model = _toy_quantizable_model()
     quantize_model(model, "int4")
@@ -124,8 +124,8 @@ def test_no_float_load_matches_load_then_quantize():
     import numpy as np
     from keras import ops
 
-    from kerasformers.conversion.weight_transfer_util import transfer_weights
-    from kerasformers.quantization import quantize_and_load, quantize_model
+    from zeromodels.conversion.weight_transfer_util import transfer_weights
+    from zeromodels.quantization import quantize_and_load, quantize_model
 
     def transfer(model, sd):
         if not model.built or not model.weights:

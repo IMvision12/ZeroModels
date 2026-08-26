@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 DINOv3 pushes [DINOv2](dinov2.md)'s self-supervised features further, on 1.7 B images, and
@@ -92,7 +92,7 @@ feature map (`(B, 7, 7, 768)` for the tiny variant under `channels_last`), or wi
 
 ## Preprocessing
 
-`DinoV3ImageProcessor.from_weights("kerasformers/<variant>")` reads its settings from the
+`DinoV3ImageProcessor.from_weights("zeromodels/<variant>")` reads its settings from the
 repo's `kf_preprocessor.json`; `DinoV3ImageProcessor()` with no arguments gives the same
 defaults. Two matching options:
 
@@ -102,13 +102,13 @@ defaults. Two matching options:
   normalizes, load the model with `include_normalization=False`:
 
   ```python
-  from kerasformers.models.dino_v3 import DinoV3ViTModel, DinoV3ImageProcessor
+  from zeromodels.models.dino_v3 import DinoV3ViTModel, DinoV3ImageProcessor
 
   model = DinoV3ViTModel.from_weights(
-      "kerasformers/dinov3-vitb16-pretrain-lvd1689m", include_normalization=False
+      "zeromodels/dinov3-vitb16-pretrain-lvd1689m", include_normalization=False
   )
   processor = DinoV3ImageProcessor.from_weights(
-      "kerasformers/dinov3-vitb16-pretrain-lvd1689m"
+      "zeromodels/dinov3-vitb16-pretrain-lvd1689m"
   )
 
   pixel_values = processor("bear.jpg")["pixel_values"]  # (1, 224, 224, 3), normalized
@@ -147,16 +147,16 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.dino_v3 import DinoV3ImageProcessor, DinoV3ViTModel
+from zeromodels.models.dino_v3 import DinoV3ImageProcessor, DinoV3ViTModel
 
 size, patch, registers = 1024, 16, 4
 model = DinoV3ViTModel.from_weights(
-    "kerasformers/dinov3-vitl16-pretrain-lvd1689m",
+    "zeromodels/dinov3-vitl16-pretrain-lvd1689m",
     image_size=size,
     include_normalization=False,
 )
 processor = DinoV3ImageProcessor.from_weights(
-    "kerasformers/dinov3-vitl16-pretrain-lvd1689m", image_resolution=size
+    "zeromodels/dinov3-vitl16-pretrain-lvd1689m", image_resolution=size
 )
 
 x = processor("assets/data/coco_dog_yard.jpg")["pixel_values"]  # (1, 1024, 1024, 3)
@@ -203,16 +203,16 @@ Stack images that share a size into one batch:
 import keras
 import numpy as np
 import torch
-from kerasformers.models.dino_v3 import DinoV3ImageProcessor, DinoV3ViTModel
+from zeromodels.models.dino_v3 import DinoV3ImageProcessor, DinoV3ViTModel
 
 size = 1024
 model = DinoV3ViTModel.from_weights(
-    "kerasformers/dinov3-vitl16-pretrain-lvd1689m",
+    "zeromodels/dinov3-vitl16-pretrain-lvd1689m",
     image_size=size,
     include_normalization=False,
 )
 processor = DinoV3ImageProcessor.from_weights(
-    "kerasformers/dinov3-vitl16-pretrain-lvd1689m", image_resolution=size
+    "zeromodels/dinov3-vitl16-pretrain-lvd1689m", image_resolution=size
 )
 
 paths = ["assets/data/deer.jpg", "assets/data/mountain.jpg"]
@@ -238,7 +238,7 @@ segmentation head:
 
 ```python
 model = DinoV3ViTModel.from_weights(
-    "kerasformers/dinov3-vitl16-pretrain-lvd1689m", as_backbone=True, image_size=size
+    "zeromodels/dinov3-vitl16-pretrain-lvd1689m", as_backbone=True, image_size=size
 )
 features = model(x, training=False)  # x from above, at 1024
 print(len(features), features[-1].shape)  # (1, 4101, 1024) per map
@@ -263,19 +263,19 @@ model was trained at 224), at the usual quadratic cost in tokens.
 ## Loading Fine-tuned and Community Weights
 
 Any Hugging Face repo whose `model_type` is `"dinov3_vit"` or `"dinov3_convnext"` loads
-with the `hf:` prefix. The kerasformers Hub weights above are free to pull, but the
+with the `hf:` prefix. The zeromodels Hub weights above are free to pull, but the
 upstream `facebook/dinov3-*` checkpoints are gated, so accept Meta's license there before
 using an `hf:facebook/dinov3-*` id.
 
 ```python
-from kerasformers.models.dino_v3 import DinoV3ViTModel
+from zeromodels.models.dino_v3 import DinoV3ViTModel
 
 model = DinoV3ViTModel.from_weights("hf:facebook/dinov3-vits16-pretrain-lvd1689m")
 model = DinoV3ViTModel.from_weights("hf:<user>/dinov3-finetuned")
 
 # Architecture only, randomly initialized
 model = DinoV3ViTModel.from_weights(
-    "kerasformers/dinov3-vitl16-pretrain-lvd1689m", load_weights=False
+    "zeromodels/dinov3-vitl16-pretrain-lvd1689m", load_weights=False
 )
 ```
 

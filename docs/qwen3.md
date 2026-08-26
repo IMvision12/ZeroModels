@@ -2,11 +2,11 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> and <code>tokenizer.json</code> plus the
 Keras weights: <code>model.weights.h5</code>, or a sharded <code>model.weights.json</code> +
 shards for the larger checkpoints). Load with
-<code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+<code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Alibaba's Qwen3 dense decoder-only LLM, ported to pure Keras 3. It drops Qwen2's
@@ -15,7 +15,7 @@ attention), keeping RMSNorm, SwiGLU and grouped-query attention otherwise.
 
 Links:
 
-- HF collection: [Qwen3](https://huggingface.co/collections/kerasformers/qwen3-6a7d3fcc4e56b32e86f5b2c4)
+- HF collection: [Qwen3](https://huggingface.co/collections/zeromodels/qwen3-6a7d3fcc4e56b32e86f5b2c4)
 - Paper: [Qwen3 Technical Report (arXiv:2505.09388)](https://arxiv.org/abs/2505.09388)
 - HF docs: [transformers/model_doc/qwen3](https://huggingface.co/docs/transformers/model_doc/qwen3)
 
@@ -23,27 +23,27 @@ See also [qwen2.md](qwen2.md), [qwen3_moe.md](qwen3_moe.md).
 
 ## Variants
 
-Preconverted, bf16 weights are hosted under `kerasformers/`. Load with
-`from_weights("kerasformers/<variant>")`; the `-base` suffix marks the base
+Preconverted, bf16 weights are hosted under `zeromodels/`. Load with
+`from_weights("zeromodels/<variant>")`; the `-base` suffix marks the base
 (non-instruction-tuned) checkpoints, and the `-2507` variants are the July 2025 refresh
 (same 4B architecture, longer context). Qwen3 is Apache 2.0. The MoE sizes live on
 [qwen3_moe.md](qwen3_moe.md).
 
 | Variant | Hub |
 |---|---|
-| `qwen3-0.6b` | [`kerasformers/qwen3-0.6b`](https://huggingface.co/kerasformers/qwen3-0.6b) |
-| `qwen3-0.6b-base` | [`kerasformers/qwen3-0.6b-base`](https://huggingface.co/kerasformers/qwen3-0.6b-base) |
-| `qwen3-1.7b` | [`kerasformers/qwen3-1.7b`](https://huggingface.co/kerasformers/qwen3-1.7b) |
-| `qwen3-1.7b-base` | [`kerasformers/qwen3-1.7b-base`](https://huggingface.co/kerasformers/qwen3-1.7b-base) |
-| `qwen3-4b` | [`kerasformers/qwen3-4b`](https://huggingface.co/kerasformers/qwen3-4b) |
-| `qwen3-4b-base` | [`kerasformers/qwen3-4b-base`](https://huggingface.co/kerasformers/qwen3-4b-base) |
-| `qwen3-4b-instruct-2507` | [`kerasformers/qwen3-4b-instruct-2507`](https://huggingface.co/kerasformers/qwen3-4b-instruct-2507) |
-| `qwen3-4b-thinking-2507` | [`kerasformers/qwen3-4b-thinking-2507`](https://huggingface.co/kerasformers/qwen3-4b-thinking-2507) |
-| `qwen3-8b` | [`kerasformers/qwen3-8b`](https://huggingface.co/kerasformers/qwen3-8b) |
-| `qwen3-8b-base` | [`kerasformers/qwen3-8b-base`](https://huggingface.co/kerasformers/qwen3-8b-base) |
-| `qwen3-14b` | [`kerasformers/qwen3-14b`](https://huggingface.co/kerasformers/qwen3-14b) |
-| `qwen3-14b-base` | [`kerasformers/qwen3-14b-base`](https://huggingface.co/kerasformers/qwen3-14b-base) |
-| `qwen3-32b` | [`kerasformers/qwen3-32b`](https://huggingface.co/kerasformers/qwen3-32b) |
+| `qwen3-0.6b` | [`zeromodels/qwen3-0.6b`](https://huggingface.co/zeromodels/qwen3-0.6b) |
+| `qwen3-0.6b-base` | [`zeromodels/qwen3-0.6b-base`](https://huggingface.co/zeromodels/qwen3-0.6b-base) |
+| `qwen3-1.7b` | [`zeromodels/qwen3-1.7b`](https://huggingface.co/zeromodels/qwen3-1.7b) |
+| `qwen3-1.7b-base` | [`zeromodels/qwen3-1.7b-base`](https://huggingface.co/zeromodels/qwen3-1.7b-base) |
+| `qwen3-4b` | [`zeromodels/qwen3-4b`](https://huggingface.co/zeromodels/qwen3-4b) |
+| `qwen3-4b-base` | [`zeromodels/qwen3-4b-base`](https://huggingface.co/zeromodels/qwen3-4b-base) |
+| `qwen3-4b-instruct-2507` | [`zeromodels/qwen3-4b-instruct-2507`](https://huggingface.co/zeromodels/qwen3-4b-instruct-2507) |
+| `qwen3-4b-thinking-2507` | [`zeromodels/qwen3-4b-thinking-2507`](https://huggingface.co/zeromodels/qwen3-4b-thinking-2507) |
+| `qwen3-8b` | [`zeromodels/qwen3-8b`](https://huggingface.co/zeromodels/qwen3-8b) |
+| `qwen3-8b-base` | [`zeromodels/qwen3-8b-base`](https://huggingface.co/zeromodels/qwen3-8b-base) |
+| `qwen3-14b` | [`zeromodels/qwen3-14b`](https://huggingface.co/zeromodels/qwen3-14b) |
+| `qwen3-14b-base` | [`zeromodels/qwen3-14b-base`](https://huggingface.co/zeromodels/qwen3-14b-base) |
+| `qwen3-32b` | [`zeromodels/qwen3-32b`](https://huggingface.co/zeromodels/qwen3-32b) |
 
 Upstream Qwen safetensors also load directly via the `hf:` prefix, e.g.
 `from_weights("hf:Qwen/Qwen3-4B-Instruct-2507")`, which converts them in process (pass
@@ -121,10 +121,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.qwen3 import Qwen3TextGenerate, Qwen3Tokenizer
+from zeromodels.models.qwen3 import Qwen3TextGenerate, Qwen3Tokenizer
 
-model = Qwen3TextGenerate.from_weights("kerasformers/qwen3-0.6b")
-tokenizer = Qwen3Tokenizer.from_weights("kerasformers/qwen3-0.6b")
+model = Qwen3TextGenerate.from_weights("zeromodels/qwen3-0.6b")
+tokenizer = Qwen3Tokenizer.from_weights("zeromodels/qwen3-0.6b")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -155,9 +155,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.qwen3 import Qwen3Model
+from zeromodels.models.qwen3 import Qwen3Model
 
-backbone = Qwen3Model.from_weights("kerasformers/qwen3-0.6b")
+backbone = Qwen3Model.from_weights("zeromodels/qwen3-0.6b")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -177,6 +177,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Qwen3TextGenerate.from_weights(
-    "kerasformers/qwen3-0.6b", quantization="int8", load_dtype="bfloat16"
+    "zeromodels/qwen3-0.6b", quantization="int8", load_dtype="bfloat16"
 )
 ```

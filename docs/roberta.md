@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Facebook AI's RoBERTa in pure Keras 3: a robustly-optimized retraining of BERT's bidirectional
@@ -21,12 +21,12 @@ See also [bert.md](bert.md), [xlm_roberta.md](xlm_roberta.md), [deberta.md](debe
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`.
+Load any of these with `from_weights("zeromodels/<variant>")`.
 
 | Variant | Hub | layers / dim |
 |---|---|---|
-| `roberta_base` | [`kerasformers/roberta_base`](https://huggingface.co/kerasformers/roberta_base) | 12 / 768 |
-| `roberta_large` | [`kerasformers/roberta_large`](https://huggingface.co/kerasformers/roberta_large) | 24 / 1024 |
+| `roberta_base` | [`zeromodels/roberta_base`](https://huggingface.co/zeromodels/roberta_base) | 12 / 768 |
+| `roberta_large` | [`zeromodels/roberta_large`](https://huggingface.co/zeromodels/roberta_large) | 24 / 1024 |
 
 ## API
 
@@ -86,10 +86,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.roberta import RobertaMaskedLM, RobertaTokenizer
+from zeromodels.models.roberta import RobertaMaskedLM, RobertaTokenizer
 
-mlm = RobertaMaskedLM.from_weights("kerasformers/roberta_base")
-tokenizer = RobertaTokenizer.from_weights("kerasformers/roberta_base")
+mlm = RobertaMaskedLM.from_weights("zeromodels/roberta_base")
+tokenizer = RobertaTokenizer.from_weights("zeromodels/roberta_base")
 
 inputs = tokenizer("The capital of France is <mask>.")
 logits = mlm(inputs)  # (1, L, vocab_size)
@@ -100,10 +100,10 @@ print(tokenizer.decode([int(logits[0, mask].argmax())]))  # -> " Paris"
 ### Backbone features
 
 ```python
-from kerasformers.models.roberta import RobertaModel, RobertaTokenizer
+from zeromodels.models.roberta import RobertaModel, RobertaTokenizer
 
-model = RobertaModel.from_weights("kerasformers/roberta_base")
-tokenizer = RobertaTokenizer.from_weights("kerasformers/roberta_base")
+model = RobertaModel.from_weights("zeromodels/roberta_base")
+tokenizer = RobertaTokenizer.from_weights("zeromodels/roberta_base")
 out = model(tokenizer("Hello, world."))
 out["last_hidden_state"]  # (1, L, 768)
 ```
@@ -111,7 +111,7 @@ out["last_hidden_state"]  # (1, L, 768)
 ### Classification (community fine-tunes)
 
 ```python
-from kerasformers.models.roberta import RobertaSequenceClassify, RobertaQnA
+from zeromodels.models.roberta import RobertaSequenceClassify, RobertaQnA
 
 # 3-class NLI (0=CONTRADICTION, 1=NEUTRAL, 2=ENTAILMENT), common for zero-shot
 nli = RobertaSequenceClassify.from_weights("hf:FacebookAI/roberta-large-mnli")

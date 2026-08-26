@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>, stored
-in <b>bfloat16</b>). Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>,
+in <b>bfloat16</b>). Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>,
 or convert an original checkpoint on the fly with
 <code>from_weights("hf:zai-org/GLM-4-9B-0414")</code>. See
 <a href="../loading_weights/">Loading Weights</a>.
@@ -27,16 +27,16 @@ See also [glm4_moe.md](glm4_moe.md), [glm5_moe.md](glm5_moe.md).
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")` (or convert the
+Load any of these with `from_weights("zeromodels/<variant>")` (or convert the
 upstream checkpoint on the fly with `from_weights("hf:<upstream>")`).
 
 | Variant | Hosted | Upstream |
 |---|---|---|
-| `glm-4-9b-0414` | `kerasformers/glm-4-9b-0414` | [`zai-org/GLM-4-9B-0414`](https://huggingface.co/zai-org/GLM-4-9B-0414) |
-| `glm-4-32b-0414` | `kerasformers/glm-4-32b-0414` | [`zai-org/GLM-4-32B-0414`](https://huggingface.co/zai-org/GLM-4-32B-0414) |
-| `glm-4-32b-base-0414` | `kerasformers/glm-4-32b-base-0414` | [`zai-org/GLM-4-32B-Base-0414`](https://huggingface.co/zai-org/GLM-4-32B-Base-0414) |
-| `glm-z1-9b-0414` | `kerasformers/glm-z1-9b-0414` | [`zai-org/GLM-Z1-9B-0414`](https://huggingface.co/zai-org/GLM-Z1-9B-0414) |
-| `glm-z1-32b-0414` | `kerasformers/glm-z1-32b-0414` | [`zai-org/GLM-Z1-32B-0414`](https://huggingface.co/zai-org/GLM-Z1-32B-0414) |
+| `glm-4-9b-0414` | `zeromodels/glm-4-9b-0414` | [`zai-org/GLM-4-9B-0414`](https://huggingface.co/zai-org/GLM-4-9B-0414) |
+| `glm-4-32b-0414` | `zeromodels/glm-4-32b-0414` | [`zai-org/GLM-4-32B-0414`](https://huggingface.co/zai-org/GLM-4-32B-0414) |
+| `glm-4-32b-base-0414` | `zeromodels/glm-4-32b-base-0414` | [`zai-org/GLM-4-32B-Base-0414`](https://huggingface.co/zai-org/GLM-4-32B-Base-0414) |
+| `glm-z1-9b-0414` | `zeromodels/glm-z1-9b-0414` | [`zai-org/GLM-Z1-9B-0414`](https://huggingface.co/zai-org/GLM-Z1-9B-0414) |
+| `glm-z1-32b-0414` | `zeromodels/glm-z1-32b-0414` | [`zai-org/GLM-Z1-32B-0414`](https://huggingface.co/zai-org/GLM-Z1-32B-0414) |
 
 ## API
 
@@ -112,10 +112,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.glm4 import Glm4TextGenerate, Glm4Tokenizer
+from zeromodels.models.glm4 import Glm4TextGenerate, Glm4Tokenizer
 
-model = Glm4TextGenerate.from_weights("kerasformers/glm-4-9b-0414")
-tokenizer = Glm4Tokenizer.from_weights("kerasformers/glm-4-9b-0414")
+model = Glm4TextGenerate.from_weights("zeromodels/glm-4-9b-0414")
+tokenizer = Glm4Tokenizer.from_weights("zeromodels/glm-4-9b-0414")
 
 inputs = tokenizer("Explain rotary embeddings in one sentence.")
 outputs = model.generate(**inputs, max_new_tokens=64)
@@ -144,9 +144,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.glm4 import Glm4Model
+from zeromodels.models.glm4 import Glm4Model
 
-backbone = Glm4Model.from_weights("kerasformers/glm-4-9b-0414")
+backbone = Glm4Model.from_weights("zeromodels/glm-4-9b-0414")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -166,6 +166,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Glm4TextGenerate.from_weights(
-    "kerasformers/glm-4-9b-0414", quantization="int8", load_dtype="bfloat16"
+    "zeromodels/glm-4-9b-0414", quantization="int8", load_dtype="bfloat16"
 )
 ```

@@ -2,10 +2,10 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> the 80B-A3B checkpoints are hosted as pretrained Keras weights on Hugging
-Face under <a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+Face under <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> and <code>tokenizer.json</code> plus a sharded
 <code>model.weights.json</code> + shards). Load with
-<code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+<code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Alibaba's Qwen3-Next (`Qwen3-Next-80B-A3B`), ported to pure Keras 3. A hybrid decoder:
@@ -18,21 +18,21 @@ Memory is governed by **total** parameters, not active ones.
 
 Links:
 
-- HF collection: [Qwen3-Next](https://huggingface.co/collections/kerasformers/qwen3-next-6a7e551ff86ebf2cca455ef1)
+- HF collection: [Qwen3-Next](https://huggingface.co/collections/zeromodels/qwen3-next-6a7e551ff86ebf2cca455ef1)
 - HF docs: [transformers/model_doc/qwen3_next](https://huggingface.co/docs/transformers/model_doc/qwen3_next)
 
 See also [qwen3_5.md](qwen3_5.md), [qwen3_moe.md](qwen3_moe.md).
 
 ## Variants
 
-Preconverted, bf16 weights are hosted under `kerasformers/`. Load with
-`from_weights("kerasformers/<variant>")`; the `-instruct` checkpoint is
+Preconverted, bf16 weights are hosted under `zeromodels/`. Load with
+`from_weights("zeromodels/<variant>")`; the `-instruct` checkpoint is
 instruction-tuned and `-thinking` the reasoning checkpoint. Qwen3-Next is Apache 2.0.
 
 | Variant | Hub |
 |---|---|
-| `qwen3-next-80b-a3b-instruct` | [`kerasformers/qwen3-next-80b-a3b-instruct`](https://huggingface.co/kerasformers/qwen3-next-80b-a3b-instruct) |
-| `qwen3-next-80b-a3b-thinking` | [`kerasformers/qwen3-next-80b-a3b-thinking`](https://huggingface.co/kerasformers/qwen3-next-80b-a3b-thinking) |
+| `qwen3-next-80b-a3b-instruct` | [`zeromodels/qwen3-next-80b-a3b-instruct`](https://huggingface.co/zeromodels/qwen3-next-80b-a3b-instruct) |
+| `qwen3-next-80b-a3b-thinking` | [`zeromodels/qwen3-next-80b-a3b-thinking`](https://huggingface.co/zeromodels/qwen3-next-80b-a3b-thinking) |
 
 Upstream Qwen safetensors also load directly via the `hf:` prefix, e.g.
 `from_weights("hf:Qwen/Qwen3-Next-80B-A3B-Instruct")`, which converts them in process (pass
@@ -124,10 +124,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.qwen3_next import Qwen3NextTextGenerate, Qwen3NextTokenizer
+from zeromodels.models.qwen3_next import Qwen3NextTextGenerate, Qwen3NextTokenizer
 
-model = Qwen3NextTextGenerate.from_weights("kerasformers/qwen3-next-80b-a3b-instruct")
-tokenizer = Qwen3NextTokenizer.from_weights("kerasformers/qwen3-next-80b-a3b-instruct")
+model = Qwen3NextTextGenerate.from_weights("zeromodels/qwen3-next-80b-a3b-instruct")
+tokenizer = Qwen3NextTokenizer.from_weights("zeromodels/qwen3-next-80b-a3b-instruct")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -158,9 +158,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.qwen3_next import Qwen3NextModel
+from zeromodels.models.qwen3_next import Qwen3NextModel
 
-backbone = Qwen3NextModel.from_weights("kerasformers/qwen3-next-80b-a3b-instruct")
+backbone = Qwen3NextModel.from_weights("zeromodels/qwen3-next-80b-a3b-instruct")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -180,7 +180,7 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Qwen3NextTextGenerate.from_weights(
-    "kerasformers/qwen3-next-80b-a3b-instruct",
+    "zeromodels/qwen3-next-80b-a3b-instruct",
     quantization="int8",
     load_dtype="bfloat16",
 )

@@ -2,8 +2,8 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> the Qwen families are hosted as preconverted Keras weights on Hugging Face
-under <a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>; load
-with <code>from_weights("kerasformers/&lt;variant&gt;")</code>. Upstream Qwen safetensors
+under <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>; load
+with <code>from_weights("zeromodels/&lt;variant&gt;")</code>. Upstream Qwen safetensors
 also convert on the fly via the <code>hf:</code> prefix. See the per-family pages for the
 exact variant lists.
 </div>
@@ -21,12 +21,12 @@ unmodified on **TensorFlow / Torch / JAX**.
 
 | Family | Module | Kind | Text decoder |
 |---|---|---|---|
-| Qwen2 | `kerasformers.models.qwen2` | text | Qwen2 (GQA, **qkv bias**, 1-D RoPE) |
-| Qwen3 | `kerasformers.models.qwen3` | text | Qwen3 (**QK-norm**, no qkv bias) |
-| Qwen3.5 | `kerasformers.models.qwen3_5` | text | **Qwen3-Next hybrid** (Gated-DeltaNet + gated full attention) |
-| Qwen2-VL | `kerasformers.models.qwen2_vl` | image+text | Qwen2 |
-| Qwen2.5-VL | `kerasformers.models.qwen2_5_vl` | image+text | Qwen2.5 (windowed vision) |
-| Qwen3-VL | `kerasformers.models.qwen3_vl` | image+text | Qwen3 (interleaved M-RoPE, DeepStack) |
+| Qwen2 | `zeromodels.models.qwen2` | text | Qwen2 (GQA, **qkv bias**, 1-D RoPE) |
+| Qwen3 | `zeromodels.models.qwen3` | text | Qwen3 (**QK-norm**, no qkv bias) |
+| Qwen3.5 | `zeromodels.models.qwen3_5` | text | **Qwen3-Next hybrid** (Gated-DeltaNet + gated full attention) |
+| Qwen2-VL | `zeromodels.models.qwen2_vl` | image+text | Qwen2 |
+| Qwen2.5-VL | `zeromodels.models.qwen2_5_vl` | image+text | Qwen2.5 (windowed vision) |
+| Qwen3-VL | `zeromodels.models.qwen3_vl` | image+text | Qwen3 (interleaved M-RoPE, DeepStack) |
 
 ## Loading
 
@@ -35,17 +35,17 @@ Each family exposes two classes:
 - **`*Model`**: base model; its `call` returns features (`last_hidden_state`).
 - **`*Generate`**: adds the LM head + greedy `.generate()`; `call` returns `logits`.
 
-The canonical path is the **hosted repo id** `kerasformers/<variant>` (preconverted
+The canonical path is the **hosted repo id** `zeromodels/<variant>` (preconverted
 bf16 Keras weights + `kf_config.json`); a raw `hf:` id also converts any matching
 `model_type` on the fly:
 
 ```python
-from kerasformers.models.qwen3 import Qwen3TextGenerate
-from kerasformers.models.qwen2_vl import Qwen2VLConditionalGenerate
+from zeromodels.models.qwen3 import Qwen3TextGenerate
+from zeromodels.models.qwen2_vl import Qwen2VLConditionalGenerate
 
-gen = Qwen3TextGenerate.from_weights("kerasformers/qwen3-4b")  # text
+gen = Qwen3TextGenerate.from_weights("zeromodels/qwen3-4b")  # text
 gen = Qwen2VLConditionalGenerate.from_weights(
-    "kerasformers/qwen2-vl-7b-instruct"
+    "zeromodels/qwen2-vl-7b-instruct"
 )  # multimodal
 # raw hf: ids convert from the upstream safetensors:
 gen = Qwen3TextGenerate.from_weights("hf:Qwen/Qwen3-4B")
@@ -146,17 +146,17 @@ inline in the conversation via `path` / `url` / a PIL image.
 
 Load the tokenizer / processor with `.from_weights(...)`, passing the **same**
 identifier you give the model, so its files match the checkpoint, e.g.
-`Qwen3Tokenizer.from_weights("kerasformers/qwen3-0.6b")` or
-`Qwen2VLProcessor.from_weights("kerasformers/qwen2-vl-2b-instruct")`. The `hf:` prefix
+`Qwen3Tokenizer.from_weights("zeromodels/qwen3-0.6b")` or
+`Qwen2VLProcessor.from_weights("zeromodels/qwen2-vl-2b-instruct")`. The `hf:` prefix
 works too (`Qwen2Tokenizer.from_weights("hf:Qwen/Qwen2-7B-Instruct")`), and the bare
 `Qwen2Tokenizer()` / `Qwen2VLProcessor()` constructors fall back to a default Qwen repo.
 
 ```python
 # text LLM: tokenizer takes the chat messages
-from kerasformers.models.qwen3 import Qwen3TextGenerate, Qwen3Tokenizer
+from zeromodels.models.qwen3 import Qwen3TextGenerate, Qwen3Tokenizer
 
-model = Qwen3TextGenerate.from_weights("kerasformers/qwen3-0.6b")
-tokenizer = Qwen3Tokenizer.from_weights("kerasformers/qwen3-0.6b")
+model = Qwen3TextGenerate.from_weights("zeromodels/qwen3-0.6b")
+tokenizer = Qwen3Tokenizer.from_weights("zeromodels/qwen3-0.6b")
 
 messages = [
     {"role": "system", "content": "You are a helpful assistant."},
@@ -167,10 +167,10 @@ outputs = model.generate(**inputs, max_new_tokens=128)
 print(tokenizer.decode(outputs[0]))
 
 # vision-language: processor takes the conversation (images inline)
-from kerasformers.models.qwen2_vl import Qwen2VLConditionalGenerate, Qwen2VLProcessor
+from zeromodels.models.qwen2_vl import Qwen2VLConditionalGenerate, Qwen2VLProcessor
 
-model = Qwen2VLConditionalGenerate.from_weights("kerasformers/qwen2-vl-2b-instruct")
-processor = Qwen2VLProcessor.from_weights("kerasformers/qwen2-vl-2b-instruct")
+model = Qwen2VLConditionalGenerate.from_weights("zeromodels/qwen2-vl-2b-instruct")
+processor = Qwen2VLProcessor.from_weights("zeromodels/qwen2-vl-2b-instruct")
 
 conversation = [
     {
@@ -195,7 +195,7 @@ repeat the frame to fill `temporal_patch_size`, and reshape into the
 HF exactly; pixels match to a small bicubic tolerance.
 
 ```python
-from kerasformers.models.qwen2_vl.qwen2_vl_image_processor import Qwen2VLImageProcessor
+from zeromodels.models.qwen2_vl.qwen2_vl_image_processor import Qwen2VLImageProcessor
 
 feat = Qwen2VLImageProcessor()(pil_image)  # {"pixel_values", "image_grid_thw"}
 ```

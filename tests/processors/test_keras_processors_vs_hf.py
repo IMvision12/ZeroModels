@@ -65,7 +65,7 @@ def _legs(cls, repo):
 
 
 def test_clip_processor_three_way():
-    from kerasformers.models.clip.clip_processor import CLIPProcessor
+    from zeromodels.models.clip.clip_processor import CLIPProcessor
 
     repo = "openai/clip-vit-base-patch16"
     hf = _auto_processor(repo)
@@ -85,7 +85,7 @@ def test_clip_processor_three_way():
 
 
 def test_siglip_processor_three_way():
-    from kerasformers.models.siglip.siglip_processor import SigLIPProcessor
+    from zeromodels.models.siglip.siglip_processor import SigLIPProcessor
 
     repo = "google/siglip-base-patch16-224"
     hf = _auto_processor(repo)
@@ -110,7 +110,7 @@ def test_siglip_processor_three_way():
 
 
 def test_owlvit_processor_three_way():
-    from kerasformers.models.owlvit.owlvit_processor import OwlViTProcessor
+    from zeromodels.models.owlvit.owlvit_processor import OwlViTProcessor
 
     repo = "google/owlvit-base-patch32"
     hf = _auto_processor(repo)
@@ -129,7 +129,7 @@ def test_owlvit_processor_three_way():
 
 
 def test_whisper_processor_three_way():
-    from kerasformers.models.whisper.whisper_processor import WhisperProcessor
+    from zeromodels.models.whisper.whisper_processor import WhisperProcessor
 
     repo = "openai/whisper-tiny"
     hf = _auto_processor(repo)
@@ -170,7 +170,7 @@ def _pil_processor(repo):
     """The PIL-backed HF reference.
 
     transformers 5.x makes the torchvision backend the default under the plain
-    name, and the two disagree by ~1.5e-2 on a resize. kerasformers implements
+    name, and the two disagree by ~1.5e-2 on a resize. zeromodels implements
     PIL semantics (what the original models shipped), so compare against PIL.
     """
     try:
@@ -180,7 +180,7 @@ def _pil_processor(repo):
 
 
 def test_clip_processor_non_square_parity():
-    from kerasformers.models.clip.clip_processor import CLIPProcessor
+    from zeromodels.models.clip.clip_processor import CLIPProcessor
 
     repo = "openai/clip-vit-base-patch16"
     hf = _pil_processor(repo)
@@ -212,7 +212,7 @@ def test_processor_snapshot(name, repo, cls_path):
     import importlib
 
     module, cls_name = cls_path.rsplit(".", 1)
-    cls = getattr(importlib.import_module(f"kerasformers.models.{module}"), cls_name)
+    cls = getattr(importlib.import_module(f"zeromodels.models.{module}"), cls_name)
     out = cls()(text=MM_TEXTS, images=_rgb_shape((64, 48)))
     ids_key = "input_ids" if "input_ids" in out else "token_ids"
     pixel_key = "images" if "images" in out else "pixel_values"

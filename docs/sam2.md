@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 SAM2 keeps [SAM](sam.md)'s promptable formulation and replaces the plain ViT with a **Hiera** backbone: a hierarchical encoder that produces multi-scale features, feeding an FPN neck before the mask decoder. The result is both faster and sharper at object boundaries than the original.
@@ -73,7 +73,7 @@ SAM2Processor(target_length=1024, image_mean=None, image_std=None, data_format=N
 
 Stretches the image to a square `target_length`, normalizes, and rescales prompt
 coordinates the same way. Load it with
-`SAM2Processor.from_weights("kerasformers/sam2_hiera_<size>")`, which reads the repo's
+`SAM2Processor.from_weights("zeromodels/sam2_hiera_<size>")`, which reads the repo's
 `kf_preprocessor.json`.
 
 > **SAM2 stretches, SAM pads.** SAM resizes the long edge and pads the short one, so a
@@ -134,13 +134,13 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.sam2 import (
+from zeromodels.models.sam2 import (
     SAM2Processor,
     SAM2PromptableSegment,
 )
 
-model = SAM2PromptableSegment.from_weights("kerasformers/sam2_hiera_tiny")
-processor = SAM2Processor.from_weights("kerasformers/sam2_hiera_tiny")
+model = SAM2PromptableSegment.from_weights("zeromodels/sam2_hiera_tiny")
+processor = SAM2Processor.from_weights("zeromodels/sam2_hiera_tiny")
 
 image = Image.open("assets/data/coco_cats.jpg").convert("RGB")
 
@@ -235,15 +235,15 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.sam2 import (
+from zeromodels.models.sam2 import (
     SAM2Processor,
     SAM2PromptableSegment,
 )
 
 model = SAM2PromptableSegment.from_weights(
-    "kerasformers/sam2_hiera_tiny", include_box_input=True
+    "zeromodels/sam2_hiera_tiny", include_box_input=True
 )
-processor = SAM2Processor.from_weights("kerasformers/sam2_hiera_tiny")
+processor = SAM2Processor.from_weights("zeromodels/sam2_hiera_tiny")
 image = Image.open("assets/data/coco_cats.jpg").convert("RGB")
 
 # (x1, y1, x2, y2) in original pixel space, shaped (batch, num_boxes, 4).
@@ -291,9 +291,9 @@ quality and stability filtering.
 
 ```python
 import torch
-from kerasformers.models.sam2 import SAM2GenerateMasks, SAM2PromptableSegment
+from zeromodels.models.sam2 import SAM2GenerateMasks, SAM2PromptableSegment
 
-model = SAM2PromptableSegment.from_weights("kerasformers/sam2_hiera_tiny")
+model = SAM2PromptableSegment.from_weights("zeromodels/sam2_hiera_tiny")
 
 with torch.no_grad():
     result = SAM2GenerateMasks(
@@ -337,13 +337,13 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.sam2 import (
+from zeromodels.models.sam2 import (
     SAM2Processor,
     SAM2PromptableSegment,
 )
 
-model = SAM2PromptableSegment.from_weights("kerasformers/sam2_hiera_tiny")
-processor = SAM2Processor.from_weights("kerasformers/sam2_hiera_tiny")
+model = SAM2PromptableSegment.from_weights("zeromodels/sam2_hiera_tiny")
+processor = SAM2Processor.from_weights("zeromodels/sam2_hiera_tiny")
 image = Image.open("assets/data/coco_cats.jpg").convert("RGB")
 
 # Run the Hiera backbone once.
@@ -387,8 +387,8 @@ splitting the graph changes nothing but where the time goes.
 and those skip connections are where the sharper boundaries come from. Splatting the
 dict with `**features` keeps all three.
 
-> **`SAM2Model` is the encoder-only class**, but it has no dedicated kerasformers Hub repo of its own, so
-> `SAM2Model.from_weights("kerasformers/sam2_hiera_tiny")` raises. Use `hf:facebook/sam2.1-hiera-tiny`
+> **`SAM2Model` is the encoder-only class**, but it has no dedicated zeromodels Hub repo of its own, so
+> `SAM2Model.from_weights("zeromodels/sam2_hiera_tiny")` raises. Use `hf:facebook/sam2.1-hiera-tiny`
 > if you want it standalone, or the `vision_encoder_model` sub-model above.
 
 ## Data Format
@@ -407,14 +407,14 @@ dict with `**features` keeps all three.
 Any Hugging Face repo whose `model_type` is `"sam2"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.sam2 import SAM2PromptableSegment
+from zeromodels.models.sam2 import SAM2PromptableSegment
 
 model = SAM2PromptableSegment.from_weights("hf:facebook/sam2.1-hiera-tiny")
 model = SAM2PromptableSegment.from_weights("hf:<user>/sam2-finetuned-on-my-data")
 
 # Architecture only, randomly initialized
 model = SAM2PromptableSegment.from_weights(
-    "kerasformers/sam2_hiera_tiny", load_weights=False
+    "zeromodels/sam2_hiera_tiny", load_weights=False
 )
 ```
 

@@ -27,23 +27,23 @@ from transformers import (
     Sam2ImageProcessor as HFSam2ImageProcessor,
 )
 
-from kerasformers.models.clip.clip_image_processor import (
+from zeromodels.models.clip.clip_image_processor import (
     CLIPImageProcessor as KerasCLIPImageProcessor,
 )
-from kerasformers.models.depth_anything_v1 import DepthAnythingV1ImageProcessor
-from kerasformers.models.depth_anything_v2 import DepthAnythingV2ImageProcessor
-from kerasformers.models.detr import DETRImageProcessor
-from kerasformers.models.dfine.dfine_image_processor import DFineImageProcessor
-from kerasformers.models.eomt.eomt_image_processor import EoMTImageProcessor
-from kerasformers.models.metaclip2 import MetaClip2ImageProcessor
-from kerasformers.models.rt_detr import RTDETRImageProcessor
-from kerasformers.models.rt_detr_v2 import RTDETRV2ImageProcessor
-from kerasformers.models.sam import SAMImageProcessor
-from kerasformers.models.sam2 import SAM2ImageProcessor
-from kerasformers.models.segformer.segformer_image_processor import (
+from zeromodels.models.depth_anything_v1 import DepthAnythingV1ImageProcessor
+from zeromodels.models.depth_anything_v2 import DepthAnythingV2ImageProcessor
+from zeromodels.models.detr import DETRImageProcessor
+from zeromodels.models.dfine.dfine_image_processor import DFineImageProcessor
+from zeromodels.models.eomt.eomt_image_processor import EoMTImageProcessor
+from zeromodels.models.metaclip2 import MetaClip2ImageProcessor
+from zeromodels.models.rt_detr import RTDETRImageProcessor
+from zeromodels.models.rt_detr_v2 import RTDETRV2ImageProcessor
+from zeromodels.models.sam import SAMImageProcessor
+from zeromodels.models.sam2 import SAM2ImageProcessor
+from zeromodels.models.segformer.segformer_image_processor import (
     SegFormerImageProcessor,
 )
-from kerasformers.models.siglip.siglip_image_processor import (
+from zeromodels.models.siglip.siglip_image_processor import (
     SigLIPImageProcessor as KerasSigLIPImageProcessor,
 )
 
@@ -485,13 +485,13 @@ def _assert_pixels_match(name, leg, ours_px, hf_px, atol=1e-4):
 @pytest.mark.parametrize("data_format", DATA_FORMATS)
 @pytest.mark.parametrize("name", list(FROM_HF_SPECS.keys()))
 def test_image_processor_three_way_parity(name, data_format):
-    """HF reference vs BOTH kerasformers construction paths: ``from_hf(repo)``
+    """HF reference vs BOTH zeromodels construction paths: ``from_hf(repo)``
     (the preprocessor_config.json mapper) and the native ``Cls()`` defaults
     (what ``from_weights(variant)`` uses), in both data formats (the HF
     channels-first reference is transposed for comparison)."""
     skip_if_tf_cpu_channels_first(data_format)
     module, cls_name, repo, side, native_matches = FROM_HF_SPECS[name]
-    cls = getattr(importlib.import_module(f"kerasformers.models.{module}"), cls_name)
+    cls = getattr(importlib.import_module(f"zeromodels.models.{module}"), cls_name)
     try:
         hf = AutoImageProcessor.from_pretrained(repo)
     except Exception as e:
@@ -545,7 +545,7 @@ SNAPSHOT_SHAPES = {
 
 
 def _all_image_processors():
-    import kerasformers.models as models
+    import zeromodels.models as models
 
     found = {}
     for family in sorted(n for n in dir(models) if not n.startswith("_")):

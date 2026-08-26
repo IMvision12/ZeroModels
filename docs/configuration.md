@@ -1,13 +1,13 @@
 # Configuration
 
-Every model in KerasFormers carries a typed **config**: a `BaseConfig` subclass that holds
+Every model in ZeroModels carries a typed **config**: a `BaseConfig` subclass that holds
 the architecture hyperparameters as annotated fields. You rarely build one by hand, since
 `from_weights` reads it from a repo's `kf_config.json` for you, but the config is what
 turns a set of numbers into the right model, and it explains the shape of every
 `kf_config.json` and every model constructor.
 
 ```python
-from kerasformers.base import BaseConfig
+from zeromodels.base import BaseConfig
 ```
 
 ## The one idea: flat constructor, nested serialize
@@ -22,7 +22,7 @@ model wants (`constructor_kwargs()`), and serializes a flat set of fields back u
 nested blocks (`to_dict()`).
 
 ```python
-from kerasformers.models.gemma3 import Gemma3Config
+from zeromodels.models.gemma3 import Gemma3Config
 
 config = Gemma3Config()  # every field at its default
 config.text_config  # a Gemma3TextConfig object
@@ -36,7 +36,7 @@ populated, and any field is overridable by keyword. Sub-configs accept either a 
 config object or a plain dict:
 
 ```python
-from kerasformers.models.gemma3 import Gemma3Config, Gemma3TextConfig
+from zeromodels.models.gemma3 import Gemma3Config, Gemma3TextConfig
 
 # override sub-config fields with a dict...
 config = Gemma3Config(text_config={"embed_dim": 2560, "num_layers": 34})
@@ -163,7 +163,7 @@ Each composite model exports its sub-config classes, so you can build and inspec
 on its own:
 
 ```python
-from kerasformers.models.clip import CLIPConfig, CLIPTextConfig, CLIPVisionConfig
+from zeromodels.models.clip import CLIPConfig, CLIPTextConfig, CLIPVisionConfig
 
 CLIPTextConfig()  # just the text tower's fields
 CLIPConfig(vision_config=CLIPVisionConfig(patch_size=16))

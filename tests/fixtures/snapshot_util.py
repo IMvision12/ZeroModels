@@ -8,7 +8,7 @@ snapshots say "nothing moved since last time" across every component at once.
 
 Regenerate after an intentional change:
 
-    KERASFORMERS_UPDATE_SNAPSHOTS=1 pytest tests/processors -k snapshot
+    ZEROMODELS_UPDATE_SNAPSHOTS=1 pytest tests/processors -k snapshot
 
 and review the resulting diff before committing it: an unexplained change here
 is the bug, not the test.
@@ -27,7 +27,7 @@ TOLERANCE = 1e-4
 
 
 def updating() -> bool:
-    return os.environ.get("KERASFORMERS_UPDATE_SNAPSHOTS") == "1"
+    return os.environ.get("ZEROMODELS_UPDATE_SNAPSHOTS") == "1"
 
 
 def path_for(name: str) -> pathlib.Path:
@@ -98,7 +98,7 @@ def check(name: str, key: str, record: dict) -> None:
     if key not in data:
         pytest.fail(
             f"no snapshot for {name}/{key}. Generate it with "
-            f"KERASFORMERS_UPDATE_SNAPSHOTS=1 pytest tests/processors -k snapshot"
+            f"ZEROMODELS_UPDATE_SNAPSHOTS=1 pytest tests/processors -k snapshot"
         )
     problems = compare(data[key], record, key)
     assert not problems, "snapshot mismatch:\n  " + "\n  ".join(problems)

@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 The fourth Gemma generation, ported to pure Keras 3: dense and Mixture-of-Experts
@@ -50,20 +50,20 @@ See also [gemma.md](gemma.md), [gemma2.md](gemma2.md), [gemma3.md](gemma3.md),
 
 ## Variants
 
-Preconverted, bf16 weights are hosted under `kerasformers/`. Load with
-`from_weights("kerasformers/<variant>")`; the `-it` suffix marks instruction-tuned
+Preconverted, bf16 weights are hosted under `zeromodels/`. Load with
+`from_weights("zeromodels/<variant>")`; the `-it` suffix marks instruction-tuned
 checkpoints (use the chat template). Gemma 4 is Apache 2.0.
 
 | Variant | Hub | Architecture | Modalities |
 |---|---|---|---|
-| `gemma-4-e2b` | [`kerasformers/gemma-4-e2b`](https://huggingface.co/kerasformers/gemma-4-e2b) | Elastic (PLE + KV-share) | text + image + audio |
-| `gemma-4-e2b-it` | [`kerasformers/gemma-4-e2b-it`](https://huggingface.co/kerasformers/gemma-4-e2b-it) | Elastic (PLE + KV-share) | text + image + audio |
-| `gemma-4-e4b` | [`kerasformers/gemma-4-e4b`](https://huggingface.co/kerasformers/gemma-4-e4b) | Elastic (PLE + KV-share) | text + image + audio |
-| `gemma-4-e4b-it` | [`kerasformers/gemma-4-e4b-it`](https://huggingface.co/kerasformers/gemma-4-e4b-it) | Elastic (PLE + KV-share) | text + image + audio |
-| `gemma-4-26b-a4b` | [`kerasformers/gemma-4-26b-a4b`](https://huggingface.co/kerasformers/gemma-4-26b-a4b) | MoE, 26B total / 4B active | text + image |
-| `gemma-4-26b-a4b-it` | [`kerasformers/gemma-4-26b-a4b-it`](https://huggingface.co/kerasformers/gemma-4-26b-a4b-it) | MoE, 26B total / 4B active | text + image |
-| `gemma-4-31b` | [`kerasformers/gemma-4-31b`](https://huggingface.co/kerasformers/gemma-4-31b) | dense | text + image |
-| `gemma-4-31b-it` | [`kerasformers/gemma-4-31b-it`](https://huggingface.co/kerasformers/gemma-4-31b-it) | dense | text + image |
+| `gemma-4-e2b` | [`zeromodels/gemma-4-e2b`](https://huggingface.co/zeromodels/gemma-4-e2b) | Elastic (PLE + KV-share) | text + image + audio |
+| `gemma-4-e2b-it` | [`zeromodels/gemma-4-e2b-it`](https://huggingface.co/zeromodels/gemma-4-e2b-it) | Elastic (PLE + KV-share) | text + image + audio |
+| `gemma-4-e4b` | [`zeromodels/gemma-4-e4b`](https://huggingface.co/zeromodels/gemma-4-e4b) | Elastic (PLE + KV-share) | text + image + audio |
+| `gemma-4-e4b-it` | [`zeromodels/gemma-4-e4b-it`](https://huggingface.co/zeromodels/gemma-4-e4b-it) | Elastic (PLE + KV-share) | text + image + audio |
+| `gemma-4-26b-a4b` | [`zeromodels/gemma-4-26b-a4b`](https://huggingface.co/zeromodels/gemma-4-26b-a4b) | MoE, 26B total / 4B active | text + image |
+| `gemma-4-26b-a4b-it` | [`zeromodels/gemma-4-26b-a4b-it`](https://huggingface.co/zeromodels/gemma-4-26b-a4b-it) | MoE, 26B total / 4B active | text + image |
+| `gemma-4-31b` | [`zeromodels/gemma-4-31b`](https://huggingface.co/zeromodels/gemma-4-31b) | dense | text + image |
+| `gemma-4-31b-it` | [`zeromodels/gemma-4-31b-it`](https://huggingface.co/zeromodels/gemma-4-31b-it) | dense | text + image |
 
 `Gemma4ConditionalGenerate` builds the towers automatically from the checkpoint: the NaViT
 vision tower for every variant, plus the USM audio tower for E2B / E4B.
@@ -153,10 +153,10 @@ a (tied) LM head, built with no vision / audio tower. `.generate()` takes just t
 `config_class = Gemma4TextConfig`.
 
 ```python
-from kerasformers.models.gemma4 import Gemma4TextGenerate, Gemma4Tokenizer
+from zeromodels.models.gemma4 import Gemma4TextGenerate, Gemma4Tokenizer
 
-model = Gemma4TextGenerate.from_weights("kerasformers/gemma-4-e4b-it")
-tokenizer = Gemma4Tokenizer.from_weights("kerasformers/gemma-4-e4b-it")
+model = Gemma4TextGenerate.from_weights("zeromodels/gemma-4-e4b-it")
+tokenizer = Gemma4Tokenizer.from_weights("zeromodels/gemma-4-e4b-it")
 outputs = model.generate(
     **tokenizer([{"role": "user", "content": "Explain MoE routing in one sentence."}]),
     max_new_tokens=64,
@@ -187,7 +187,7 @@ placeholder positions in `input_ids` before the decoder runs.
 The towers can be used on their own. `Gemma4VisionModel` takes
 `(pixel_values, pixel_position_ids)` and returns pooled soft tokens;
 `Gemma4AudioModel` takes `(input_features, input_features_mask)` and returns
-`(soft_tokens, valid_mask)`. Both are exposed from `kerasformers.models.gemma4`.
+`(soft_tokens, valid_mask)`. Both are exposed from `zeromodels.models.gemma4`.
 
 ### `Gemma4ImageProcessor`
 
@@ -237,10 +237,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.gemma4 import Gemma4ConditionalGenerate, Gemma4Tokenizer
+from zeromodels.models.gemma4 import Gemma4ConditionalGenerate, Gemma4Tokenizer
 
-model = Gemma4ConditionalGenerate.from_weights("kerasformers/gemma-4-e2b-it")
-tokenizer = Gemma4Tokenizer.from_weights("kerasformers/gemma-4-e2b-it")
+model = Gemma4ConditionalGenerate.from_weights("zeromodels/gemma-4-e2b-it")
+tokenizer = Gemma4Tokenizer.from_weights("zeromodels/gemma-4-e2b-it")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -256,10 +256,10 @@ Use `Gemma4Processor` with any variant (all carry the vision tower):
 
 ```python
 from PIL import Image
-from kerasformers.models.gemma4 import Gemma4ConditionalGenerate, Gemma4Processor
+from zeromodels.models.gemma4 import Gemma4ConditionalGenerate, Gemma4Processor
 
-model = Gemma4ConditionalGenerate.from_weights("kerasformers/gemma-4-31b-it")
-processor = Gemma4Processor.from_weights("kerasformers/gemma-4-31b-it")
+model = Gemma4ConditionalGenerate.from_weights("zeromodels/gemma-4-31b-it")
+processor = Gemma4Processor.from_weights("zeromodels/gemma-4-31b-it")
 
 inputs = processor(
     conversation=[
@@ -282,8 +282,8 @@ print(processor.decode(outputs[0]))
 E2B / E4B are any-to-any: mix image, audio, and text in one prompt.
 
 ```python
-model = Gemma4ConditionalGenerate.from_weights("kerasformers/gemma-4-e4b-it")
-processor = Gemma4Processor.from_weights("kerasformers/gemma-4-e4b-it")
+model = Gemma4ConditionalGenerate.from_weights("zeromodels/gemma-4-e4b-it")
+processor = Gemma4Processor.from_weights("zeromodels/gemma-4-e4b-it")
 
 inputs = processor(
     conversation=[
@@ -319,9 +319,9 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.gemma4 import Gemma4Model
+from zeromodels.models.gemma4 import Gemma4Model
 
-backbone = Gemma4Model.from_weights("kerasformers/gemma-4-e2b")
+backbone = Gemma4Model.from_weights("zeromodels/gemma-4-e2b")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -339,7 +339,7 @@ at full precision. See [quantization.md](quantization.md):
 
 ```python
 model = Gemma4ConditionalGenerate.from_weights(
-    "kerasformers/gemma-4-31b-it",
+    "zeromodels/gemma-4-31b-it",
     quantization="int8",
     load_dtype="bfloat16",
 )

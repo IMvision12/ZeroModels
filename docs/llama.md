@@ -2,7 +2,7 @@
 
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
-<code>.weights.h5</code> under <code>kerasformers/</code>.
+<code>.weights.h5</code> under <code>zeromodels/</code>.
 <code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
@@ -119,7 +119,7 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.llama import LlamaTextGenerate, LlamaTokenizer
+from zeromodels.models.llama import LlamaTextGenerate, LlamaTokenizer
 
 model = LlamaTextGenerate.from_weights("llama3-8b")
 tokenizer = LlamaTokenizer.from_weights("llama3-8b")
@@ -153,7 +153,7 @@ for text in tokenizer.batch_decode(outputs):
 ### Backbone only
 
 ```python
-from kerasformers.models.llama import LlamaModel
+from zeromodels.models.llama import LlamaModel
 
 backbone = LlamaModel.from_weights("llama3-8b")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)

@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 SegFormer pairs a hierarchical transformer encoder (MiT) with a decoder that is nothing but a few MLPs. The encoder produces features at four scales like a CNN, and the decoder simply upsamples each scale, concatenates, and projects. No dilated convolutions, no attention in the decoder.
@@ -84,7 +84,7 @@ SegFormerImageProcessor(
 Resizes to a fixed square, rescales to `[0, 1]`, and normalizes with ImageNet
 statistics.
 
-> **Prefer `SegFormerImageProcessor.from_weights("kerasformers/<variant>")`.** The variants train at
+> **Prefer `SegFormerImageProcessor.from_weights("zeromodels/<variant>")`.** The variants train at
 > 512, 640, 768 or 1024, so the bare constructor's 512 mismatches the model for most of
 > them and the forward pass raises on shape.
 
@@ -147,14 +147,14 @@ Each figure is the original image beside the predicted segmentation overlaid on 
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.segformer import (
+from zeromodels.models.segformer import (
     SegFormerImageProcessor,
     SegFormerSemanticSegment,
 )
 
-model = SegFormerSemanticSegment.from_weights("kerasformers/segformer_b5_ade_640")
+model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b5_ade_640")
 processor = SegFormerImageProcessor.from_weights(
-    "kerasformers/segformer_b5_ade_640"
+    "zeromodels/segformer_b5_ade_640"
 )  # 640
 
 image = Image.open("assets/data/coco_street_dusk.jpg").convert("RGB")
@@ -202,14 +202,14 @@ indoor room, and animals in a field.
 import keras
 import numpy as np
 from PIL import Image
-from kerasformers.models.segformer import (
+from zeromodels.models.segformer import (
     SegFormerImageProcessor,
     SegFormerSemanticSegment,
 )
 
-model = SegFormerSemanticSegment.from_weights("kerasformers/segformer_b5_ade_640")
+model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b5_ade_640")
 processor = SegFormerImageProcessor.from_weights(
-    "kerasformers/segformer_b5_ade_640"
+    "zeromodels/segformer_b5_ade_640"
 )  # 640
 
 paths = ["assets/data/coco_open_kitchen.jpg", "assets/data/coco_herd_field.jpg"]
@@ -268,9 +268,9 @@ import keras
 
 keras.config.set_image_data_format("channels_first")
 
-model = SegFormerSemanticSegment.from_weights("kerasformers/segformer_b5_ade_640")
+model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b5_ade_640")
 processor = SegFormerImageProcessor.from_weights(
-    "kerasformers/segformer_b5_ade_640"
+    "zeromodels/segformer_b5_ade_640"
 )  # 640
 ```
 
@@ -294,7 +294,7 @@ Without it the post-processor picks ADE20K or Cityscapes names from the head wid
 Any Hugging Face repo whose `model_type` is `"segformer"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.segformer import SegFormerSemanticSegment
+from zeromodels.models.segformer import SegFormerSemanticSegment
 
 model = SegFormerSemanticSegment.from_weights(
     "hf:nvidia/segformer-b0-finetuned-ade-512-512"
@@ -305,7 +305,7 @@ model = SegFormerSemanticSegment.from_weights(
 
 # Architecture only, randomly initialized
 model = SegFormerSemanticSegment.from_weights(
-    "kerasformers/segformer_b0_ade_512", load_weights=False
+    "zeromodels/segformer_b0_ade_512", load_weights=False
 )
 ```
 

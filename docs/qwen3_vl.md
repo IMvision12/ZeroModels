@@ -3,10 +3,10 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> the eight dense sizes (2B / 4B / 8B / 32B, each Instruct + Thinking)
 are hosted as pretrained Keras weights on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> and <code>kf_preprocessor.json</code> plus a
 sharded <code>model.weights.json</code> + shards and a <code>tokenizer.json</code>). Load the
-model and processor with <code>from_weights("kerasformers/&lt;variant&gt;")</code>. The MoE
+model and processor with <code>from_weights("zeromodels/&lt;variant&gt;")</code>. The MoE
 sizes (30B-A3B / 235B-A22B) are a separate architecture and are not hosted here.
 </div>
 
@@ -15,7 +15,7 @@ Qwen-VL line (native-resolution ViT, M-RoPE decoder) with a 16px patch.
 
 Links:
 
-- HF collection: [Qwen3-VL](https://huggingface.co/collections/kerasformers/qwen3-vl-6a7d7677c2926ecbddb1ed0a)
+- HF collection: [Qwen3-VL](https://huggingface.co/collections/zeromodels/qwen3-vl-6a7d7677c2926ecbddb1ed0a)
 - Paper: [Qwen3 Technical Report (arXiv:2505.09388)](https://arxiv.org/abs/2505.09388)
 - HF docs: [transformers/model_doc/qwen3_vl](https://huggingface.co/docs/transformers/model_doc/qwen3_vl)
 
@@ -23,21 +23,21 @@ See also [qwen2_vl.md](qwen2_vl.md), [qwen2_5_vl.md](qwen2_5_vl.md).
 
 ## Variants
 
-Preconverted, bf16 weights are hosted under `kerasformers/`. Load the model and processor
-with `from_weights("kerasformers/<variant>")`; the `-instruct` sizes are the
+Preconverted, bf16 weights are hosted under `zeromodels/`. Load the model and processor
+with `from_weights("zeromodels/<variant>")`; the `-instruct` sizes are the
 instruction-tuned checkpoints and `-thinking` the reasoning checkpoints. Qwen3-VL is
 Apache 2.0.
 
 | Variant | Hub |
 |---|---|
-| `qwen3-vl-2b-instruct` | [`kerasformers/qwen3-vl-2b-instruct`](https://huggingface.co/kerasformers/qwen3-vl-2b-instruct) |
-| `qwen3-vl-2b-thinking` | [`kerasformers/qwen3-vl-2b-thinking`](https://huggingface.co/kerasformers/qwen3-vl-2b-thinking) |
-| `qwen3-vl-4b-instruct` | [`kerasformers/qwen3-vl-4b-instruct`](https://huggingface.co/kerasformers/qwen3-vl-4b-instruct) |
-| `qwen3-vl-4b-thinking` | [`kerasformers/qwen3-vl-4b-thinking`](https://huggingface.co/kerasformers/qwen3-vl-4b-thinking) |
-| `qwen3-vl-8b-instruct` | [`kerasformers/qwen3-vl-8b-instruct`](https://huggingface.co/kerasformers/qwen3-vl-8b-instruct) |
-| `qwen3-vl-8b-thinking` | [`kerasformers/qwen3-vl-8b-thinking`](https://huggingface.co/kerasformers/qwen3-vl-8b-thinking) |
-| `qwen3-vl-32b-instruct` | [`kerasformers/qwen3-vl-32b-instruct`](https://huggingface.co/kerasformers/qwen3-vl-32b-instruct) |
-| `qwen3-vl-32b-thinking` | [`kerasformers/qwen3-vl-32b-thinking`](https://huggingface.co/kerasformers/qwen3-vl-32b-thinking) |
+| `qwen3-vl-2b-instruct` | [`zeromodels/qwen3-vl-2b-instruct`](https://huggingface.co/zeromodels/qwen3-vl-2b-instruct) |
+| `qwen3-vl-2b-thinking` | [`zeromodels/qwen3-vl-2b-thinking`](https://huggingface.co/zeromodels/qwen3-vl-2b-thinking) |
+| `qwen3-vl-4b-instruct` | [`zeromodels/qwen3-vl-4b-instruct`](https://huggingface.co/zeromodels/qwen3-vl-4b-instruct) |
+| `qwen3-vl-4b-thinking` | [`zeromodels/qwen3-vl-4b-thinking`](https://huggingface.co/zeromodels/qwen3-vl-4b-thinking) |
+| `qwen3-vl-8b-instruct` | [`zeromodels/qwen3-vl-8b-instruct`](https://huggingface.co/zeromodels/qwen3-vl-8b-instruct) |
+| `qwen3-vl-8b-thinking` | [`zeromodels/qwen3-vl-8b-thinking`](https://huggingface.co/zeromodels/qwen3-vl-8b-thinking) |
+| `qwen3-vl-32b-instruct` | [`zeromodels/qwen3-vl-32b-instruct`](https://huggingface.co/zeromodels/qwen3-vl-32b-instruct) |
+| `qwen3-vl-32b-thinking` | [`zeromodels/qwen3-vl-32b-thinking`](https://huggingface.co/zeromodels/qwen3-vl-32b-thinking) |
 
 Upstream Qwen safetensors also load directly via the `hf:` prefix, e.g.
 `from_weights("hf:Qwen/Qwen3-VL-4B-Instruct")`, which converts them in process (pass
@@ -133,16 +133,16 @@ produces them for you.
 Text-only counterpart of `Qwen3VLConditionalGenerate`, built with no vision tower
 (`build_vision=False`), so `.generate()` takes just token ids. It reads only the language
 model out of a Qwen3-VL checkpoint: `hf:` conversion copies just the text weights, and a
-kerasformers repo declaring `Qwen3VLConditionalGenerate` is read through
+zeromodels repo declaring `Qwen3VLConditionalGenerate` is read through
 `FULL_CHECKPOINT_SOURCES`. Qwen3-VL ships no dedicated tokenizer class, so drive text
 through `Qwen3VLProcessor` with a text-only conversation. Set
 `config_class = Qwen3VLTextConfig`.
 
 ```python
-from kerasformers.models.qwen3_vl import Qwen3VLTextGenerate, Qwen3VLProcessor
+from zeromodels.models.qwen3_vl import Qwen3VLTextGenerate, Qwen3VLProcessor
 
-model = Qwen3VLTextGenerate.from_weights("kerasformers/qwen3-vl-2b-instruct")
-processor = Qwen3VLProcessor.from_weights("kerasformers/qwen3-vl-2b-instruct")
+model = Qwen3VLTextGenerate.from_weights("zeromodels/qwen3-vl-2b-instruct")
+processor = Qwen3VLProcessor.from_weights("zeromodels/qwen3-vl-2b-instruct")
 conversation = [
     {"role": "user", "content": [{"type": "text", "text": "Who wrote Dune?"}]},
 ]
@@ -204,10 +204,10 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from PIL import Image
-from kerasformers.models.qwen3_vl import Qwen3VLConditionalGenerate, Qwen3VLProcessor
+from zeromodels.models.qwen3_vl import Qwen3VLConditionalGenerate, Qwen3VLProcessor
 
-model = Qwen3VLConditionalGenerate.from_weights("kerasformers/qwen3-vl-2b-instruct")
-processor = Qwen3VLProcessor.from_weights("kerasformers/qwen3-vl-2b-instruct")
+model = Qwen3VLConditionalGenerate.from_weights("zeromodels/qwen3-vl-2b-instruct")
+processor = Qwen3VLProcessor.from_weights("zeromodels/qwen3-vl-2b-instruct")
 
 image = Image.open("photo.jpg")
 inputs = processor(
@@ -291,6 +291,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Qwen3VLConditionalGenerate.from_weights(
-    "kerasformers/qwen3-vl-2b-instruct", quantization="int8", load_dtype="bfloat16"
+    "zeromodels/qwen3-vl-2b-instruct", quantization="int8", load_dtype="bfloat16"
 )
 ```

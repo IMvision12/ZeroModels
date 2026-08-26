@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 DINO is self-supervised: it trains a ViT with no labels, by matching the outputs of a
@@ -84,7 +84,7 @@ stage maps (`(B, 56, 56, 256)` through `(B, 7, 7, 2048)`).
 ## Preprocessing
 
 `DinoImageProcessor` handles both DINO families, keyed on `model_type` (the same tag the
-model config carries). Loading it with `from_weights("kerasformers/<variant>")` reads the
+model config carries). Loading it with `from_weights("zeromodels/<variant>")` reads the
 recipe from the repo's `kf_preprocessor.json`, so the right one comes back automatically;
 `DinoImageProcessor()` with no arguments is the ViT default.
 
@@ -98,12 +98,12 @@ recipe from the repo's `kf_preprocessor.json`, so the right one comes back autom
 Because the processor already normalizes, load the model with `include_normalization=False`:
 
 ```python
-from kerasformers.models.dino import DinoViTModel, DinoImageProcessor
+from zeromodels.models.dino import DinoViTModel, DinoImageProcessor
 
 model = DinoViTModel.from_weights(
-    "kerasformers/dino-vitb16", include_normalization=False
+    "zeromodels/dino-vitb16", include_normalization=False
 )
-processor = DinoImageProcessor.from_weights("kerasformers/dino-vitb16")
+processor = DinoImageProcessor.from_weights("zeromodels/dino-vitb16")
 
 pixel_values = processor("bear.jpg")["pixel_values"]  # (1, 224, 224, 3), normalized
 tokens = model(pixel_values, training=False)
@@ -114,12 +114,12 @@ tokens = model(pixel_values, training=False)
 you.
 
 ```python
-from kerasformers.models.dino import DinoResNetModel, DinoImageProcessor
+from zeromodels.models.dino import DinoResNetModel, DinoImageProcessor
 
 model = DinoResNetModel.from_weights(
-    "kerasformers/dino-resnet50", include_normalization=False
+    "zeromodels/dino-resnet50", include_normalization=False
 )
-processor = DinoImageProcessor.from_weights("kerasformers/dino-resnet50")
+processor = DinoImageProcessor.from_weights("zeromodels/dino-resnet50")
 
 pixel_values = processor("bear.jpg")["pixel_values"]  # (1, 224, 224, 3), normalized
 features = model(pixel_values, training=False)  # (1, 7, 7, 2048)
@@ -156,14 +156,14 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.dino import DinoImageProcessor, DinoViTModel
+from zeromodels.models.dino import DinoImageProcessor, DinoViTModel
 
 size, patch = 896, 16
 model = DinoViTModel.from_weights(
-    "kerasformers/dino-vitb16", image_size=size, include_normalization=False
+    "zeromodels/dino-vitb16", image_size=size, include_normalization=False
 )
 processor = DinoImageProcessor.from_weights(
-    "kerasformers/dino-vitb16", image_resolution=size
+    "zeromodels/dino-vitb16", image_resolution=size
 )
 
 x = processor("assets/data/coco_bear.jpg")["pixel_values"]  # (1, 896, 896, 3)
@@ -207,14 +207,14 @@ Stack images that share a size into one batch:
 import keras
 import numpy as np
 import torch
-from kerasformers.models.dino import DinoImageProcessor, DinoViTModel
+from zeromodels.models.dino import DinoImageProcessor, DinoViTModel
 
 size = 896
 model = DinoViTModel.from_weights(
-    "kerasformers/dino-vitb16", image_size=size, include_normalization=False
+    "zeromodels/dino-vitb16", image_size=size, include_normalization=False
 )
 processor = DinoImageProcessor.from_weights(
-    "kerasformers/dino-vitb16", image_resolution=size
+    "zeromodels/dino-vitb16", image_resolution=size
 )
 
 paths = ["assets/data/coco_elephants.jpg", "assets/data/coco_horse_jump.jpg"]
@@ -239,7 +239,7 @@ DPT-style neck or an FPN:
 
 ```python
 model = DinoViTModel.from_weights(
-    "kerasformers/dino-vitb16", as_backbone=True, image_size=size
+    "zeromodels/dino-vitb16", as_backbone=True, image_size=size
 )
 features = model(x, training=False)  # x from above, at 896
 print(len(features), features[-1].shape)  # 13  (1, 3137, 768)
@@ -258,7 +258,7 @@ import keras
 
 keras.config.set_image_data_format("channels_first")
 model = DinoResNetModel.from_weights(
-    "kerasformers/dino-resnet50"
+    "zeromodels/dino-resnet50"
 )  # output (B, 2048, 7, 7)
 ```
 
@@ -275,13 +275,13 @@ Any Hugging Face repo whose `model_type` is `"vit"` in the DINO layout loads wit
 `hf:` prefix.
 
 ```python
-from kerasformers.models.dino import DinoViTModel
+from zeromodels.models.dino import DinoViTModel
 
 model = DinoViTModel.from_weights("hf:facebook/dino-vits16")
 model = DinoViTModel.from_weights("hf:<user>/dino-finetuned")
 
 # Architecture only, randomly initialized
-model = DinoViTModel.from_weights("kerasformers/dino-vitb16", load_weights=False)
+model = DinoViTModel.from_weights("zeromodels/dino-vitb16", load_weights=False)
 ```
 
 See also [DINOv2](dinov2.md), which adds register-free dense features and layer scale, and

@@ -6,8 +6,8 @@ besides int4 that runs on all three backends.
 ## Usage
 
 ```python
-from kerasformers.models.qwen3 import Qwen3TextGenerate
-from kerasformers.quantization import quantize_model
+from zeromodels.models.qwen3 import Qwen3TextGenerate
+from zeromodels.quantization import quantize_model
 
 # load and quantize in one call
 model = Qwen3TextGenerate.from_weights("qwen3-4b", quantization="int8")
@@ -48,7 +48,7 @@ layer matched by `skip_modules` stays float even if `overrides` also names it.
 Pass it anywhere a scheme string is accepted, `from_weights` included:
 
 ```python
-from kerasformers.quantization import Int8Config, quantize_model
+from zeromodels.quantization import Int8Config, quantize_model
 
 cfg = Int8Config(skip_modules=("lm_head", "q_proj"))
 
@@ -73,7 +73,7 @@ Mixing precisions, here dropping most of the model to int4 while holding the fir
 block at int8:
 
 ```python
-from kerasformers.quantization import QuantizationConfig
+from zeromodels.quantization import QuantizationConfig
 
 QuantizationConfig(mode="int4", group_size=128, overrides={"decoder_layer_0": "int8"})
 ```

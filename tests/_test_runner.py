@@ -1,7 +1,7 @@
-"""Cross-platform test runner for kerasformers.
+"""Cross-platform test runner for zeromodels.
 
 Usage:
-    kerasformers-test <command>
+    zeromodels-test <command>
 
 Commands:
     all                  Full test suite (torch, excludes slow/link tests)

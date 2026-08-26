@@ -4,7 +4,7 @@ Getting an image from wherever it lives into the `(H, W, 3)` uint8 array the pro
 expect, and resolving the shape and data format conventions around it.
 
 ```python
-from kerasformers.utils import load_image, get_data_format, standardize_input_shape
+from zeromodels.utils import load_image, get_data_format, standardize_input_shape
 ```
 
 ## load_image
@@ -20,7 +20,7 @@ One entry point for every image source, returning an `(H, W, 3)` **uint8 RGB** a
 - **image**: a local path, an `http(s)://` URL, raw encoded `bytes`, a `PIL.Image.Image`, or a NumPy array.
 
 ```python
-from kerasformers.utils import load_image
+from zeromodels.utils import load_image
 
 image = load_image("http://images.cocodataset.org/val2017/000000039769.jpg")
 print(image.shape, image.dtype)
@@ -58,7 +58,7 @@ Resolve `None` to `keras.config.image_data_format()`, and validate anything else
 wherever a layer or processor takes an optional `data_format`.
 
 ```python
-from kerasformers.utils import get_data_format
+from zeromodels.utils import get_data_format
 
 print(get_data_format())
 print(get_data_format("channels_first"))
@@ -80,7 +80,7 @@ what lets every functional vision model accept `image_size=512`, `(512, 512)`, o
 `(512, 512, 3)` interchangeably.
 
 ```python
-from kerasformers.utils import standardize_input_shape
+from zeromodels.utils import standardize_input_shape
 
 print(standardize_input_shape(224))
 print(standardize_input_shape((512, 384)))
@@ -117,7 +117,7 @@ One in-graph helper does live in `image_util`, used by the classification backbo
 their `include_normalization` path:
 
 ```python
-from kerasformers.utils.image_util import normalize_image_for_classify_models
+from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 x = normalize_image_for_classify_models(x, mode="imagenet")
 ```

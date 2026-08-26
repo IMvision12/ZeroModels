@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 [MaskFormer](maskformer.md) and [Mask2Former](mask2former.md) are universal in architecture but not in training: each checkpoint is trained for one task, which is why you pick between `-instance`, `-panoptic` and `-semantic` weights.
@@ -116,15 +116,15 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.oneformer import (
+from zeromodels.models.oneformer import (
     OneFormerProcessor,
     OneFormerUniversalSegment,
 )
 
 model = OneFormerUniversalSegment.from_weights(
-    "kerasformers/oneformer_ade20k_swin_tiny"
+    "zeromodels/oneformer_ade20k_swin_tiny"
 )
-processor = OneFormerProcessor.from_weights("kerasformers/oneformer_ade20k_swin_tiny")
+processor = OneFormerProcessor.from_weights("zeromodels/oneformer_ade20k_swin_tiny")
 
 image = Image.open("assets/data/coco_office.jpg").convert("RGB")
 
@@ -174,15 +174,15 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.oneformer import (
+from zeromodels.models.oneformer import (
     OneFormerProcessor,
     OneFormerUniversalSegment,
 )
 
 model = OneFormerUniversalSegment.from_weights(
-    "kerasformers/oneformer_ade20k_swin_tiny"
+    "zeromodels/oneformer_ade20k_swin_tiny"
 )
-processor = OneFormerProcessor.from_weights("kerasformers/oneformer_ade20k_swin_tiny")
+processor = OneFormerProcessor.from_weights("zeromodels/oneformer_ade20k_swin_tiny")
 
 paths = ["assets/data/coco_presentation.jpg", "assets/data/coco_movie_snacks.jpg"]
 
@@ -242,14 +242,14 @@ The post-processors emit `(H, W)` label maps and segment metadata, so they take 
 Any Hugging Face repo whose `model_type` is `"oneformer"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.oneformer import OneFormerUniversalSegment
+from zeromodels.models.oneformer import OneFormerUniversalSegment
 
 model = OneFormerUniversalSegment.from_weights("hf:shi-labs/oneformer_ade20k_swin_tiny")
 model = OneFormerUniversalSegment.from_weights("hf:<user>/oneformer-finetuned")
 
 # Architecture only, randomly initialized
 model = OneFormerUniversalSegment.from_weights(
-    "kerasformers/oneformer_ade20k_swin_tiny",
+    "zeromodels/oneformer_ade20k_swin_tiny",
     load_weights=False,
 )
 ```

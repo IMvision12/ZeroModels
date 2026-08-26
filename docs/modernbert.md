@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code> + <code>tokenizer.json</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 Answer.AI / LightOn's ModernBERT in pure Keras 3: a modernized bidirectional text encoder with a
@@ -22,12 +22,12 @@ See also [bert.md](bert.md), [roberta.md](roberta.md), [electra.md](electra.md),
 
 ## Variants
 
-Load any of these with `from_weights("kerasformers/<variant>")`. Both share one tokenizer.
+Load any of these with `from_weights("zeromodels/<variant>")`. Both share one tokenizer.
 
 | Variant | Hub | layers / dim |
 |---|---|---|
-| `modernbert_base` | [`kerasformers/modernbert_base`](https://huggingface.co/kerasformers/modernbert_base) | 22 / 768 |
-| `modernbert_large` | [`kerasformers/modernbert_large`](https://huggingface.co/kerasformers/modernbert_large) | 28 / 1024 |
+| `modernbert_base` | [`zeromodels/modernbert_base`](https://huggingface.co/zeromodels/modernbert_base) | 22 / 768 |
+| `modernbert_large` | [`zeromodels/modernbert_large`](https://huggingface.co/zeromodels/modernbert_large) | 28 / 1024 |
 
 ## API
 
@@ -85,10 +85,10 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-from kerasformers.models.modernbert import ModernBertMaskedLM, ModernBertTokenizer
+from zeromodels.models.modernbert import ModernBertMaskedLM, ModernBertTokenizer
 
-mlm = ModernBertMaskedLM.from_weights("kerasformers/modernbert_base")
-tokenizer = ModernBertTokenizer.from_weights("kerasformers/modernbert_base")
+mlm = ModernBertMaskedLM.from_weights("zeromodels/modernbert_base")
+tokenizer = ModernBertTokenizer.from_weights("zeromodels/modernbert_base")
 
 inputs = tokenizer("The capital of France is [MASK].")
 logits = mlm(inputs)  # (1, L, vocab_size)
@@ -99,17 +99,17 @@ print(tokenizer.decode([int(logits[0, mask].argmax())]))
 ### Backbone features
 
 ```python
-from kerasformers.models.modernbert import ModernBertModel, ModernBertTokenizer
+from zeromodels.models.modernbert import ModernBertModel, ModernBertTokenizer
 
-model = ModernBertModel.from_weights("kerasformers/modernbert_base")
-tokenizer = ModernBertTokenizer.from_weights("kerasformers/modernbert_base")
+model = ModernBertModel.from_weights("zeromodels/modernbert_base")
+tokenizer = ModernBertTokenizer.from_weights("zeromodels/modernbert_base")
 out = model(tokenizer("Hello, world."))["last_hidden_state"]  # (1, L, 768)
 ```
 
 ### Classification (community fine-tunes)
 
 ```python
-from kerasformers.models.modernbert import (
+from zeromodels.models.modernbert import (
     ModernBertSequenceClassify,
     ModernBertTokenClassify,
 )

@@ -2,9 +2,9 @@
 
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
-<a href="https://huggingface.co/kerasformers">kerasformers/&lt;variant&gt;</a>
+<a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
 (each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("kerasformers/&lt;variant&gt;")</code>.
+Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
 DINOv2 keeps [DINO](dino.md)'s self-supervised recipe and scales it: a curated 142 M-image
@@ -64,7 +64,7 @@ token sequence `(B, 1 + num_patches, embed_dim)`, the leading token being `[CLS]
 
 ## Preprocessing
 
-`DinoV2ImageProcessor.from_weights("kerasformers/<variant>")` reads its settings from the
+`DinoV2ImageProcessor.from_weights("zeromodels/<variant>")` reads its settings from the
 repo's `kf_preprocessor.json`; `DinoV2ImageProcessor()` with no arguments gives the same
 defaults. Two matching options:
 
@@ -75,12 +75,12 @@ defaults. Two matching options:
   `include_normalization=False`:
 
   ```python
-  from kerasformers.models.dino_v2 import DinoV2Model, DinoV2ImageProcessor
+  from zeromodels.models.dino_v2 import DinoV2Model, DinoV2ImageProcessor
 
   model = DinoV2Model.from_weights(
-      "kerasformers/dinov2-base", include_normalization=False
+      "zeromodels/dinov2-base", include_normalization=False
   )
-  processor = DinoV2ImageProcessor.from_weights("kerasformers/dinov2-base")
+  processor = DinoV2ImageProcessor.from_weights("zeromodels/dinov2-base")
 
   pixel_values = processor("bear.jpg")["pixel_values"]  # (1, 224, 224, 3), normalized
   tokens = model(pixel_values, training=False)
@@ -115,14 +115,14 @@ import keras
 import numpy as np
 import torch
 from PIL import Image
-from kerasformers.models.dino_v2 import DinoV2ImageProcessor, DinoV2Model
+from zeromodels.models.dino_v2 import DinoV2ImageProcessor, DinoV2Model
 
 size, patch = 896, 14
 model = DinoV2Model.from_weights(
-    "kerasformers/dinov2-giant", image_size=size, include_normalization=False
+    "zeromodels/dinov2-giant", image_size=size, include_normalization=False
 )
 processor = DinoV2ImageProcessor.from_weights(
-    "kerasformers/dinov2-giant", resize_size=1024, crop_size=size
+    "zeromodels/dinov2-giant", resize_size=1024, crop_size=size
 )
 
 x = processor("assets/data/coco_motorcycle.jpg")["pixel_values"]  # (1, 896, 896, 3)
@@ -166,14 +166,14 @@ Stack images that share a size into one batch:
 import keras
 import numpy as np
 import torch
-from kerasformers.models.dino_v2 import DinoV2ImageProcessor, DinoV2Model
+from zeromodels.models.dino_v2 import DinoV2ImageProcessor, DinoV2Model
 
 size = 896
 model = DinoV2Model.from_weights(
-    "kerasformers/dinov2-giant", image_size=size, include_normalization=False
+    "zeromodels/dinov2-giant", image_size=size, include_normalization=False
 )
 processor = DinoV2ImageProcessor.from_weights(
-    "kerasformers/dinov2-giant", resize_size=1024, crop_size=size
+    "zeromodels/dinov2-giant", resize_size=1024, crop_size=size
 )
 
 paths = ["assets/data/coco_cats.jpg", "assets/data/coco_bicycles.jpg"]
@@ -199,7 +199,7 @@ prediction:
 
 ```python
 model = DinoV2Model.from_weights(
-    "kerasformers/dinov2-giant", as_backbone=True, image_size=size
+    "zeromodels/dinov2-giant", as_backbone=True, image_size=size
 )
 features = model(x, training=False)  # x from above, at 896
 print(len(features), features[-1].shape)  # 41  (1, 4097, 1536)
@@ -226,13 +226,13 @@ the default 224 gives.
 Any Hugging Face repo whose `model_type` is `"dinov2"` loads with the `hf:` prefix.
 
 ```python
-from kerasformers.models.dino_v2 import DinoV2Model
+from zeromodels.models.dino_v2 import DinoV2Model
 
 model = DinoV2Model.from_weights("hf:facebook/dinov2-small")
 model = DinoV2Model.from_weights("hf:<user>/dinov2-finetuned")
 
 # Architecture only, randomly initialized
-model = DinoV2Model.from_weights("kerasformers/dinov2-giant", load_weights=False)
+model = DinoV2Model.from_weights("zeromodels/dinov2-giant", load_weights=False)
 ```
 
 See also [DINO](dino.md), the original, and [DINOv3](dinov3.md), which adds register
