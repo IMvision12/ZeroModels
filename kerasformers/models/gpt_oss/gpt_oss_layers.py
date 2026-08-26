@@ -426,6 +426,17 @@ class GptOssDecoderLayer(layers.Layer):
         hidden_states = residual + self.mlp(x)
         return hidden_states, cache_k, cache_v
 
+    def compute_output_spec(
+        self,
+        hidden_states,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_value=None,
+        use_cache=False,
+    ):
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(

@@ -5,7 +5,7 @@ import keras
 from keras import layers, utils
 from keras.src.applications import imagenet_utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -310,7 +310,7 @@ def efficientnet_lite_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class EfficientNetLiteModel(FunctionalBaseModel):
+class EfficientNetLiteModel(BaseModel):
     """Instantiates the EfficientNet-Lite backbone.
 
     EfficientNet-Lite is a hardware-friendlier EfficientNet variant
@@ -481,7 +481,7 @@ class EfficientNetLiteModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class EfficientNetLiteImageClassify(FunctionalBaseModel):
+class EfficientNetLiteImageClassify(BaseModel):
     """Instantiates the EfficientNet-Lite classifier.
 
     This classifier wraps a :class:`EfficientNetLiteModel` backbone and

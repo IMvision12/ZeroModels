@@ -61,7 +61,8 @@ def transfer_qwen3_vl_weights(keras_model, hf_state_dict):
         state[k] = v
 
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        name = weight.path.split("/", 1)[1].replace("/", ".")
+        # Functional model weight paths are flat (no model-name root to strip).
+        name = weight.path.replace("/", ".")
         for old, new in WEIGHT_NAME_MAPPING.items():
             name = name.replace(old, new)
         if name not in state:

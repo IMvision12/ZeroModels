@@ -1,7 +1,7 @@
 import keras
 
 from kerasformers.base.base_config import BaseConfig
-from kerasformers.base.base_mixin import WeightLoadingMixin, inference_scope
+from kerasformers.base.base_mixin import WeightLoadingMixin
 
 _KerasModelMeta = type(keras.Model)
 
@@ -57,38 +57,30 @@ def hf_num_classes(hf_config):
     )
 
 
-class FunctionalBaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
-    """Base for *functional* kerasformers models (CLIP, ViT, detectors, …) that
-    build themselves with ``super().__init__(inputs=..., outputs=...)``."""
+class BaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
+    """Canonical kerasformers model base.
 
-
-class SubclassedBaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
-    """Base for *imperative / subclassed* kerasformers models (Qwen LLMs & VLMs).
-
-    Deliberately a **separate** ``keras.Model`` subclass from :class:`FunctionalBaseModel`,
-    not a subclass of it. When a functional model is built, Keras runs
-    ``inject_functional_model_class`` and rewrites the functional base's
-    ``__bases__`` from ``keras.Model`` to ``Functional`` (functional models rely
-    on this for their subsequent builds). If subclassed models shared that base,
-    ``Functional`` would leak into their MRO too, making Keras treat them as
-    functional and fail with ``Functional.__init__() missing ... 'inputs' and
-    'outputs'`` on construction, or ``'<Model>' object has no attribute
-    '_inputs'`` on call. A separate base keeps subclassed models unaffected.
+    Models build themselves functionally with
+    ``super().__init__(inputs=..., outputs=...)``. This is the peer of
+    :class:`BaseConfig` / :class:`BaseTokenizer` / :class:`BaseProcessor` and the
+    single ``keras.Model`` base every model builds on (formerly
+    ``FunctionalBaseModel``). Generative families keep their imperative KV-cache
+    decode on the task side (a ``BaseGeneration`` mixin) over this functional
+    backbone.
     """
 
     def get_config(self):
         """Config for keras serialization, carrying any applied quantization.
 
-        A no-op for unquantized models. When a :class:`KfQuantizer` has run (via
-        ``from_weights`` or a prior load), ``model._quantization_config`` is stamped
-        into the config so a plain ``.keras`` save/reload rebuilds itself quantized
-        (see :meth:`from_config`), the way Keras carries a quantized dtype policy.
+        A no-op for unquantized models. When a :class:`KfQuantizer` has run, the
+        recipe is stamped into the config so a plain ``.keras`` save/reload
+        rebuilds itself quantized (see :meth:`from_config`). Subclasses that
+        override ``get_config`` call ``super().get_config()``, so they inherit
+        this.
         """
         config = super().get_config()
         qc = getattr(self, "_quantization_config", None)
         if qc is not None:
-            # ``_quantization_config`` is a QuantizationConfig (weight-only subsystem)
-            # or a plain {"quant_method": ...} dict (native, e.g. mxfp4). Normalize.
             config["quantization_config"] = (
                 qc.to_dict() if hasattr(qc, "to_dict") else dict(qc)
             )
@@ -96,11 +88,7 @@ class SubclassedBaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigMode
 
     @classmethod
     def from_config(cls, config):
-        """Rebuild from config, re-applying the quantizer when the block is present.
-
-        Builds the plain (quantization-agnostic) model, then runs the matching
-        :class:`KfQuantizer` to swap in the packed layers before weights load.
-        """
+        """Rebuild from config, re-applying the quantizer when the block is present."""
         config = dict(config)
         quantization_config = config.pop("quantization_config", None)
         model = super().from_config(config)
@@ -109,21 +97,3 @@ class SubclassedBaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigMode
 
             get_kf_quantizer(quantization_config).preprocess_model(model)
         return model
-
-    def build_for_transfer(self):
-        """Build every sublayer with a dummy forward, ready for a weight stream.
-
-        Subclassed models build lazily on first call, so nothing has weights
-        until they run once. The converted-weight cache reloads a model from a
-        serialized *config* (an unbuilt skeleton) and then streams cached tensors
-        onto ``self.weights``, which requires the weights to exist first. This
-        runs the minimal forward that materializes them: a length-4 ``input_ids``
-        batch, the text-LLM signature. Non-text subclassed models (VLMs, ASR)
-        override with a signature-matching dummy input.
-
-        Runs under :func:`inference_scope` so the build forward is graph-free on
-        torch (an MXFP4 build would otherwise retain each layer's dequantized
-        experts and OOM a large checkpoint).
-        """
-        with inference_scope():
-            self({"input_ids": keras.ops.zeros((1, 4), dtype="int32")})

@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.base.base_model import hf_num_classes
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
@@ -1185,7 +1185,7 @@ def rt_detr_v2_functional(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class RTDetrV2Model(FunctionalBaseModel):
+class RTDetrV2Model(BaseModel):
     """RT-DETR-V2 backbone + hybrid encoder + decoder (no class heads).
 
     Matches the reference ``RTDetrV2Model`` pattern: outputs the
@@ -1361,7 +1361,7 @@ class RTDetrV2Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class RTDETRV2Detect(FunctionalBaseModel):
+class RTDETRV2Detect(BaseModel):
     """RT-DETR: Real-Time DEtection TRansformer.
 
     A real-time object detection model that combines a ResNet-vd backbone

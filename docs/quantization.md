@@ -47,20 +47,17 @@ quantize_model(model, "mxfp4")  # OCP 4-bit float, fixed 32-value blocks
 `quantization=` is wired through `from_weights` for every model (Hub Keras repos,
 bare LLM/VLM variants, **and** `hf:` repos).
 
-**No-float load (for models bigger than your float budget).** For subclassed LLMs
-`quantization=` streams the checkpoint straight into int storage without ever
-building the full float model, so a checkpoint larger than your float budget still
-loads quantized:
+**Memory during a quantized load.** `quantization=` builds the model at `load_dtype`
+(bf16 by default) and swaps in quantized layers after, freeing the floats. Peak memory
+is therefore about the **bf16** model, then drops to the quantized size:
 
 ```python
-# never materializes the bf16 model: quantizes each tensor as it loads
 model = Qwen3TextGenerate.from_weights("qwen3-4b", quantization="int4")
 ```
 
-This is automatic and needs no flag, matching the forced low-memory path
-transformers applies to quantized loads. It covers subclassed LLMs whose converter
-assigns through `model.weights` (the standard pattern); functional models and the
-release-`.h5` / timm paths build then quantize instead.
+To load a checkpoint that does not fit in float at all, use a repo that ships **already
+quantized** in a native packed format (e.g. GPT-OSS's mxfp4), whose packed weights load
+directly without a float intermediate (see [`KfQuantizer`](#loading-a-pre-quantized-repo-kfquantizer)).
 
 ## Production usage
 
@@ -98,11 +95,11 @@ model = keras.saving.load_model("model.keras")  # rebuilt quantized, weights loa
 # quantization_config drives it):
 model = Qwen3TextGenerate.from_weights("kerasformers/qwen3-4b-int8")
 
-# Into a hand-built model, apply the quantizer first, then load_weights:
+# Into a hand-built model, apply the quantizer first, then load_weights. For a
+# functional model preprocess_model returns a NEW (cloned) quantized model, so use it:
 model.save_weights("model.weights.h5")
 skeleton = Qwen3TextGenerate.from_weights("qwen3-4b", load_weights=False)
-get_kf_quantizer({"quant_method": "int8"}).preprocess_model(skeleton)
-skeleton(dummy_inputs)  # build the now-int8 skeleton
+skeleton = get_kf_quantizer({"quant_method": "int8"}).preprocess_model(skeleton)
 skeleton.load_weights("model.weights.h5")
 
 dequantize_model(model)  # revert to float layers
@@ -151,8 +148,9 @@ level** above the tensor-level `BaseQuantizer`:
 
 - `mxfp4` -> `Mxfp4KfQuantizer` (GPT-OSS native: swaps the float `GptOssExperts` for
   the packed `GptOssMXFP4Experts`).
-- `int8` / `int4` / `fp8` -> `WeightOnlyKfQuantizer` (generic: builds the int / fp8
-  skeleton via `quantize_skeleton`).
+- `int8` / `int4` / `fp8` -> `WeightOnlyKfQuantizer` (generic: swaps `Dense` /
+  `Embedding` for their quantized layers via `quantize_model`, which clones a
+  functional model, so `preprocess_model` returns the prepared model to load into).
 
 **Save round-trips itself.** The applied quantization is stamped on the model
 (`model._quantization_config`) and carried through `get_config` / `from_config`, so a
@@ -164,9 +162,9 @@ model.save("m.keras")
 reloaded = keras.saving.load_model("m.keras")  # rebuilds bf16 + mxfp4 automatically
 ```
 
-Subclassed models need this hook (Keras rebuilds them from `get_config`, which would
-otherwise recreate plain layers); functional models round-trip natively because Keras
-serializes each layer, quantized ones included, on its own.
+Functional models round-trip natively: Keras serializes each layer, quantized ones
+included, on its own, and the recorded `quantization_config` rides along in `get_config` /
+`from_config` so `from_config` re-applies the quantizer before the weights load.
 
 ## How it works
 
@@ -223,8 +221,8 @@ class plus one file per scheme:
 | `QuantizedDense` / `QuantizedEinsumDense` / `QuantizedEmbedding` / `QuantizedExperts` | `quantized_layers.py` | weight-only drop-in layers (each holds a quantizer); `QuantizedExperts` = fused MoE expert bank, contracting-axis quantized |
 | `GptOssMXFP4Experts` | `quantized_layers.py` | GPT-OSS MoE expert bank kept in MXFP4 (native on-disk format), dequantized in `call` (top-k sparse on decode) |
 | `QuantizationConfig` / `Int8Config` / `Int4Config` / `Fp8Config` / `Mxfp4Config` / `SCHEMES` | `quant_config.py` | recipe (mode, group_size, skip_modules, quantize_embeddings, overrides) + per-method configs + named presets |
-| `quantize_model` / `quantize_functional` | `quantize.py` | in-place (subclassed) / clone (functional) model surgery |
-| `quantize_skeleton` / `quantize_and_load` | `quantize.py` | no-float int skeleton / stream a float checkpoint into int storage |
+| `quantize_model` / `quantize_functional` | `quantize.py` | model surgery: clone (functional models) / in-place (non-functional) |
+| `quantize_skeleton` / `quantize_and_load` | `quantize.py` | legacy no-float path for **unbuilt** (non-functional) models; unused now that every model is functional |
 | `KfQuantizer` / `Mxfp4KfQuantizer` / `WeightOnlyKfQuantizer` / `get_kf_quantizer` | `kf_quantizer.py` | model-level quantizers (transformers `HfQuantizer` analog): read a repo's `quantization_config` and swap in packed / int layers before load; dispatched by `quant_method` |
 | `dequantize_model` | `quantize.py` | revert quantized layers back to float |
 
@@ -261,26 +259,23 @@ Worked examples (int4, ≈ 0.55 B/param):
 | 355B (GLM-4.5) | ~195 GB | no: ~3 GPUs |
 | 744B (GLM-5.x) | ~410 GB | no: ~5–6 GPUs |
 
-> **Load time.** For subclassed LLMs `quantization=` takes the **no-float** path:
-> an int skeleton is built and each tensor is quantized as it loads, so peak ≈ the
-> *quantized* size + one layer's float, never the full **bf16** model (params × 2).
-> That is what lets a checkpoint larger than your float budget load quantized, and
-> it happens automatically with no flag, matching what transformers forces for
-> quantized loads. Functional models and the release-`.h5` / timm paths build the
-> float model first and quantize after.
+> **Load time.** `quantization=` builds the model at `load_dtype` (bf16) and quantizes
+> after, so peak ≈ the **bf16** model (params × 2), then drops to the quantized size. A
+> checkpoint that does not fit in float must therefore ship already quantized in a native
+> packed format (e.g. GPT-OSS mxfp4), which loads packed without a float intermediate.
 
 ## Caveats (honest)
 
 - **Portable weight-only = memory, not speed.** The default Keras path
   dequantizes weights to float every `call`, so it reduces footprint rather than
   latency.
-- **Float path vs no-float path.** For subclassed LLMs `quantization=` builds an
-  int skeleton and quantizes each tensor as it streams in (`quantize_and_load`),
-  avoiding the float-model peak; functional models and the release-`.h5` / timm
-  paths build the float architecture first and swap in quantized layers (floats
-  freed after). The no-float load needs the model's converter to assign through
-  `model.weights` (the standard LLM pattern); it verifies every quantized layer was
-  filled and errors clearly otherwise, so it never silently corrupts.
+- **Build-then-quantize.** `quantization=` builds the float architecture (at
+  `load_dtype`) and swaps in quantized layers after, freeing the floats. Peak memory is
+  the float model, not the quantized size, so a checkpoint larger than your float budget
+  must ship already quantized in a native packed format (mxfp4), which loads packed
+  without a float intermediate. Loading a repo whose `kf_config.json` declares a
+  weight-only `quantization_config` follows the same build-then-quantize path (the
+  `KfQuantizer` swaps in quantized layers before the packed weights load).
 - **Coverage.** `Dense`, `EinsumDense`, `Embedding`, and fused-SwiGLU MoE expert
   banks (`gate_up_proj`/`down_proj`) are quantized; other custom weight layouts
   stay float. A `Dense`/`Embedding` stored inside a Python list (rare:
@@ -298,7 +293,10 @@ Worked examples (int4, ≈ 0.55 B/param):
   float, and `clone_model` returns a plain `Functional` (dropping cached-
   generation methods), so quantized ASR is forward-only, not for `generate()`.
 - **fp8 is torch / jax only.** TensorFlow lacks the float8 casts, so `"fp8"`
-  raises a clear error there: use `"int8"` for a tf-portable ~4× option.
+  raises a clear error there: use `"int8"` for a tf-portable ~4× option. fp8's
+  `float8_e4m3fn` storage also does not round-trip through Keras `.weights.h5` (the
+  variables come back empty on load), so an fp8-quantized model runs but cannot be saved
+  to / loaded from `.weights.h5`; use int8 for a savable ~4× scheme.
 - **No calibrated PTQ (GPTQ / AWQ).** This is round-to-nearest weight
   quantization; calibration-based methods for higher int4 accuracy are not
   included.

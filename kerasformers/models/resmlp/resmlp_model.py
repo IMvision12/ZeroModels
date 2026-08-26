@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.resmlp.resmlp_layers import ResMLPAffine, ResMLPLayerScale
 from kerasformers.utils import standardize_input_shape
@@ -150,7 +150,7 @@ def resmlp_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ResMLPModel(FunctionalBaseModel):
+class ResMLPModel(BaseModel):
     """Instantiates the ResMLP (Residual MLP) backbone.
 
     ResMLP is a Mixer-style architecture where per-channel learnable
@@ -322,7 +322,7 @@ class ResMLPModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ResMLPImageClassify(FunctionalBaseModel):
+class ResMLPImageClassify(BaseModel):
     """Instantiates the ResMLP classifier.
 
     This classifier wraps a :class:`ResMLPModel` backbone and attaches a

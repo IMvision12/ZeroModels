@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -129,7 +129,7 @@ def vgg_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class VGGModel(FunctionalBaseModel):
+class VGGModel(BaseModel):
     """Instantiates the VGG backbone.
 
     VGG is a sequential stack of 3x3 convolutions and 2x2 max-pooling
@@ -275,7 +275,7 @@ class VGGModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class VGGImageClassify(FunctionalBaseModel):
+class VGGImageClassify(BaseModel):
     """Instantiates the VGG classifier.
 
     This classifier wraps a :class:`VGGModel` backbone and attaches a

@@ -1,9 +1,18 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, CheckpointSource
+from kerasformers.base import (
+    BaseGeneration,
+    CausalMask,
+    CheckpointSource,
+    MediaMerge,
+    TiedHead,
+)
+from kerasformers.base.base_mixin import inference_scope
 from kerasformers.models.qwen2_vl.qwen2_vl_model import (
     Qwen2VLModel,
+    qwen2_vl_multimodal_features,
+    qwen2_vl_text_features,
     vision_rotary_cos_sin,
 )
 
@@ -15,8 +24,6 @@ from .qwen2_5_vl_layers import (
     Qwen2_5VLRMSNorm,
     Qwen2_5VLVisionBlock,
 )
-
-MASK_NEG = -1e9
 
 MASK_NEG = -1e9
 
@@ -219,6 +226,11 @@ class Qwen2_5VLVisionModel(layers.Layer):
         reverse = ops.argsort(window_index)
         return ops.take(merged, reverse, axis=0)
 
+    def compute_output_spec(self, pixel_values, grid_thw):
+        # Merged-token count is grid-dependent (dynamic); the grid-iterating call
+        # runs eagerly at runtime, so give the functional builder an explicit spec.
+        return keras.KerasTensor((None, self.out_hidden_size), dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -335,6 +347,17 @@ class Qwen2_5VLTextModel(layers.Layer):
                 hidden = out
         hidden = self.final_norm(hidden)
         return (hidden, new_cache) if use_cache else hidden
+
+    def compute_output_spec(
+        self,
+        inputs_embeds,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_values=None,
+        use_cache=False,
+    ):
+        return keras.KerasTensor(inputs_embeds.shape, dtype=self.compute_dtype)
 
     def get_config(self):
         config = super().get_config()
@@ -455,22 +478,138 @@ class Qwen2_5VLModel(Qwen2VLModel):
         vision_start_token_id=151652,
         vision_end_token_id=151653,
         build_vision=True,
+        name=None,
         **kwargs,
     ):
-        from kerasformers.base import SubclassedBaseModel
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = embed_dim // num_heads
+        patch_dim = in_channels * temporal_patch_size * patch_size * patch_size
+        vision_out_dim = vision_out_dim or embed_dim
 
-        # Skip Qwen2VLModel.__init__ (it builds the 2-VL layers); run only the
-        # base keras init. Use SubclassedBaseModel (this model's actual base),
-        # not FunctionalBaseModel: the functional FunctionalBaseModel gets its `__bases__`
-        # rewritten to `Functional` when a functional model is built.
-        SubclassedBaseModel.__init__(self, **kwargs)
+        visual = (
+            Qwen2_5VLVisionModel(
+                embed_dim=vision_embed_dim,
+                depth=vision_depth,
+                num_heads=vision_num_heads,
+                intermediate_size=vision_mlp_dim,
+                out_hidden_size=vision_out_dim,
+                window_size=window_size,
+                fullatt_block_indexes=fullatt_block_indexes,
+                patch_size=patch_size,
+                spatial_merge_size=spatial_merge_size,
+                name="visual",
+            )
+            if build_vision
+            else None
+        )
+        language_model = Qwen2_5VLTextModel(
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            mlp_dim=mlp_dim,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            num_kv_heads=num_kv_heads,
+            head_dim=head_dim,
+            norm_eps=norm_eps,
+            name="language_model",
+        )
+        causal_mask = CausalMask(name="causal_mask")
+        image_merge = video_merge = None
+        if build_vision:
+            image_merge = MediaMerge(image_token_id, embed_dim, name="image_merge")
+            video_merge = MediaMerge(video_token_id, embed_dim, name="video_merge")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        def text_input():
+            return {
+                "input_ids": layers.Input(
+                    shape=(None,), dtype="int32", name="input_ids"
+                ),
+                "attention_mask": layers.Input(
+                    shape=(None,), dtype="int32", name="attention_mask"
+                ),
+            }
+
+        if build_vision:
+            inputs = text_input()
+            inputs["position_ids"] = layers.Input(
+                shape=(3, None), dtype="int32", name="position_ids"
+            )
+            inputs["pixel_values"] = layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values"
+            )
+            inputs["image_grid_thw"] = layers.Input(
+                shape=(3,), dtype="int32", name="image_grid_thw"
+            )
+            inputs["pixel_values_videos"] = layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values_videos"
+            )
+            inputs["video_grid_thw"] = layers.Input(
+                shape=(3,), dtype="int32", name="video_grid_thw"
+            )
+            hidden = qwen2_vl_multimodal_features(
+                inputs["input_ids"],
+                inputs["attention_mask"],
+                inputs["position_ids"],
+                inputs["pixel_values"],
+                inputs["image_grid_thw"],
+                inputs["pixel_values_videos"],
+                inputs["video_grid_thw"],
+                token_embedding=language_model.token_embedding,
+                visual=visual,
+                language_model=language_model,
+                image_merge=image_merge,
+                video_merge=video_merge,
+                causal_mask=causal_mask,
+                head_dim=head_dim,
+                rope_theta=rope_theta,
+                mrope_section=tuple(mrope_section),
+                image_token_id=image_token_id,
+                video_token_id=video_token_id,
+            )
+        else:
+            inputs = text_input()
+            hidden = qwen2_vl_text_features(
+                inputs["input_ids"],
+                inputs["attention_mask"],
+                token_embedding=language_model.token_embedding,
+                language_model=language_model,
+                causal_mask=causal_mask,
+                head_dim=head_dim,
+                rope_theta=rope_theta,
+                mrope_section=tuple(mrope_section),
+            )
+
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(language_model.token_embedding, name="lm_head")(hidden)
+            )
+
+        # Skip Qwen2VLModel.__init__ (it builds the 2-VL graph); go straight to the
+        # functional keras init after Qwen2VLModel in the MRO (BaseModel).
+        super(Qwen2VLModel, self).__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.visual = visual
+        self.language_model = language_model
+        self.causal_mask_layer = causal_mask
+        self.image_merge = image_merge
+        self.video_merge = video_merge
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
-        self.head_dim = embed_dim // num_heads
+        self.head_dim = head_dim
         self.norm_eps = norm_eps
         self.rope_theta = rope_theta
         self.mrope_section = tuple(mrope_section)
@@ -479,7 +618,7 @@ class Qwen2_5VLModel(Qwen2VLModel):
         self.vision_embed_dim = vision_embed_dim
         self.vision_mlp_dim = vision_mlp_dim
         self.vision_num_heads = vision_num_heads
-        self.vision_out_dim = vision_out_dim or embed_dim
+        self.vision_out_dim = vision_out_dim
         self.window_size = window_size
         self.fullatt_block_indexes = tuple(fullatt_block_indexes)
         self.tokens_per_second = tokens_per_second
@@ -491,36 +630,11 @@ class Qwen2_5VLModel(Qwen2VLModel):
         self.video_token_id = video_token_id
         self.vision_start_token_id = vision_start_token_id
         self.vision_end_token_id = vision_end_token_id
-        self.patch_dim = in_channels * temporal_patch_size * patch_size * patch_size
+        self.patch_dim = patch_dim
         self.build_vision = build_vision
 
-        self.visual = (
-            Qwen2_5VLVisionModel(
-                embed_dim=vision_embed_dim,
-                depth=vision_depth,
-                num_heads=vision_num_heads,
-                intermediate_size=vision_mlp_dim,
-                out_hidden_size=self.vision_out_dim,
-                window_size=window_size,
-                fullatt_block_indexes=fullatt_block_indexes,
-                patch_size=patch_size,
-                spatial_merge_size=spatial_merge_size,
-                name="visual",
-            )
-            if build_vision
-            else None
-        )
-        self.language_model = Qwen2_5VLTextModel(
-            vocab_size=vocab_size,
-            embed_dim=embed_dim,
-            mlp_dim=mlp_dim,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            num_kv_heads=num_kv_heads,
-            head_dim=self.head_dim,
-            norm_eps=norm_eps,
-            name="language_model",
-        )
+        with inference_scope():
+            self.materialize_build()
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -613,25 +727,7 @@ class Qwen2_5VLConditionalGenerate(Qwen2_5VLModel, BaseGeneration):
     """
 
     eos_token_id = (151645,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
-
-    def call(self, inputs):
-        hidden = self._forward_features(inputs)
-        logits = (
-            self.lm_head(hidden)
-            if self.lm_head is not None
-            else ops.matmul(
-                hidden, ops.transpose(self.language_model.token_embedding.embeddings)
-            )
-        )
-        return {"logits": logits, "last_hidden_state": hidden}
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:

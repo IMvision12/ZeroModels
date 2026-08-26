@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.utils import standardize_input_shape
 
 from .oneformer_config import OneFormerConfig
@@ -536,7 +536,7 @@ def oneformer_functional(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class OneFormerModel(FunctionalBaseModel):
+class OneFormerModel(BaseModel):
     """OneFormer universal segmentation (Swin backbone, task-conditioned queries).
 
     One model performs semantic, instance, and panoptic segmentation: the

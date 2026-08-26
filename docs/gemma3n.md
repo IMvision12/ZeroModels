@@ -173,8 +173,9 @@ scattered onto their placeholder positions in `input_ids` before the decoder run
 
 ### `MobileNetV5Encoder` and `Gemma3nAudioEncoder`
 
-The towers can be used on their own. `MobileNetV5Encoder` takes channels-last
-`pixel_values` `(batch, H, W, 3)` and returns a `(batch, 16, 16, 2048)` feature map (256
+The towers can be used on their own. `MobileNetV5Encoder` takes
+`pixel_values` (channels-last `(batch, H, W, 3)`, or `channels_first` `(batch, 3, H, W)`)
+and returns a `(batch, 16, 16, 2048)` feature map (256
 soft tokens after flatten); `Gemma3nAudioEncoder` takes `(input_features, mask)` and
 returns `(soft_tokens, valid_mask)`. Both are exposed from `kerasformers.models.gemma3n`.
 
@@ -217,6 +218,14 @@ Gemma3nProcessor(
     hf_id=None, tokenizer=None, image_processor=None, feature_extractor=None
 )
 ```
+
+## Data Format
+
+The model reads `keras.config.image_data_format()` when it is constructed and accepts both
+`channels_last` and `channels_first` `pixel_values`. For `channels_first` input, the
+MobileNet-V5 vision tower transposes the image to `channels_last` at its entry (the "door")
+and runs all convolutions in `channels_last` internally. The soft image tokens are identical
+under either layout.
 
 ## End-to-end example
 

@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -160,7 +160,7 @@ def mlp_mixer_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MLPMixerModel(FunctionalBaseModel):
+class MLPMixerModel(BaseModel):
     """Instantiates the MLP-Mixer backbone.
 
     MLP-Mixer is an all-MLP architecture for vision: after a patch
@@ -332,7 +332,7 @@ class MLPMixerModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MLPMixerImageClassify(FunctionalBaseModel):
+class MLPMixerImageClassify(BaseModel):
     """Instantiates the MLP-Mixer classifier.
 
     This classifier wraps an :class:`MLPMixerModel` backbone and

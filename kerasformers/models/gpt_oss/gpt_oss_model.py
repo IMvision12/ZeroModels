@@ -3,7 +3,8 @@ import math
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
+from kerasformers.base.base_mixin import inference_scope
 
 from .gpt_oss_config import GptOssConfig
 from .gpt_oss_layers import GptOssDecoderLayer, GptOssRMSNorm
@@ -52,8 +53,61 @@ def yarn_inv_freq(head_dim, base, factor, beta_fast, beta_slow, orig_max, trunca
     return inv_freq, attention_scaling
 
 
+def gpt_oss_rope_tables(
+    position_ids,
+    head_dim,
+    rope_theta,
+    rope_factor,
+    rope_beta_fast,
+    rope_beta_slow,
+    rope_original_max_pos,
+    rope_truncate,
+):
+    inv_freq, scaling = yarn_inv_freq(
+        head_dim,
+        rope_theta,
+        rope_factor,
+        rope_beta_fast,
+        rope_beta_slow,
+        rope_original_max_pos,
+        rope_truncate,
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cos(emb) * scaling, ops.sin(emb) * scaling
+
+
+def gpt_oss_is_sliding(layer_idx):
+    # HF: "sliding_attention" if (i + 1) % 2 else "full_attention" -> even i slides
+    return bool((layer_idx + 1) % 2)
+
+
+def gpt_oss_backbone_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    decoder_layers,
+    final_norm,
+    full_mask_layer,
+    sliding_mask_layer,
+    rope_kwargs,
+):
+    hidden = token_embedding(input_ids)
+    position_ids = ops.where(
+        attention_mask == 0, 1, ops.cumsum(attention_mask, axis=-1) - 1
+    )
+    cos, sin = gpt_oss_rope_tables(position_ids, **rope_kwargs)
+    full_mask = full_mask_layer(input_ids, attention_mask)
+    sliding_mask = sliding_mask_layer(input_ids, attention_mask)
+    for i, layer in enumerate(decoder_layers):
+        mask = sliding_mask if gpt_oss_is_sliding(i) else full_mask
+        hidden = layer(hidden, cos, sin, attention_mask=mask)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class GptOssModel(SubclassedBaseModel):
+class GptOssModel(BaseModel):
     """GPT-OSS mixture-of-experts decoder-only transformer backbone (no LM head).
 
     ``token_embedding -> num_layers x GptOssDecoderLayer -> final RMSNorm``, with
@@ -62,9 +116,8 @@ class GptOssModel(SubclassedBaseModel):
     top-k-routed mixture-of-experts feed-forward per layer. (The router picks
     top-k experts per token; this port evaluates *all* experts densely and
     combines them by the routing weights: mathematically identical to sparse
-    top-k routing, but compute is O(num_experts).) Subclassed (imperative)
-    model: the forward runs eagerly with ``keras.ops``. Returns raw features;
-    use :class:`GptOssTextGenerate` for logits / text.
+    top-k routing, but compute is O(num_experts).) A functional model; returns
+    ``last_hidden_state``: use :class:`GptOssTextGenerate` for logits / text.
 
     Args:
         vocab_size, embed_dim, mlp_dim, num_layers, num_heads,
@@ -88,6 +141,7 @@ class GptOssModel(SubclassedBaseModel):
     # model keeps that native ~2 bytes/param footprint (pass load_dtype="float32"
     # to upcast). The experts stay uint8 MXFP4 regardless of this policy.
     default_load_dtype = "bfloat16"
+    output_logits = False
 
     def __init__(
         self,
@@ -110,9 +164,82 @@ class GptOssModel(SubclassedBaseModel):
         rope_original_max_pos=4096,
         attention_bias=True,
         tie_embeddings=False,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+
+        token_embedding = layers.Embedding(
+            vocab_size, embed_dim, name="token_embedding"
+        )
+        decoder_layers = [
+            GptOssDecoderLayer(
+                embed_dim,
+                mlp_dim,
+                num_heads,
+                num_kv_heads,
+                head_dim,
+                num_experts,
+                num_experts_per_tok,
+                norm_eps,
+                attention_bias,
+                name=f"decoder_layer_{i}",
+            )
+            for i in range(num_layers)
+        ]
+        final_norm = GptOssRMSNorm(eps=norm_eps, name="final_norm")
+        full_mask_layer = CausalMask(name="causal_mask")
+        sliding_mask_layer = CausalMask(
+            sliding_window=sliding_window, name="sliding_mask"
+        )
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        rope_kwargs = {
+            "head_dim": head_dim,
+            "rope_theta": rope_theta,
+            "rope_factor": rope_factor,
+            "rope_beta_fast": rope_beta_fast,
+            "rope_beta_slow": rope_beta_slow,
+            "rope_original_max_pos": rope_original_max_pos,
+            "rope_truncate": rope_truncate,
+        }
+        hidden = gpt_oss_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            full_mask_layer=full_mask_layer,
+            sliding_mask_layer=sliding_mask_layer,
+            rope_kwargs=rope_kwargs,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.full_mask_layer = full_mask_layer
+        self.sliding_mask_layer = sliding_mask_layer
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
@@ -133,28 +260,21 @@ class GptOssModel(SubclassedBaseModel):
         self.attention_bias = attention_bias
         self.tie_embeddings = tie_embeddings
 
-        self.token_embedding = layers.Embedding(
-            vocab_size, embed_dim, name="token_embedding"
-        )
-        self.decoder_layers = [
-            GptOssDecoderLayer(
-                embed_dim,
-                mlp_dim,
-                num_heads,
-                num_kv_heads,
-                head_dim,
-                num_experts,
-                num_experts_per_tok,
-                norm_eps,
-                attention_bias,
-                name=f"decoder_layer_{i}",
+        # The learned attention sinks abort Keras' symbolic auto-build trace of the
+        # attention on some backends, leaving it unbuilt after __init__; a concrete
+        # dummy forward materializes every weight so ``from_weights`` (which loads
+        # before any forward) has a complete model to populate.
+        with inference_scope():
+            self(
+                {
+                    "input_ids": ops.zeros((1, 4), dtype="int32"),
+                    "attention_mask": ops.ones((1, 4), dtype="int32"),
+                }
             )
-            for i in range(num_layers)
-        ]
-        self.final_norm = GptOssRMSNorm(eps=norm_eps, name="final_norm")
 
     def rope(self, position_ids):
-        inv_freq, scaling = yarn_inv_freq(
+        return gpt_oss_rope_tables(
+            position_ids,
             self.head_dim,
             self.rope_theta,
             self.rope_factor,
@@ -163,45 +283,9 @@ class GptOssModel(SubclassedBaseModel):
             self.rope_original_max_pos,
             self.rope_truncate,
         )
-        freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
-        emb = ops.concatenate([freqs, freqs], axis=-1)
-        return ops.cos(emb) * scaling, ops.sin(emb) * scaling
 
     def is_sliding(self, layer_idx):
-        # HF: "sliding_attention" if (i + 1) % 2 else "full_attention" -> even i slides
-        return bool((layer_idx + 1) % 2)
-
-    def call(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        attention_mask = inputs.get("attention_mask")
-        hidden = self.token_embedding(input_ids)
-        if attention_mask is not None:
-            am = ops.cast(ops.convert_to_tensor(attention_mask), "int32")
-            position_ids = ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
-        else:
-            position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        cos, sin = self.rope(position_ids)
-
-        qi = ops.arange(seq)[:, None]
-        ki = ops.arange(seq)[None, :]
-        causal = ki <= qi
-        full_mask = ops.cast(ops.where(causal, 0.0, MASK_NEG), "float32")[None, None]
-        sliding_keep = ops.logical_and(causal, ki > qi - self.sliding_window)
-        sliding_mask = ops.cast(ops.where(sliding_keep, 0.0, MASK_NEG), "float32")[
-            None, None
-        ]
-        if attention_mask is not None:
-            pad = (1.0 - ops.cast(am, "float32"))[:, None, None, :] * MASK_NEG
-            full_mask = full_mask + pad
-            sliding_mask = sliding_mask + pad
-
-        for i, layer in enumerate(self.decoder_layers):
-            mask = sliding_mask if self.is_sliding(i) else full_mask
-            hidden = layer(hidden, cos, sin, attention_mask=mask)
-        return {"last_hidden_state": self.final_norm(hidden)}
+        return gpt_oss_is_sliding(layer_idx)
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -258,6 +342,7 @@ class GptOssModel(SubclassedBaseModel):
                 "rope_original_max_pos": self.rope_original_max_pos,
                 "attention_bias": self.attention_bias,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -267,34 +352,24 @@ class GptOssModel(SubclassedBaseModel):
 class GptOssTextGenerate(GptOssModel, BaseGeneration):
     """GPT-OSS backbone + a language-model head and fast ``.generate()``.
 
-    Adds a bias-free ``lm_head`` (GPT-OSS does not tie embeddings). ``call`` returns
-    ``logits`` ``(batch, seq, vocab_size)`` and ``last_hidden_state``. Fast generation
-    comes from :class:`~kerasformers.base.BaseGeneration`, fulfilled here by
-    ``build_cache`` (parallel prefill into a fixed KV cache) and ``call_with_cache``
-    (one compiled decode step): both respect the per-layer sliding window (full /
-    sliding key masks) and the learned attention sinks. Constructor ``Args`` are
-    inherited from :class:`GptOssModel`.
+    Adds a bias-free ``lm_head`` (GPT-OSS does not tie embeddings). The forward
+    graph returns ``logits`` ``(batch, seq, vocab_size)`` and
+    ``last_hidden_state``. Fast generation comes from
+    :class:`~kerasformers.base.BaseGeneration`, fulfilled here by ``build_cache``
+    (parallel prefill into a fixed KV cache) and ``call_with_cache`` (one compiled
+    decode step): both respect the per-layer sliding window (full / sliding key
+    masks) and the learned attention sinks. Constructor ``Args`` are inherited from
+    :class:`GptOssModel`.
     """
 
     # GPT-OSS <|return|> stop id. Explicit generate() args override this.
     eos_token_id = (200002,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = super().call(inputs)["last_hidden_state"]
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(self, token_ids, padding_mask, max_len):
         # Parallel prefill into a fixed (B, num_layers, 2, num_kv_heads, max_len,

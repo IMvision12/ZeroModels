@@ -182,7 +182,8 @@ def transfer_minimax_m3_vl_weights(keras_model, hf_state_dict):
         )
         del size
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        name = weight.path.split("/", 1)[1].replace("/", ".")
+        # Functional model weight paths are flat (no model-name root to strip).
+        name = weight.path.replace("/", ".")
         mapping = VISION_MAPPING if name.startswith("vision_tower.") else TEXT_MAPPING
         for old, new in mapping.items():
             name = name.replace(old, new)

@@ -3,7 +3,7 @@ import math
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
 from .llama_config import LLAMA_CONFIG, LLAMA_WEIGHTS_URLS
 from .llama_layers import LlamaDecoderLayer, LlamaRMSNorm
@@ -41,8 +41,65 @@ def llama3_scaled_inv_freq(
     return ops.where(is_medium, smoothed, scaled)
 
 
+def llama_rope_tables(
+    position_ids,
+    head_dim,
+    rope_theta,
+    rope_factor,
+    rope_low_freq_factor,
+    rope_high_freq_factor,
+    rope_original_max_pos,
+    compute_dtype,
+):
+    # cos/sin rotary tables for the given integer positions, in the compute dtype,
+    # using the llama3-scaled inverse frequencies when rope_factor is set (Llama
+    # 3.1 / 3.2 / 3.3) and plain ones otherwise (Llama 3). Position-independent
+    # ``inv_freq`` folds to a build-time constant; only the position product runs
+    # per call, so this is safe to wire directly into the functional graph.
+    if rope_factor is not None:
+        inv_freq = llama3_scaled_inv_freq(
+            head_dim,
+            rope_theta,
+            rope_factor,
+            rope_low_freq_factor,
+            rope_high_freq_factor,
+            rope_original_max_pos,
+        )
+    else:
+        inv_freq = 1.0 / ops.power(
+            rope_theta, ops.arange(0, head_dim, 2, dtype="float32") / head_dim
+        )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def llama_backbone_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    decoder_layers,
+    final_norm,
+    causal_mask,
+    rope_kwargs,
+    compute_dtype,
+):
+    hidden = token_embedding(input_ids)
+    position_ids = ops.where(
+        attention_mask == 0, 1, ops.cumsum(attention_mask, axis=-1) - 1
+    )
+    cos, sin = llama_rope_tables(
+        position_ids, compute_dtype=compute_dtype, **rope_kwargs
+    )
+    mask = causal_mask(input_ids, attention_mask)
+    for layer in decoder_layers:
+        hidden = layer(hidden, cos, sin, attention_mask=mask)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class LlamaModel(SubclassedBaseModel):
+class LlamaModel(BaseModel):
     """Llama 3 family decoder-only transformer backbone (no LM head).
 
     ``token_embedding -> num_layers x LlamaDecoderLayer -> final RMSNorm``,
@@ -50,12 +107,12 @@ class LlamaModel(SubclassedBaseModel):
     projections, SwiGLU MLPs, and half-rotation rotary positions. Covers the
     whole ``model_type: "llama"`` 3.x line: Llama 3 (plain rope), Llama
     3.1 / 3.3 (frequency-banded ``llama3`` rope scaling, ``rope_factor=8``),
-    and Llama 3.2 1B/3B (``rope_factor=32`` and a tied LM head). Subclassed
-    (imperative) model: the forward runs eagerly with ``keras.ops``. Returns
-    raw features; use :class:`LlamaTextGenerate` for logits / text.
+    and Llama 3.2 1B/3B (``rope_factor=32`` and a tied LM head). A functional
+    model: the forward is a static graph over ``input_ids`` / ``attention_mask``.
+    Returns ``last_hidden_state``; use :class:`LlamaTextGenerate` for logits / text.
 
         model = LlamaModel.from_weights("llama3.2-1b")
-        out = model({"input_ids": ids})["last_hidden_state"]  # (B, L, embed_dim)
+        out = model({"input_ids": ids, "attention_mask": mask})["last_hidden_state"]
 
     Args:
         vocab_size: Token vocabulary size.
@@ -79,6 +136,8 @@ class LlamaModel(SubclassedBaseModel):
     HF_MODEL_TYPE = "llama"
     BASE_MODEL_CONFIG = LLAMA_CONFIG
     BASE_WEIGHT_CONFIG = LLAMA_WEIGHTS_URLS
+    # LlamaTextGenerate flips this on to also emit LM-head logits from the graph.
+    output_logits = False
 
     def __init__(
         self,
@@ -96,16 +155,82 @@ class LlamaModel(SubclassedBaseModel):
         rope_high_freq_factor=4.0,
         rope_original_max_pos=8192,
         tie_embeddings=True,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = head_dim or embed_dim // num_heads
+
+        token_embedding = layers.Embedding(
+            vocab_size, embed_dim, name="token_embedding"
+        )
+        decoder_layers = [
+            LlamaDecoderLayer(
+                embed_dim,
+                mlp_dim,
+                num_heads,
+                num_kv_heads,
+                head_dim,
+                norm_eps,
+                name=f"decoder_layer_{i}",
+            )
+            for i in range(num_layers)
+        ]
+        final_norm = LlamaRMSNorm(eps=norm_eps, name="final_norm")
+        causal_mask = CausalMask(name="causal_mask")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        rope_kwargs = {
+            "head_dim": head_dim,
+            "rope_theta": rope_theta,
+            "rope_factor": rope_factor,
+            "rope_low_freq_factor": rope_low_freq_factor,
+            "rope_high_freq_factor": rope_high_freq_factor,
+            "rope_original_max_pos": rope_original_max_pos,
+        }
+        hidden = llama_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            causal_mask=causal_mask,
+            rope_kwargs=rope_kwargs,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.causal_mask_layer = causal_mask
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
-        self.head_dim = head_dim or embed_dim // num_heads
+        self.head_dim = head_dim
         self.norm_eps = norm_eps
         self.rope_theta = rope_theta
         self.rope_factor = rope_factor
@@ -114,71 +239,19 @@ class LlamaModel(SubclassedBaseModel):
         self.rope_original_max_pos = rope_original_max_pos
         self.tie_embeddings = tie_embeddings
 
-        self.token_embedding = layers.Embedding(
-            vocab_size, embed_dim, name="token_embedding"
-        )
-        self.decoder_layers = [
-            LlamaDecoderLayer(
-                embed_dim,
-                mlp_dim,
-                num_heads,
-                num_kv_heads,
-                self.head_dim,
-                norm_eps,
-                name=f"decoder_layer_{i}",
-            )
-            for i in range(num_layers)
-        ]
-        self.final_norm = LlamaRMSNorm(eps=norm_eps, name="final_norm")
-
     def rope_tables(self, position_ids):
-        # cos/sin rotary tables for the given integer positions, in the compute
-        # dtype, using the llama3-scaled inverse frequencies when rope_factor
-        # is set (Llama 3.1 / 3.2 / 3.3) and plain ones otherwise (Llama 3).
-        hd = self.head_dim
-        if self.rope_factor is not None:
-            inv_freq = llama3_scaled_inv_freq(
-                hd,
-                self.rope_theta,
-                self.rope_factor,
-                self.rope_low_freq_factor,
-                self.rope_high_freq_factor,
-                self.rope_original_max_pos,
-            )
-        else:
-            inv_freq = 1.0 / ops.power(
-                self.rope_theta, ops.arange(0, hd, 2, dtype="float32") / hd
-            )
-        freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
-        emb = ops.concatenate([freqs, freqs], axis=-1)
-        return (
-            ops.cast(ops.cos(emb), self.compute_dtype),
-            ops.cast(ops.sin(emb), self.compute_dtype),
+        # Imperative cos/sin for the KV-cache prefill / decode (concrete positions);
+        # the forward graph wires llama_rope_tables directly.
+        return llama_rope_tables(
+            position_ids,
+            self.head_dim,
+            self.rope_theta,
+            self.rope_factor,
+            self.rope_low_freq_factor,
+            self.rope_high_freq_factor,
+            self.rope_original_max_pos,
+            self.compute_dtype,
         )
-
-    def call(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        attention_mask = inputs.get("attention_mask")
-        hidden = self.token_embedding(input_ids)
-        if attention_mask is not None:
-            am = ops.cast(ops.convert_to_tensor(attention_mask), "int32")
-            position_ids = ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
-        else:
-            position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        cos, sin = self.rope_tables(position_ids)
-        qi = ops.arange(seq)[:, None]
-        ki = ops.arange(seq)[None, :]
-        attn_mask = ops.cast(ops.where(ki <= qi, 0.0, MASK_NEG), "float32")[None, None]
-        if attention_mask is not None:
-            attn_mask = (
-                attn_mask + (1.0 - ops.cast(am, "float32"))[:, None, None, :] * MASK_NEG
-            )
-        for layer in self.decoder_layers:
-            hidden = layer(hidden, cos, sin, attention_mask=attn_mask)
-        return {"last_hidden_state": self.final_norm(hidden)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -228,6 +301,7 @@ class LlamaModel(SubclassedBaseModel):
                 "rope_high_freq_factor": self.rope_high_freq_factor,
                 "rope_original_max_pos": self.rope_original_max_pos,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -240,7 +314,7 @@ class LlamaTextGenerate(LlamaModel, BaseGeneration):
     Adds a vocabulary projection on top of :class:`LlamaModel`: a separate
     bias-free ``lm_head`` when ``tie_embeddings`` is ``False`` (3-8B and up),
     otherwise the transposed token embedding (3.2 1B/3B weight tying).
-    ``call`` returns both ``logits`` ``(batch, seq, vocab_size)`` and
+    The forward graph returns both ``logits`` ``(batch, seq, vocab_size)`` and
     ``last_hidden_state``. Fast generation comes from
     :class:`~kerasformers.base.BaseGeneration`, fulfilled here by
     ``build_cache`` (parallel prefill into a fixed KV cache) and
@@ -254,23 +328,12 @@ class LlamaTextGenerate(LlamaModel, BaseGeneration):
     # Llama 3 stop ids: <|end_of_text|>, <|eom_id|>, <|eot_id|>. Explicit
     # generate() args override this.
     eos_token_id = (128001, 128008, 128009)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = super().call(inputs)["last_hidden_state"]
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(self, token_ids, padding_mask, max_len):
         # Parallel prefill: run the prompt and write each layer's K/V into a

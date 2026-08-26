@@ -1,7 +1,8 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
+from kerasformers.base.base_mixin import inference_scope
 
 from .gemma2_config import Gemma2Config
 from .gemma2_layers import Gemma2DecoderLayer, Gemma2RMSNorm
@@ -9,8 +10,49 @@ from .gemma2_layers import Gemma2DecoderLayer, Gemma2RMSNorm
 MASK_NEG = -1e9
 
 
+def gemma2_is_sliding(layer_idx):
+    # HF: "sliding_attention" if bool((i + 1) % 2) -> even layers slide.
+    return bool((layer_idx + 1) % 2)
+
+
+def gemma2_rope_tables(position_ids, head_dim, rope_theta, compute_dtype):
+    inv_freq = 1.0 / ops.power(
+        rope_theta, ops.arange(0, head_dim, 2, dtype="float32") / head_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def gemma2_backbone_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    decoder_layers,
+    final_norm,
+    full_mask_layer,
+    sliding_mask_layer,
+    embed_dim,
+    head_dim,
+    rope_theta,
+    compute_dtype,
+):
+    hidden = token_embedding(input_ids) * ops.cast(embed_dim**0.5, compute_dtype)
+    position_ids = ops.where(
+        attention_mask == 0, 1, ops.cumsum(attention_mask, axis=-1) - 1
+    )
+    cos, sin = gemma2_rope_tables(position_ids, head_dim, rope_theta, compute_dtype)
+    full_mask = full_mask_layer(input_ids, attention_mask)
+    sliding_mask = sliding_mask_layer(input_ids, attention_mask)
+    for i, layer in enumerate(decoder_layers):
+        mask = sliding_mask if gemma2_is_sliding(i) else full_mask
+        hidden = layer(hidden, cos, sin, attention_mask=mask)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Gemma2Model(SubclassedBaseModel):
+class Gemma2Model(BaseModel):
     """Gemma 2 decoder-only transformer backbone (no LM head).
 
     Gemma's scaled embeddings, ``(1 + w)`` RMSNorms, and GeGLU, plus the
@@ -18,11 +60,12 @@ class Gemma2Model(SubclassedBaseModel):
     attention-logit tanh softcapping (50.0) applied before the mask,
     ``query_pre_attn_scalar`` attention scaling, and alternating
     sliding-window (even layers) / full (odd layers) causal attention.
-    Returns raw features; use :class:`Gemma2TextGenerate` for logits / text
-    (which also applies the final-logit softcap, 30.0).
+    A functional model; returns ``last_hidden_state``: use
+    :class:`Gemma2TextGenerate` for logits / text (which also applies the
+    final-logit softcap, 30.0).
 
         model = Gemma2Model.from_weights("kerasformers/gemma-2-2b")
-        out = model({"input_ids": ids})["last_hidden_state"]  # (B, L, embed_dim)
+        out = model({"input_ids": ids, "attention_mask": mask})["last_hidden_state"]
 
     Args:
         vocab_size: Token vocabulary size.
@@ -45,6 +88,7 @@ class Gemma2Model(SubclassedBaseModel):
     HF_MODEL_TYPE = "gemma2"
     default_load_dtype = "bfloat16"
     config_class = Gemma2Config
+    output_logits = False
 
     def __init__(
         self,
@@ -62,9 +106,78 @@ class Gemma2Model(SubclassedBaseModel):
         norm_eps=1e-6,
         rope_theta=10000.0,
         tie_embeddings=True,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+
+        token_embedding = layers.Embedding(
+            vocab_size, embed_dim, name="token_embedding"
+        )
+        decoder_layers = [
+            Gemma2DecoderLayer(
+                embed_dim,
+                mlp_dim,
+                num_heads,
+                num_kv_heads,
+                head_dim,
+                query_pre_attn_scalar,
+                attn_logit_softcapping,
+                norm_eps,
+                name=f"decoder_layer_{i}",
+            )
+            for i in range(num_layers)
+        ]
+        final_norm = Gemma2RMSNorm(eps=norm_eps, name="final_norm")
+        full_mask_layer = CausalMask(name="causal_mask")
+        sliding_mask_layer = CausalMask(
+            sliding_window=sliding_window, name="sliding_mask"
+        )
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        hidden = gemma2_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            full_mask_layer=full_mask_layer,
+            sliding_mask_layer=sliding_mask_layer,
+            embed_dim=embed_dim,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            raw = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+            if final_logit_softcapping is not None:
+                raw = ops.tanh(raw / final_logit_softcapping) * final_logit_softcapping
+            outputs["logits"] = raw
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.full_mask_layer = full_mask_layer
+        self.sliding_mask_layer = sliding_mask_layer
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
@@ -80,28 +193,20 @@ class Gemma2Model(SubclassedBaseModel):
         self.rope_theta = rope_theta
         self.tie_embeddings = tie_embeddings
 
-        self.token_embedding = layers.Embedding(
-            vocab_size, embed_dim, name="token_embedding"
-        )
-        self.decoder_layers = [
-            Gemma2DecoderLayer(
-                embed_dim,
-                mlp_dim,
-                num_heads,
-                num_kv_heads,
-                head_dim,
-                query_pre_attn_scalar,
-                attn_logit_softcapping,
-                norm_eps,
-                name=f"decoder_layer_{i}",
+        # Gemma's ``(1 + w)`` RMSNorm aborts Keras' symbolic auto-build trace on
+        # some backends, leaving attention/MLP sublayers unbuilt; a concrete dummy
+        # forward materializes every weight so ``from_weights`` (which loads before
+        # any forward) has a complete model to populate.
+        with inference_scope():
+            self(
+                {
+                    "input_ids": ops.zeros((1, 4), dtype="int32"),
+                    "attention_mask": ops.ones((1, 4), dtype="int32"),
+                }
             )
-            for i in range(num_layers)
-        ]
-        self.final_norm = Gemma2RMSNorm(eps=norm_eps, name="final_norm")
 
     def is_sliding(self, layer_idx):
-        # HF: "sliding_attention" if bool((i + 1) % 2) -> even layers slide.
-        return bool((layer_idx + 1) % 2)
+        return gemma2_is_sliding(layer_idx)
 
     def embed_scaled(self, input_ids):
         return self.token_embedding(input_ids) * ops.cast(
@@ -109,15 +214,8 @@ class Gemma2Model(SubclassedBaseModel):
         )
 
     def rope_tables(self, position_ids):
-        hd = self.head_dim
-        inv_freq = 1.0 / ops.power(
-            self.rope_theta, ops.arange(0, hd, 2, dtype="float32") / hd
-        )
-        freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
-        emb = ops.concatenate([freqs, freqs], axis=-1)
-        return (
-            ops.cast(ops.cos(emb), self.compute_dtype),
-            ops.cast(ops.sin(emb), self.compute_dtype),
+        return gemma2_rope_tables(
+            position_ids, self.head_dim, self.rope_theta, self.compute_dtype
         )
 
     def build_masks(self, seq, attention_mask=None):
@@ -135,25 +233,6 @@ class Gemma2Model(SubclassedBaseModel):
             full = full + pad
             sliding = sliding + pad
         return full, sliding
-
-    def call(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        attention_mask = inputs.get("attention_mask")
-        hidden = self.embed_scaled(input_ids)
-        if attention_mask is not None:
-            am = ops.cast(ops.convert_to_tensor(attention_mask), "int32")
-            position_ids = ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
-        else:
-            position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        cos, sin = self.rope_tables(position_ids)
-        full_mask, sliding_mask = self.build_masks(seq, attention_mask)
-        for i, layer in enumerate(self.decoder_layers):
-            mask = sliding_mask if self.is_sliding(i) else full_mask
-            hidden = layer(hidden, cos, sin, attention_mask=mask)
-        return {"last_hidden_state": self.final_norm(hidden)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -200,6 +279,7 @@ class Gemma2Model(SubclassedBaseModel):
                 "norm_eps": self.norm_eps,
                 "rope_theta": self.rope_theta,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -212,8 +292,8 @@ class Gemma2TextGenerate(Gemma2Model, BaseGeneration):
 
     The vocabulary projection (tied token embedding) is followed by
     ``tanh(logits / 30) * 30`` when ``final_logit_softcapping`` is set:
-    matching the Gemma 2 checkpoints. ``call`` returns both ``logits`` and
-    ``last_hidden_state``. Fast generation comes from
+    matching the Gemma 2 checkpoints. The forward graph returns both ``logits``
+    and ``last_hidden_state``. Fast generation comes from
     :class:`~kerasformers.base.BaseGeneration` via ``build_cache`` /
     ``call_with_cache``, respecting the per-layer full / sliding masks.
     Constructor ``Args`` are inherited from :class:`Gemma2Model`.
@@ -224,14 +304,7 @@ class Gemma2TextGenerate(Gemma2Model, BaseGeneration):
 
     # Gemma <eos> / <end_of_turn> stop ids. Explicit generate() args override.
     eos_token_id = (1, 107)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
@@ -242,10 +315,6 @@ class Gemma2TextGenerate(Gemma2Model, BaseGeneration):
             cap = self.final_logit_softcapping
             logits = ops.tanh(logits / cap) * cap
         return logits
-
-    def call(self, inputs):
-        hidden = super().call(inputs)["last_hidden_state"]
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(self, token_ids, padding_mask, max_len):
         # Parallel prefill into a fixed (B, num_layers, 2, num_kv_heads,

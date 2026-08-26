@@ -1,7 +1,14 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, CheckpointSource, SubclassedBaseModel
+from kerasformers.base import (
+    BaseGeneration,
+    CausalMask,
+    CheckpointSource,
+    MediaMerge,
+    TiedHead,
+)
+from kerasformers.base.base_mixin import inference_scope
 from kerasformers.models.qwen2_vl.qwen2_vl_model import Qwen2VLModel
 from kerasformers.models.qwen3_moe.qwen3_moe_layers import Qwen3MoeSparseBlock
 from kerasformers.models.qwen3_vl.qwen3_vl_layers import (
@@ -12,6 +19,8 @@ from kerasformers.models.qwen3_vl.qwen3_vl_layers import (
 from kerasformers.models.qwen3_vl.qwen3_vl_model import (
     Qwen3VLModel,
     Qwen3VLVisionModel,
+    qwen3_vl_multimodal_features,
+    qwen3_vl_text_features,
 )
 
 from .qwen3_vl_moe_config import (
@@ -125,6 +134,17 @@ class Qwen3VLMoeTextDecoderLayer(layers.Layer):
         x = self.mlp_norm(hidden_states)
         hidden_states = residual + self.mlp(x)
         return hidden_states, cache_k, cache_v
+
+    def compute_output_spec(
+        self,
+        hidden_states,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_value=None,
+        use_cache=False,
+    ):
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
 
     def get_config(self):
         config = super().get_config()
@@ -263,6 +283,18 @@ class Qwen3VLMoeTextModel(layers.Layer):
         hidden = self.final_norm(hidden)
         return (hidden, new_cache) if use_cache else hidden
 
+    def compute_output_spec(
+        self,
+        inputs_embeds,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_values=None,
+        use_cache=False,
+        deepstack_full=None,
+    ):
+        return keras.KerasTensor(inputs_embeds.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -350,11 +382,139 @@ class Qwen3VLMoeModel(Qwen3VLModel):
         vision_start_token_id=QWEN3_VL_MOE_TOKENS["vision_start_token_id"],
         vision_end_token_id=QWEN3_VL_MOE_TOKENS["vision_end_token_id"],
         build_vision=True,
+        name=None,
         **kwargs,
     ):
-        # Skip Qwen3VLModel/Qwen2VLModel.__init__ (they build the dense text model);
-        # run only the base keras init.
-        SubclassedBaseModel.__init__(self, **kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        vision_out_dim = vision_out_dim or embed_dim
+        patch_dim = in_channels * temporal_patch_size * patch_size * patch_size
+        n_deepstack = len(deepstack_visual_indexes)
+
+        visual = (
+            Qwen3VLVisionModel(
+                embed_dim=vision_embed_dim,
+                depth=vision_depth,
+                num_heads=vision_num_heads,
+                intermediate_size=vision_mlp_dim,
+                out_hidden_size=vision_out_dim,
+                num_position_embeddings=num_position_embeddings,
+                deepstack_visual_indexes=deepstack_visual_indexes,
+                hidden_act=vision_act,
+                patch_size=patch_size,
+                spatial_merge_size=spatial_merge_size,
+                name="visual",
+            )
+            if build_vision
+            else None
+        )
+        language_model = Qwen3VLMoeTextModel(
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            mlp_dim=mlp_dim,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            num_kv_heads=num_kv_heads,
+            head_dim=head_dim,
+            num_experts=num_experts,
+            num_experts_per_tok=num_experts_per_tok,
+            moe_mlp_dim=moe_mlp_dim,
+            norm_topk_prob=norm_topk_prob,
+            decoder_sparse_step=decoder_sparse_step,
+            mlp_only_layers=mlp_only_layers,
+            norm_eps=norm_eps,
+            name="language_model",
+        )
+        causal_mask = CausalMask(name="causal_mask")
+        image_merge = video_merge = None
+        if build_vision:
+            image_merge = MediaMerge(image_token_id, embed_dim, name="image_merge")
+            video_merge = MediaMerge(video_token_id, embed_dim, name="video_merge")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        def text_input():
+            return {
+                "input_ids": layers.Input(
+                    shape=(None,), dtype="int32", name="input_ids"
+                ),
+                "attention_mask": layers.Input(
+                    shape=(None,), dtype="int32", name="attention_mask"
+                ),
+            }
+
+        if build_vision:
+            inputs = text_input()
+            inputs["position_ids"] = layers.Input(
+                shape=(3, None), dtype="int32", name="position_ids"
+            )
+            inputs["pixel_values"] = layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values"
+            )
+            inputs["image_grid_thw"] = layers.Input(
+                shape=(3,), dtype="int32", name="image_grid_thw"
+            )
+            inputs["pixel_values_videos"] = layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values_videos"
+            )
+            inputs["video_grid_thw"] = layers.Input(
+                shape=(3,), dtype="int32", name="video_grid_thw"
+            )
+            hidden = qwen3_vl_multimodal_features(
+                inputs["input_ids"],
+                inputs["attention_mask"],
+                inputs["position_ids"],
+                inputs["pixel_values"],
+                inputs["image_grid_thw"],
+                inputs["pixel_values_videos"],
+                inputs["video_grid_thw"],
+                token_embedding=language_model.token_embedding,
+                visual=visual,
+                language_model=language_model,
+                image_merge=image_merge,
+                video_merge=video_merge,
+                causal_mask=causal_mask,
+                head_dim=head_dim,
+                rope_theta=rope_theta,
+                mrope_section=tuple(mrope_section),
+                image_token_id=image_token_id,
+                video_token_id=video_token_id,
+                n_deepstack=n_deepstack,
+            )
+        else:
+            inputs = text_input()
+            hidden = qwen3_vl_text_features(
+                inputs["input_ids"],
+                inputs["attention_mask"],
+                token_embedding=language_model.token_embedding,
+                language_model=language_model,
+                causal_mask=causal_mask,
+                head_dim=head_dim,
+                rope_theta=rope_theta,
+                mrope_section=tuple(mrope_section),
+            )
+
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(language_model.token_embedding, name="lm_head")(hidden)
+            )
+
+        # Skip Qwen3VLModel/Qwen2VLModel.__init__ (they build the dense text graph);
+        # go straight to the functional keras init after Qwen2VLModel in the MRO.
+        super(Qwen2VLModel, self).__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.visual = visual
+        self.language_model = language_model
+        self.causal_mask_layer = causal_mask
+        self.image_merge = image_merge
+        self.video_merge = video_merge
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
@@ -376,7 +536,7 @@ class Qwen3VLMoeModel(Qwen3VLModel):
         self.vision_embed_dim = vision_embed_dim
         self.vision_mlp_dim = vision_mlp_dim
         self.vision_num_heads = vision_num_heads
-        self.vision_out_dim = vision_out_dim or embed_dim
+        self.vision_out_dim = vision_out_dim
         self.vision_act = vision_act
         self.num_position_embeddings = num_position_embeddings
         self.deepstack_visual_indexes = tuple(deepstack_visual_indexes)
@@ -388,49 +548,12 @@ class Qwen3VLMoeModel(Qwen3VLModel):
         self.video_token_id = video_token_id
         self.vision_start_token_id = vision_start_token_id
         self.vision_end_token_id = vision_end_token_id
-        self.patch_dim = in_channels * temporal_patch_size * patch_size * patch_size
+        self.patch_dim = patch_dim
         self.tokens_per_second = 1
         self.build_vision = build_vision
 
-        self.visual = (
-            Qwen3VLVisionModel(
-                embed_dim=vision_embed_dim,
-                depth=vision_depth,
-                num_heads=vision_num_heads,
-                intermediate_size=vision_mlp_dim,
-                out_hidden_size=self.vision_out_dim,
-                num_position_embeddings=num_position_embeddings,
-                deepstack_visual_indexes=deepstack_visual_indexes,
-                hidden_act=vision_act,
-                patch_size=patch_size,
-                spatial_merge_size=spatial_merge_size,
-                name="visual",
-            )
-            if build_vision
-            else None
-        )
-        self.language_model = Qwen3VLMoeTextModel(
-            vocab_size=vocab_size,
-            embed_dim=embed_dim,
-            mlp_dim=mlp_dim,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            num_kv_heads=num_kv_heads,
-            head_dim=head_dim,
-            num_experts=num_experts,
-            num_experts_per_tok=num_experts_per_tok,
-            moe_mlp_dim=moe_mlp_dim,
-            norm_topk_prob=norm_topk_prob,
-            decoder_sparse_step=decoder_sparse_step,
-            mlp_only_layers=mlp_only_layers,
-            norm_eps=norm_eps,
-            name="language_model",
-        )
-        self.lm_head = (
-            None
-            if tie_embeddings
-            else layers.Dense(vocab_size, use_bias=False, name="lm_head")
-        )
+        with inference_scope():
+            self.materialize_build()
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -540,10 +663,7 @@ class Qwen3VLMoeConditionalGenerate(Qwen3VLMoeModel, BaseGeneration):
     """
 
     eos_token_id = (151645,)
-
-    def call(self, inputs):
-        hidden = self._forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:

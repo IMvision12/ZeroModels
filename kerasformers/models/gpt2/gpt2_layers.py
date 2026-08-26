@@ -3,6 +3,8 @@ from keras import layers, ops
 
 from kerasformers.base.base_attention import fused_attention
 
+MASK_NEG = -1e9
+
 
 @keras.saving.register_keras_serializable(package="kerasformers")
 class GPT2Attention(layers.Layer):
@@ -142,6 +144,14 @@ class GPT2Block(layers.Layer):
         hidden_states = hidden_states + attn_out
         hidden_states = hidden_states + self.mlp(self.ln_2(hidden_states))
         return hidden_states, cache_k, cache_v
+
+    def compute_output_spec(
+        self, hidden_states, attention_mask=None, past_key_value=None, use_cache=False
+    ):
+        # The residual stream keeps its shape; giving the block an explicit spec
+        # stops the functional builder from tracing the dynamic-shape reshapes in
+        # attention (which only resolve at run time, not symbolic-build time).
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
 
     def get_config(self):
         config = super().get_config()

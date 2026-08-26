@@ -3,7 +3,15 @@ import itertools
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, CheckpointSource, SubclassedBaseModel
+from kerasformers.base import (
+    BaseGeneration,
+    BaseModel,
+    CausalMask,
+    CheckpointSource,
+    MediaMerge,
+    TiedHead,
+)
+from kerasformers.base.base_mixin import inference_scope
 
 from .qwen2_vl_config import Qwen2VLConfig, Qwen2VLTextConfig
 from .qwen2_vl_layers import (
@@ -115,6 +123,71 @@ def merge_mrope(table, mrope_section):
     return ops.concatenate([splits[i][i % 3] for i in range(len(splits))], axis=-1)
 
 
+def qwen2_vl_merged_cos_sin(position_ids, head_dim, rope_theta, mrope_section):
+    # position_ids: (3, batch, seq) -> merged M-RoPE (batch, seq, head_dim).
+    cos3, sin3 = text_rope_cos_sin(position_ids, head_dim, rope_theta)
+    return merge_mrope(cos3, mrope_section), merge_mrope(sin3, mrope_section)
+
+
+def qwen2_vl_multimodal_features(
+    input_ids,
+    attention_mask,
+    position_ids,
+    pixel_values,
+    image_grid_thw,
+    pixel_values_videos,
+    video_grid_thw,
+    *,
+    token_embedding,
+    visual,
+    language_model,
+    image_merge,
+    video_merge,
+    causal_mask,
+    head_dim,
+    rope_theta,
+    mrope_section,
+    image_token_id,
+    video_token_id,
+):
+    # Media placeholder ids are out of / reserved in the embedding range, so zero
+    # them before the lookup and overwrite the slots after (a no-op merge when a
+    # stream's token is absent). Vision runs unconditionally (KerasHub-style,
+    # media always an input); position_ids (3-axis M-RoPE) is precomputed by the
+    # host-side get_rope_index and passed in as (batch, 3, seq).
+    media = ops.logical_or(
+        ops.equal(input_ids, image_token_id), ops.equal(input_ids, video_token_id)
+    )
+    hidden = token_embedding(ops.where(media, 0, input_ids))
+    hidden = image_merge(hidden, input_ids, visual(pixel_values, image_grid_thw))
+    hidden = video_merge(hidden, input_ids, visual(pixel_values_videos, video_grid_thw))
+    pos = ops.transpose(position_ids, (1, 0, 2))  # (batch, 3, seq) -> (3, batch, seq)
+    cos, sin = qwen2_vl_merged_cos_sin(pos, head_dim, rope_theta, mrope_section)
+    mask = causal_mask(input_ids, attention_mask)
+    return language_model(hidden, cos, sin, attention_mask=mask)
+
+
+def qwen2_vl_text_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    language_model,
+    causal_mask,
+    head_dim,
+    rope_theta,
+    mrope_section,
+):
+    # Text-only head (no vision tower): the three M-RoPE axes collapse to plain
+    # sequential positions.
+    hidden = token_embedding(input_ids)
+    pos1 = ops.cumsum(ops.ones_like(input_ids), axis=-1) - 1
+    pos = ops.stack([pos1, pos1, pos1], axis=0)  # (3, batch, seq)
+    cos, sin = qwen2_vl_merged_cos_sin(pos, head_dim, rope_theta, mrope_section)
+    mask = causal_mask(input_ids, attention_mask)
+    return language_model(hidden, cos, sin, attention_mask=mask)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
 class Qwen2VLVisionModel(layers.Layer):
     """Qwen2-VL vision tower: patch-embed -> rotary blocks -> 2x2 merger.
@@ -177,6 +250,12 @@ class Qwen2VLVisionModel(layers.Layer):
         for block in self.blocks:
             hidden = block(hidden, cos, sin, attention_mask=mask)
         return self.merger(hidden)
+
+    def compute_output_spec(self, pixel_values, grid_thw):
+        # The merged-token count is grid-dependent (dynamic); the grid-iterating
+        # call runs eagerly at runtime, so give the functional builder an explicit
+        # spec instead of tracing the host-side (numpy) grid ops.
+        return keras.KerasTensor((None, self.llm_hidden_size), dtype=self.compute_dtype)
 
     def get_config(self):
         config = super().get_config()
@@ -292,6 +371,20 @@ class Qwen2VLTextModel(layers.Layer):
         hidden = self.final_norm(hidden)
         return (hidden, new_cache) if use_cache else hidden
 
+    def compute_output_spec(
+        self,
+        inputs_embeds,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_values=None,
+        use_cache=False,
+    ):
+        # Decoder stack keeps the (batch, seq, embed_dim) shape; an explicit spec
+        # keeps the functional builder from tracing the dynamic-shape reshapes in
+        # attention (they resolve only at run time).
+        return keras.KerasTensor(inputs_embeds.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -310,7 +403,7 @@ class Qwen2VLTextModel(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Qwen2VLModel(SubclassedBaseModel):
+class Qwen2VLModel(BaseModel):
     """Qwen2-VL multimodal backbone: vision tower + Qwen2 decoder fused by M-RoPE.
 
     A ViT-style vision tower (Conv3d-as-Dense patch embed -> full-attention rotary
@@ -375,6 +468,9 @@ class Qwen2VLModel(SubclassedBaseModel):
     HF_MODEL_TYPE = "qwen2_vl"
     default_load_dtype = "bfloat16"
     config_class = Qwen2VLConfig
+    # Qwen2VLConditionalGenerate / Qwen2VLTextGenerate flip this on to also emit
+    # LM-head logits from the graph.
+    output_logits = False
 
     def __init__(
         self,
@@ -401,16 +497,132 @@ class Qwen2VLModel(SubclassedBaseModel):
         vision_start_token_id=151652,
         vision_end_token_id=151653,
         build_vision=True,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = embed_dim // num_heads
+        patch_dim = in_channels * temporal_patch_size * patch_size * patch_size
+
+        visual = (
+            Qwen2VLVisionModel(
+                embed_dim=vision_embed_dim,
+                depth=vision_depth,
+                num_heads=vision_num_heads,
+                llm_hidden_size=embed_dim,
+                mlp_ratio=vision_mlp_ratio,
+                spatial_merge_size=spatial_merge_size,
+                name="visual",
+            )
+            if build_vision
+            else None
+        )
+        language_model = Qwen2VLTextModel(
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            mlp_dim=mlp_dim,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            num_kv_heads=num_kv_heads,
+            head_dim=head_dim,
+            norm_eps=norm_eps,
+            name="language_model",
+        )
+        causal_mask = CausalMask(name="causal_mask")
+        image_merge = video_merge = None
+        if build_vision:
+            image_merge = MediaMerge(image_token_id, embed_dim, name="image_merge")
+            video_merge = MediaMerge(video_token_id, embed_dim, name="video_merge")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        def text_input():
+            return {
+                "input_ids": layers.Input(
+                    shape=(None,), dtype="int32", name="input_ids"
+                ),
+                "attention_mask": layers.Input(
+                    shape=(None,), dtype="int32", name="attention_mask"
+                ),
+            }
+
+        if build_vision:
+            inputs = text_input()
+            inputs["position_ids"] = layers.Input(
+                shape=(3, None), dtype="int32", name="position_ids"
+            )
+            inputs["pixel_values"] = layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values"
+            )
+            inputs["image_grid_thw"] = layers.Input(
+                shape=(3,), dtype="int32", name="image_grid_thw"
+            )
+            inputs["pixel_values_videos"] = layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values_videos"
+            )
+            inputs["video_grid_thw"] = layers.Input(
+                shape=(3,), dtype="int32", name="video_grid_thw"
+            )
+            hidden = qwen2_vl_multimodal_features(
+                inputs["input_ids"],
+                inputs["attention_mask"],
+                inputs["position_ids"],
+                inputs["pixel_values"],
+                inputs["image_grid_thw"],
+                inputs["pixel_values_videos"],
+                inputs["video_grid_thw"],
+                token_embedding=language_model.token_embedding,
+                visual=visual,
+                language_model=language_model,
+                image_merge=image_merge,
+                video_merge=video_merge,
+                causal_mask=causal_mask,
+                head_dim=head_dim,
+                rope_theta=rope_theta,
+                mrope_section=tuple(mrope_section),
+                image_token_id=image_token_id,
+                video_token_id=video_token_id,
+            )
+        else:
+            inputs = text_input()
+            hidden = qwen2_vl_text_features(
+                inputs["input_ids"],
+                inputs["attention_mask"],
+                token_embedding=language_model.token_embedding,
+                language_model=language_model,
+                causal_mask=causal_mask,
+                head_dim=head_dim,
+                rope_theta=rope_theta,
+                mrope_section=tuple(mrope_section),
+            )
+
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(language_model.token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.visual = visual
+        self.language_model = language_model
+        self.causal_mask_layer = causal_mask
+        self.image_merge = image_merge
+        self.video_merge = video_merge
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
-        self.head_dim = embed_dim // num_heads
+        self.head_dim = head_dim
         self.norm_eps = norm_eps
         self.rope_theta = rope_theta
         self.mrope_section = tuple(mrope_section)
@@ -427,34 +639,50 @@ class Qwen2VLModel(SubclassedBaseModel):
         self.video_token_id = video_token_id
         self.vision_start_token_id = vision_start_token_id
         self.vision_end_token_id = vision_end_token_id
-        self.patch_dim = in_channels * temporal_patch_size * patch_size * patch_size
+        self.patch_dim = patch_dim
         self.tokens_per_second = 1
         self.build_vision = build_vision
 
-        self.visual = (
-            Qwen2VLVisionModel(
-                embed_dim=vision_embed_dim,
-                depth=vision_depth,
-                num_heads=vision_num_heads,
-                llm_hidden_size=embed_dim,
-                mlp_ratio=vision_mlp_ratio,
-                spatial_merge_size=spatial_merge_size,
-                name="visual",
+        # The vision tower + decoder sublayers don't all materialize during the
+        # symbolic build (compute_output_spec skips their grid/dynamic call), so a
+        # concrete dummy forward creates every weight before from_weights loads.
+        with inference_scope():
+            self.materialize_build()
+
+    def materialize_build(self):
+        if self.build_vision:
+            m = self.spatial_merge_size
+            h = w = 2 * m
+            n = (h * w) // (m * m)
+            input_ids = ops.concatenate(
+                [
+                    ops.zeros((1, 1), dtype="int32"),
+                    ops.full((1, n), self.image_token_id, dtype="int32"),
+                    ops.ones((1, 1), dtype="int32"),
+                ],
+                axis=1,
             )
-            if build_vision
-            else None
-        )
-        self.language_model = Qwen2VLTextModel(
-            vocab_size=vocab_size,
-            embed_dim=embed_dim,
-            mlp_dim=mlp_dim,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            num_kv_heads=num_kv_heads,
-            head_dim=self.head_dim,
-            norm_eps=norm_eps,
-            name="language_model",
-        )
+            seq = n + 2
+            self(
+                {
+                    "input_ids": input_ids,
+                    "attention_mask": ops.ones((1, seq), dtype="int32"),
+                    "position_ids": ops.zeros((1, 3, seq), dtype="int32"),
+                    "pixel_values": ops.zeros((h * w, self.patch_dim), dtype="float32"),
+                    "image_grid_thw": ops.convert_to_tensor([[1, h, w]], dtype="int32"),
+                    "pixel_values_videos": ops.zeros(
+                        (m * m, self.patch_dim), dtype="float32"
+                    ),
+                    "video_grid_thw": ops.convert_to_tensor([[1, m, m]], dtype="int32"),
+                }
+            )
+        else:
+            self(
+                {
+                    "input_ids": ops.zeros((1, 4), dtype="int32"),
+                    "attention_mask": ops.ones((1, 4), dtype="int32"),
+                }
+            )
 
     def get_rope_index(
         self, input_ids, image_grid_thw=None, video_grid_thw=None, attention_mask=None
@@ -548,53 +776,6 @@ class Qwen2VLModel(SubclassedBaseModel):
             am = ops.cast(ops.convert_to_tensor(attention_mask), "float32")
             mask = mask + (1.0 - am)[:, None, None, :] * MASK_NEG
         return mask
-
-    def _forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            raise ValueError(f"{type(self).__name__} expects a dict of inputs.")
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        seq = int(input_ids.shape[1])
-        inputs_embeds, position_ids, _, extra = self._prepare_inputs(
-            input_ids,
-            inputs.get("pixel_values"),
-            inputs.get("image_grid_thw"),
-            inputs.get("attention_mask"),
-            pixel_values_videos=inputs.get("pixel_values_videos"),
-            video_grid_thw=inputs.get("video_grid_thw"),
-        )
-        cos, sin = self._merged_cos_sin(position_ids)
-        attn_mask = self._causal_mask(
-            seq, seq, offset=0, attention_mask=inputs.get("attention_mask")
-        )
-        return self.language_model(
-            inputs_embeds, cos, sin, attention_mask=attn_mask, **extra
-        )
-
-    def call(self, inputs):
-        return {"last_hidden_state": self._forward_features(inputs)}
-
-    def build_for_transfer(self):
-        # Multimodal lazy build: mirror the conversion feed so the vision tower +
-        # merger weights exist before a weight stream (the base text-only build
-        # would leave them uncreated). Inherited by Qwen2.5-VL and Qwen3-VL (both
-        # subclass this) and shares their feed. from_hub_repo / converted cache.
-        m = self.spatial_merge_size
-        h = w = 2 * m
-        n = (h * w) // (m * m)
-        self(
-            {
-                "input_ids": ops.concatenate(
-                    [
-                        ops.zeros((1, 1), dtype="int32"),
-                        ops.full((1, n), self.image_token_id, dtype="int32"),
-                        ops.ones((1, 1), dtype="int32"),
-                    ],
-                    axis=1,
-                ),
-                "pixel_values": ops.zeros((h * w, self.patch_dim), dtype="float32"),
-                "image_grid_thw": ops.convert_to_tensor([[1, h, w]], dtype="int32"),
-            }
-        )
 
     def _prepare_inputs(
         self,
@@ -739,25 +920,7 @@ class Qwen2VLConditionalGenerate(Qwen2VLModel, BaseGeneration):
 
     # Qwen's <|im_end|> stop id. Explicit generate() args override this.
     eos_token_id = (151645,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
-
-    def call(self, inputs):
-        hidden = self._forward_features(inputs)
-        logits = (
-            self.lm_head(hidden)
-            if self.lm_head is not None
-            else ops.matmul(
-                hidden, ops.transpose(self.language_model.token_embedding.embeddings)
-            )
-        )
-        return {"logits": logits, "last_hidden_state": hidden}
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:

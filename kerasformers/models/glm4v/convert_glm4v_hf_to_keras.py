@@ -63,7 +63,8 @@ def transfer_glm4v_weights(keras_model, hf_state_dict):
             }
         )
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        name = weight.path.split("/", 1)[1].replace("/", ".")
+        # Functional model weight paths are flat (no model-name root to strip).
+        name = weight.path.replace("/", ".")
         if name.startswith("visual."):
             mapping = VISION_MAPPING
         elif name.startswith("language_model.") or name.startswith("token_embedding."):

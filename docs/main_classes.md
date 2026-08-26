@@ -8,8 +8,7 @@ call, the same `generate`.
 ```python
 from kerasformers.base import (
     BaseConfig,
-    FunctionalBaseModel,
-    SubclassedBaseModel,
+    BaseModel,
     BaseGeneration,
     BaseSeq2SeqGeneration,
     BaseTokenizer,
@@ -23,30 +22,22 @@ from kerasformers.base import (
 
 ## Models
 
-Two model bases, differing only in how the graph is built.
-
-### FunctionalBaseModel
+### BaseModel
 
 ```python
-class FunctionalBaseModel(keras.Model)
+class BaseModel(keras.Model)
 ```
 
-Base for models built as a **Keras functional graph**: CLIP, ViT, the detectors,
-segmenters, and depth estimators. Because the graph is traced at construction, the input
-shape is baked in, which is why these classes take an `image_size` and why changing it
-means rebuilding the model.
+The single base every model builds on. A model assembles itself as a **Keras functional
+graph** with `super().__init__(inputs=..., outputs=...)`. Vision models (CLIP, ViT, the
+detectors, segmenters, depth estimators) trace a fixed input shape at construction, which
+is why they take an `image_size` and why changing it means rebuilding. Text and multimodal
+models declare their sequence inputs with an undefined length, so a language model still
+takes any sequence length; the imperative KV-cache decode that autoregressive generation
+needs lives on the task side, in a `BaseGeneration` / `BaseSeq2SeqGeneration` mixin layered
+over this backbone.
 
-### SubclassedBaseModel
-
-```python
-class SubclassedBaseModel(keras.Model)
-```
-
-Base for **imperative** models, mainly the LLMs and VLMs, where the forward pass is
-written as code. These accept varying shapes at call time, which is what lets a language
-model take any sequence length.
-
-Both share the loading interface below.
+It carries the loading interface below.
 
 ## Configuration
 
@@ -102,7 +93,7 @@ The one entry point you normally use. It dispatches on `identifier`:
 - **load_weights** (`bool`, *optional*, defaults to `True`): set `False` to build the architecture with random initialization.
 - **skip_mismatch** (`bool`, *optional*, defaults to `False`): skip weights whose shapes disagree instead of raising, for partially compatible fine-tunes.
 - **attn_implementation** (`str`, *optional*): attention kernel to use, see [`fused_attention`](#fused_attention).
-- **quantization** (`str`, *optional*): quantize while loading, for example `"int8"`. For subclassed LLMs the weights stream straight into int storage (no full float model is built); this is automatic. See [Quantization](quantization.md).
+- **quantization** (`str`, *optional*): quantize while loading, for example `"int8"`. The model builds at `load_dtype` and quantizes after. See [Quantization](quantization.md).
 - **load_dtype** (`str`, *optional*): cast weights on load, typically `"bfloat16"`.
 - **cache_converted** (`bool`, *optional*, defaults to `False`): keep the converted Keras weights so the next conversion load skips work.
 - **kwargs**: forwarded to the constructor, so `image_size=448` or `as_backbone=True` go here.
@@ -281,7 +272,7 @@ quantizer.quantize(weight, axis=0)
 Base for the weight-only (tensor-level) quantizers. Helpers `normalize_axes(axis, ndim)`
 and `single_axis(axis, ndim)` resolve contraction axes. The quantized layers built on this
 (`QuantizedDense`, `QuantizedEinsumDense`, `QuantizedEmbedding`, `QuantizedExperts`) and
-the `quantize_model` / `quantize_and_load` / `dequantize_model` entry points are covered in
+the `quantize_model` / `dequantize_model` entry points are covered in
 [Quantization](quantization.md).
 
 ### KfQuantizer

@@ -3,13 +3,48 @@ import itertools
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import (
+    BaseGeneration,
+    BaseModel,
+    CausalMask,
+    MediaMerge,
+    TiedHead,
+)
+from kerasformers.base.base_mixin import inference_scope
 from kerasformers.models.glm4.glm4_layers import Glm4DecoderLayer, Glm4RMSNorm
 
 from .glm4v_config import Glm4vConfig
 from .glm4v_vision_layers import Glm4vVisionModel
 
 MASK_NEG = -1e9
+
+
+def glm4v_backbone_features(
+    input_ids,
+    attention_mask,
+    pixel_values,
+    image_grid_thw,
+    position_ids,
+    *,
+    language_model,
+    visual,
+    image_merge,
+    causal_mask,
+    rotary_dim,
+    rope_theta,
+    mrope_section,
+):
+    # Vision + image->text merge run in the functional graph (KerasHub style).
+    # The image is always a graph input; when input_ids has no image_token the
+    # merge is a no-op. The M-RoPE ``position_ids`` are precomputed imperatively by
+    # ``get_rope_index`` (data-dependent) and passed in as ``(batch, 3, seq)``.
+    inputs_embeds = language_model.token_embedding(input_ids)
+    image_embeds = visual(pixel_values, image_grid_thw)
+    hidden = image_merge(inputs_embeds, input_ids, image_embeds)
+    pos = ops.transpose(position_ids, (1, 0, 2))  # (batch, 3, seq) -> (3, batch, seq)
+    cos, sin = glm_mrope_cos_sin(pos, rotary_dim, rope_theta, mrope_section)
+    mask = causal_mask(input_ids, attention_mask)
+    return language_model(hidden, cos, sin, attention_mask=mask)
 
 
 def glm_mrope_cos_sin(position_ids, rotary_dim, theta, mrope_section):
@@ -101,6 +136,11 @@ class Glm4vTextModel(layers.Layer):
         hidden = self.final_norm(hidden)
         return (hidden, new_cache) if use_cache else hidden
 
+    def compute_output_spec(
+        self, inputs_embeds, cos, sin, attention_mask=None, use_cache=False
+    ):
+        return keras.KerasTensor(inputs_embeds.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -120,14 +160,15 @@ class Glm4vTextModel(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Glm4vModel(SubclassedBaseModel):
+class Glm4vModel(BaseModel):
     """GLM-4V multimodal backbone: vision tower + GLM-4 decoder fused by M-RoPE.
 
-    The vision tower (Conv3d patch embed, bicubic-interpolated learned
-    positions, packed-attention rotary blocks, 2x2 downsample, SwiGLU merger)
-    produces image embeddings that are scattered into the ``image_token_id``
-    placeholder slots of a GLM-4 decoder, with 3D M-RoPE positions from
-    :meth:`get_rope_index`. Returns raw features; use :class:`Glm4vConditionalGenerate`
+    A functional model: the vision tower and the image -> text token merge run
+    inside the graph over ``{input_ids, attention_mask, pixel_values,
+    image_grid_thw, position_ids}``. The image is always a graph input (a no-op
+    merge when no ``image_token_id`` is present); the 3D M-RoPE ``position_ids``
+    are precomputed imperatively by :meth:`get_rope_index` (data-dependent) and
+    passed in. Returns ``last_hidden_state``; use :class:`Glm4vConditionalGenerate`
     for logits / text.
 
     Args:
@@ -144,6 +185,7 @@ class Glm4vModel(SubclassedBaseModel):
 
     HF_MODEL_TYPE = "glm4v"
     config_class = Glm4vConfig
+    output_logits = False
 
     def __init__(
         self,
@@ -175,18 +217,100 @@ class Glm4vModel(SubclassedBaseModel):
         image_end_token_id=151340,
         video_start_token_id=151341,
         video_end_token_id=151342,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = embed_dim // num_heads
+        rotary_dim = int(head_dim * partial_rotary_factor)
+        patch_dim = in_channels * temporal_patch_size * patch_size * patch_size
+
+        visual = Glm4vVisionModel(
+            embed_dim=vision_embed_dim,
+            depth=vision_depth,
+            num_heads=vision_num_heads,
+            out_hidden_size=vision_out_dim,
+            intermediate_size=vision_mlp_dim,
+            image_size=image_size,
+            patch_size=patch_size,
+            spatial_merge_size=spatial_merge_size,
+            norm_eps=vision_norm_eps,
+            name="visual",
+        )
+        language_model = Glm4vTextModel(
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            mlp_dim=mlp_dim,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            num_kv_heads=num_kv_heads,
+            head_dim=head_dim,
+            rotary_dim=rotary_dim,
+            norm_eps=norm_eps,
+            name="language_model",
+        )
+        image_merge = MediaMerge(image_token_id, embed_dim, name="image_merge")
+        causal_mask = CausalMask(name="causal_mask")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+            "pixel_values": layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values"
+            ),
+            "image_grid_thw": layers.Input(
+                shape=(3,), dtype="int32", name="image_grid_thw"
+            ),
+            "position_ids": layers.Input(
+                shape=(3, None), dtype="int32", name="position_ids"
+            ),
+        }
+        hidden = glm4v_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            inputs["pixel_values"],
+            inputs["image_grid_thw"],
+            inputs["position_ids"],
+            language_model=language_model,
+            visual=visual,
+            image_merge=image_merge,
+            causal_mask=causal_mask,
+            rotary_dim=rotary_dim,
+            rope_theta=rope_theta,
+            mrope_section=tuple(mrope_section),
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(language_model.token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.visual = visual
+        self.language_model = language_model
+        self.image_merge = image_merge
+        self.causal_mask_layer = causal_mask
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
-        self.head_dim = embed_dim // num_heads
+        self.head_dim = head_dim
         self.partial_rotary_factor = partial_rotary_factor
-        self.rotary_dim = int(self.head_dim * partial_rotary_factor)
+        self.rotary_dim = rotary_dim
         self.norm_eps = norm_eps
         self.rope_theta = rope_theta
         self.mrope_section = tuple(mrope_section)
@@ -209,30 +333,35 @@ class Glm4vModel(SubclassedBaseModel):
         self.video_start_token_id = video_start_token_id
         self.video_end_token_id = video_end_token_id
 
-        self.visual = Glm4vVisionModel(
-            embed_dim=vision_embed_dim,
-            depth=vision_depth,
-            num_heads=vision_num_heads,
-            out_hidden_size=vision_out_dim,
-            intermediate_size=vision_mlp_dim,
-            image_size=image_size,
-            patch_size=patch_size,
-            spatial_merge_size=spatial_merge_size,
-            norm_eps=vision_norm_eps,
-            name="visual",
-        )
-        self.language_model = Glm4vTextModel(
-            vocab_size=vocab_size,
-            embed_dim=embed_dim,
-            mlp_dim=mlp_dim,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            num_kv_heads=num_kv_heads,
-            head_dim=self.head_dim,
-            rotary_dim=self.rotary_dim,
-            norm_eps=norm_eps,
-            name="language_model",
-        )
+        # The vision-tower blocks don't auto-build under Keras' symbolic trace; a
+        # concrete dummy forward materializes every weight so from_weights (which
+        # loads before any forward) has a complete model to populate.
+        orig = image_size // patch_size
+        n = (orig // spatial_merge_size) ** 2
+        seq = n + 2
+        with inference_scope():
+            self(
+                {
+                    "input_ids": ops.concatenate(
+                        [
+                            ops.zeros((1, 1), dtype="int32"),
+                            ops.full((1, n), image_token_id, dtype="int32"),
+                            ops.ones((1, 1), dtype="int32"),
+                        ],
+                        axis=1,
+                    ),
+                    "attention_mask": ops.ones((1, seq), dtype="int32"),
+                    "pixel_values": ops.zeros(
+                        (orig * orig, patch_dim), dtype="float32"
+                    ),
+                    "image_grid_thw": ops.convert_to_tensor(
+                        [[1, orig, orig]], dtype="int32"
+                    ),
+                    "position_ids": ops.broadcast_to(
+                        ops.arange(seq, dtype="int32"), (1, 3, seq)
+                    ),
+                }
+            )
 
     def get_rope_index(self, input_ids, image_grid_thw=None, attention_mask=None):
         m = self.spatial_merge_size
@@ -345,26 +474,6 @@ class Glm4vModel(SubclassedBaseModel):
         return glm_mrope_cos_sin(
             position_ids, self.rotary_dim, self.rope_theta, self.mrope_section
         )
-
-    def _forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        seq = int(input_ids.shape[1])
-        inputs_embeds, position_ids, _ = self._prepare_inputs(
-            input_ids,
-            inputs.get("pixel_values"),
-            inputs.get("image_grid_thw"),
-            inputs.get("attention_mask"),
-        )
-        cos, sin = self._merged_cos_sin(position_ids)
-        attn_mask = self._causal_mask(
-            seq, seq, offset=0, attention_mask=inputs.get("attention_mask")
-        )
-        return self.language_model(inputs_embeds, cos, sin, attention_mask=attn_mask)
-
-    def call(self, inputs):
-        return {"last_hidden_state": self._forward_features(inputs)}
 
     def build_for_transfer(self):
         # Multimodal lazy build: mirror the conversion feed so the vision tower +
@@ -481,14 +590,7 @@ class Glm4vConditionalGenerate(Glm4vModel, BaseGeneration):
     """GLM-4V with an LM head + fast ``.generate()`` (image+text -> text)."""
 
     eos_token_id = (151329, 151336, 151338)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
@@ -496,10 +598,6 @@ class Glm4vConditionalGenerate(Glm4vModel, BaseGeneration):
         return ops.matmul(
             hidden, ops.transpose(self.language_model.token_embedding.embeddings)
         )
-
-    def call(self, inputs):
-        hidden = self._forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(
         self, token_ids, padding_mask, max_len, pixel_values=None, image_grid_thw=None

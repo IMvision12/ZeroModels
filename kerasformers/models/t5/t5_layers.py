@@ -1,5 +1,6 @@
 import math
 
+import keras
 from keras import layers, ops
 
 MASK_NEG = -1e9
@@ -177,6 +178,9 @@ class T5EncoderBlock(layers.Layer):
         hidden_states = self.self_attention(hidden_states, position_bias)
         return self.ff(hidden_states)
 
+    def compute_output_spec(self, hidden_states, position_bias):
+        return keras.KerasTensor(hidden_states.shape, dtype=hidden_states.dtype)
+
 
 class T5DecoderBlock(layers.Layer):
     def __init__(
@@ -213,3 +217,12 @@ class T5DecoderBlock(layers.Layer):
             hidden_states, encoder_hidden_states, cross_position_bias
         )
         return self.ff(hidden_states)
+
+    def compute_output_spec(
+        self,
+        hidden_states,
+        self_position_bias,
+        encoder_hidden_states,
+        cross_position_bias,
+    ):
+        return keras.KerasTensor(hidden_states.shape, dtype=hidden_states.dtype)

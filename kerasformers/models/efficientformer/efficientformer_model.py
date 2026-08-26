@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.efficientformer.efficientformer_layers import (
     EfficientFormerAttention4D,
@@ -351,7 +351,7 @@ def efficientformer_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class EfficientFormerModel(FunctionalBaseModel):
+class EfficientFormerModel(BaseModel):
     """Instantiates the EfficientFormer backbone.
 
     EfficientFormer is a hybrid CNN-Transformer designed for fast
@@ -548,7 +548,7 @@ class EfficientFormerModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class EfficientFormerImageClassify(FunctionalBaseModel):
+class EfficientFormerImageClassify(BaseModel):
     """Instantiates the EfficientFormer classifier.
 
     This classifier wraps a :class:`EfficientFormerModel` backbone and

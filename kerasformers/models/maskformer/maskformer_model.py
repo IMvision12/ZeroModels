@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 
@@ -427,7 +427,7 @@ def maskformer_functional(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MaskFormerModel(FunctionalBaseModel):
+class MaskFormerModel(BaseModel):
     """MaskFormer base model (backbone + pixel decoder + transformer, no segment heads).
 
     Returns the decoder ``last_hidden_state`` along with the pixel decoder
@@ -449,7 +449,7 @@ class MaskFormerModel(FunctionalBaseModel):
         num_classes: Number of semantic classes (excluding the no-object class).
         image_size: Input image size (int edge length or shape tuple).
         name: Model name.
-        **kwargs: Additional keyword arguments forwarded to :class:`FunctionalBaseModel`.
+        **kwargs: Additional keyword arguments forwarded to :class:`BaseModel`.
 
     Reference:
     - [Per-Pixel Classification is Not All You Need for Semantic
@@ -563,7 +563,7 @@ class MaskFormerModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MaskFormerUniversalSegment(FunctionalBaseModel):
+class MaskFormerUniversalSegment(BaseModel):
     """MaskFormer universal segmentation model.
 
     Composes :class:`MaskFormerModel` and exposes the prediction output
@@ -585,7 +585,7 @@ class MaskFormerUniversalSegment(FunctionalBaseModel):
         num_classes: Number of semantic classes (excluding the no-object class).
         image_size: Input image size (int edge length or shape tuple).
         name: Model name.
-        **kwargs: Additional keyword arguments forwarded to :class:`FunctionalBaseModel`.
+        **kwargs: Additional keyword arguments forwarded to :class:`BaseModel`.
 
     Reference:
     - [Per-Pixel Classification is Not All You Need for Semantic

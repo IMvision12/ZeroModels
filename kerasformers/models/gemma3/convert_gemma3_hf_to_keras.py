@@ -80,7 +80,8 @@ def transfer_gemma3_weights(keras_model, hf_state_dict):
             }
         keras_model(feed)
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        name = weight.path.split("/", 1)[1].replace("/", ".")
+        # Functional model weight paths are flat (no model-name root to strip).
+        name = weight.path.replace("/", ".")
         if name.startswith("vision_tower."):
             mapping = VISION_MAPPING
         elif name.startswith("multi_modal_projector."):

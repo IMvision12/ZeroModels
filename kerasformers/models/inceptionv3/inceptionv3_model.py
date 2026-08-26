@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -435,7 +435,7 @@ def inceptionv3_backbone_feature(inputs, *, data_format, return_stages=False):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class InceptionV3Model(FunctionalBaseModel):
+class InceptionV3Model(BaseModel):
     """Instantiates the Inception V3 backbone.
 
     Inception V3 refines the original GoogLeNet recipe by factorizing
@@ -567,7 +567,7 @@ class InceptionV3Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class InceptionV3ImageClassify(FunctionalBaseModel):
+class InceptionV3ImageClassify(BaseModel):
     """Instantiates the Inception V3 classifier.
 
     This classifier wraps an :class:`InceptionV3Model` backbone and

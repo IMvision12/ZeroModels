@@ -32,19 +32,20 @@ def transfer_deepseek_vl_hybrid_weights(keras_model, hf_state_dict):
         size = keras_model.image_size
         hr = keras_model.high_res_image_size
         n_tokens = (size // keras_model.patch_size) ** 2
+        ids = np.array(
+            [[0] + [keras_model.image_token_id] * n_tokens + [1]], dtype="int32"
+        )
         keras_model(
             {
-                "input_ids": np.array(
-                    [[0] + [keras_model.image_token_id] * n_tokens + [1]],
-                    dtype="int64",
-                ),
+                "input_ids": ids,
+                "attention_mask": np.ones_like(ids),
                 "pixel_values": np.zeros((1, size, size, 3), dtype="float32"),
                 "high_res_pixel_values": np.zeros((1, hr, hr, 3), dtype="float32"),
             }
         )
 
     for weight in tqdm(keras_model.weights, desc="Transferring text + SigLIP"):
-        name = weight.path.split("/", 1)[1].replace("/", ".")
+        name = weight.path.replace("/", ".").removeprefix("image_features.")
         if name.startswith(HIGH_RES_PREFIXES):
             continue
         mapping = VISION_MAPPING if name.startswith("vision_model.") else TEXT_MAPPING
@@ -58,7 +59,7 @@ def transfer_deepseek_vl_hybrid_weights(keras_model, hf_state_dict):
         else:
             transfer_weights(weight.path, weight, state[hf_name])
 
-    enc = keras_model.get_layer("high_res_vision_model")
+    enc = keras_model.high_res_vision_model
     p = "high_res_vision_model.vision_encoder"
     transfer_weights(
         "conv_kernel",
@@ -88,7 +89,7 @@ def transfer_deepseek_vl_hybrid_weights(keras_model, hf_state_dict):
     enc.neck_ln2.gamma.assign(state[f"{p}.neck.layer_norm2.weight"])
     enc.neck_ln2.beta.assign(state[f"{p}.neck.layer_norm2.bias"])
 
-    neck = keras_model.get_layer("high_res_vision_neck")
+    neck = keras_model.high_res_vision_neck
     transfer_weights(
         "conv_kernel", neck.conv1.kernel, state["high_res_vision_neck.conv1.weight"]
     )
@@ -100,7 +101,7 @@ def transfer_deepseek_vl_hybrid_weights(keras_model, hf_state_dict):
     neck.layer_norm2.gamma.assign(state["high_res_vision_neck.layer_norm2.weight"])
     neck.layer_norm2.beta.assign(state["high_res_vision_neck.layer_norm2.bias"])
 
-    proj = keras_model.get_layer("high_res_vision_proj")
+    proj = keras_model.high_res_vision_proj
     transfer_weights(
         "conv_kernel", proj.conv1.kernel, state["high_res_vision_proj.conv1.weight"]
     )
@@ -112,7 +113,7 @@ def transfer_deepseek_vl_hybrid_weights(keras_model, hf_state_dict):
         np.asarray(state["high_res_vision_alpha"]).reshape(-1)
     )
 
-    al = keras_model.get_layer("aligner")
+    al = keras_model.aligner
     for attr, hf in [
         (al.vision_proj, "aligner.vision_proj"),
         (al.high_res_vision_proj, "aligner.high_res_vision_proj"),

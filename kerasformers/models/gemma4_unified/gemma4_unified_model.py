@@ -1,10 +1,20 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel, TextOnlyGeneration
+from kerasformers.base import (
+    BaseGeneration,
+    BaseModel,
+    TextOnlyGeneration,
+    TiedHead,
+)
+from kerasformers.base.base_mixin import inference_scope
 from kerasformers.models.gemma4.gemma4_config import Gemma4TextConfig
 from kerasformers.models.gemma4.gemma4_layers import Gemma4MultimodalEmbedder
-from kerasformers.models.gemma4.gemma4_model import Gemma4Model
+from kerasformers.models.gemma4.gemma4_model import (
+    Gemma4Model,
+    Gemma4SoftTokenMerge,
+    Gemma4VisionBlockMask,
+)
 
 from .gemma4_unified_config import Gemma4UnifiedConfig
 from .gemma4_unified_layers import Gemma4UnifiedVisionEmbedder
@@ -12,8 +22,51 @@ from .gemma4_unified_layers import Gemma4UnifiedVisionEmbedder
 MASK_NEG = -1e9
 
 
+def gemma4_unified_multimodal_features(
+    input_ids,
+    attention_mask,
+    pixel_values,
+    pixel_position_ids,
+    input_features,
+    input_features_mask,
+    *,
+    language_model,
+    embed_vision,
+    vision_merge,
+    embed_audio,
+    audio_merge,
+    full_mask_layer,
+    sliding_mask_layer,
+    image_token_id,
+    video_token_id,
+    audio_token_id,
+    pad_token_id,
+):
+    lm = language_model
+    is_image = ops.equal(input_ids, image_token_id)
+    is_audio = ops.equal(input_ids, audio_token_id)
+    multimodal = ops.logical_or(
+        ops.logical_or(is_image, ops.equal(input_ids, video_token_id)), is_audio
+    )
+    hidden = lm.embed_scaled(ops.where(multimodal, pad_token_id, input_ids))
+    if embed_vision is not None:
+        feats = embed_vision(pixel_values, pixel_position_ids)
+        hidden = vision_merge(hidden, feats, is_image, pixel_position_ids)
+    if embed_audio is not None:
+        audio_feats = embed_audio(input_features)
+        hidden = audio_merge(hidden, audio_feats, is_audio, input_features_mask)
+    position_ids = ops.where(
+        attention_mask == 0, 1, ops.cumsum(attention_mask, axis=-1) - 1
+    )
+    cos_l, sin_l = lm.rope_tables(position_ids, local=True)
+    cos_g, sin_g = lm.rope_tables(position_ids, local=False)
+    full_mask = full_mask_layer(input_ids, attention_mask)
+    sliding_mask = sliding_mask_layer(input_ids, attention_mask)
+    return lm.run_layers(hidden, cos_l, sin_l, cos_g, sin_g, full_mask, sliding_mask)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Gemma4UnifiedModel(SubclassedBaseModel):
+class Gemma4UnifiedModel(BaseModel):
     """Gemma 4 unified vision + audio + text backbone (no LM head).
 
     The unified checkpoints (google/gemma-4-12B) are encoder-free: instead of the
@@ -45,6 +98,8 @@ class Gemma4UnifiedModel(SubclassedBaseModel):
     config_class = Gemma4UnifiedConfig
     default_load_dtype = "bfloat16"  # Google ships gemma-4 in bf16
 
+    output_logits = False
+
     def __init__(
         self,
         text_config=None,
@@ -55,49 +110,152 @@ class Gemma4UnifiedModel(SubclassedBaseModel):
         audio_token_id=258881,
         pad_token_id=0,
         use_bidirectional_vision=True,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.text_config = dict(text_config or {})
-        self.vision_config = dict(vision_config) if vision_config else None
-        self.audio_config = dict(audio_config) if audio_config else None
+        nm = kwargs.pop("name", None) or name
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        text_config = dict(text_config or {})
+        vision_config = dict(vision_config) if vision_config else None
+        audio_config = dict(audio_config) if audio_config else None
+
+        language_model = Gemma4Model(**text_config, name="language_model")
+        text_hidden = language_model.embed_dim
+        eps = language_model.norm_eps
+
+        # Encoder-free towers: both optional (with neither, this is a plain text
+        # generator, matching Gemma4UnifiedForConditionalGeneration on text input).
+        embed_vision = vision_merge = None
+        patch_dim = 0
+        if vision_config is not None:
+            model_patch_size = (
+                vision_config["patch_size"] * vision_config["pooling_kernel_size"]
+            )
+            patch_dim = model_patch_size**2 * 3
+            embed_vision = Gemma4UnifiedVisionEmbedder(
+                patch_dim=patch_dim,
+                mm_embed_dim=vision_config["mm_embed_dim"],
+                mm_posemb_size=vision_config["mm_posemb_size"],
+                text_hidden_size=text_hidden,
+                eps=vision_config.get("eps", eps),
+                name="embed_vision",
+            )
+            vision_merge = Gemma4SoftTokenMerge(
+                compact=True, positions_valid=True, name="vision_merge"
+            )
+        embed_audio = audio_merge = None
+        audio_dim = 0
+        if audio_config is not None:
+            audio_dim = audio_config["audio_embed_dim"]
+            embed_audio = Gemma4MultimodalEmbedder(
+                text_hidden,
+                eps=audio_config.get("eps", eps),
+                name="embed_audio",
+            )
+            audio_merge = Gemma4SoftTokenMerge(compact=True, name="audio_merge")
+        lm_head = None
+        if self.output_logits and not language_model.tie_embeddings:
+            lm_head = layers.Dense(
+                language_model.vocab_size, use_bias=False, name="lm_head"
+            )
+
+        input_ids_in = layers.Input(shape=(None,), dtype="int32", name="input_ids")
+        attn_in = layers.Input(shape=(None,), dtype="int32", name="attention_mask")
+        inputs = {"input_ids": input_ids_in, "attention_mask": attn_in}
+        has_towers = embed_vision is not None or embed_audio is not None
+        if has_towers:
+            full_mask_layer = Gemma4VisionBlockMask(
+                False,
+                language_model.sliding_window,
+                image_token_id,
+                video_token_id,
+                use_bidirectional_vision,
+                name="full_mask",
+            )
+            sliding_mask_layer = Gemma4VisionBlockMask(
+                True,
+                language_model.sliding_window,
+                image_token_id,
+                video_token_id,
+                use_bidirectional_vision,
+                name="sliding_mask",
+            )
+            pv = pvp = feat = feat_mask = None
+            if embed_vision is not None:
+                pv = layers.Input(shape=(None, patch_dim), name="pixel_values")
+                pvp = layers.Input(
+                    shape=(None, 2), dtype="int32", name="pixel_position_ids"
+                )
+                inputs["pixel_values"] = pv
+                inputs["pixel_position_ids"] = pvp
+            if embed_audio is not None:
+                feat = layers.Input(shape=(None, audio_dim), name="input_features")
+                feat_mask = layers.Input(
+                    shape=(None,), dtype="bool", name="input_features_mask"
+                )
+                inputs["input_features"] = feat
+                inputs["input_features_mask"] = feat_mask
+            hidden = gemma4_unified_multimodal_features(
+                input_ids_in,
+                attn_in,
+                pv,
+                pvp,
+                feat,
+                feat_mask,
+                language_model=language_model,
+                embed_vision=embed_vision,
+                vision_merge=vision_merge,
+                embed_audio=embed_audio,
+                audio_merge=audio_merge,
+                full_mask_layer=full_mask_layer,
+                sliding_mask_layer=sliding_mask_layer,
+                image_token_id=image_token_id,
+                video_token_id=video_token_id,
+                audio_token_id=audio_token_id,
+                pad_token_id=pad_token_id,
+            )
+        else:
+            # Text-only checkpoint: reuse the composed functional text backbone.
+            hidden = language_model(
+                {"input_ids": input_ids_in, "attention_mask": attn_in}
+            )["last_hidden_state"]
+
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            raw = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(language_model.token_embedding, name="lm_head")(hidden)
+            )
+            cap = language_model.final_logit_softcapping
+            if cap is not None:
+                raw = ops.tanh(raw / cap) * cap
+            outputs["logits"] = raw
+
+        super().__init__(inputs=inputs, outputs=outputs, name=nm or type(self).__name__)
+
+        self.text_config = text_config
+        self.vision_config = vision_config
+        self.audio_config = audio_config
         self.image_token_id = image_token_id
         self.video_token_id = video_token_id
         self.audio_token_id = audio_token_id
         self.pad_token_id = pad_token_id
         self.use_bidirectional_vision = use_bidirectional_vision
+        self.language_model = language_model
+        self.embed_vision = embed_vision
+        self.embed_audio = embed_audio
+        self.patch_dim = patch_dim
+        self.audio_dim = audio_dim
+        self.lm_head = lm_head
 
-        self.language_model = Gemma4Model(**self.text_config, name="language_model")
-        text_hidden = self.language_model.embed_dim
-        eps = self.language_model.norm_eps
-
-        # Encoder-free towers: both optional (with neither, this is a plain text
-        # generator, matching Gemma4UnifiedForConditionalGeneration on text input).
-        self.embed_vision = None
-        self.patch_dim = 0
-        if self.vision_config is not None:
-            model_patch_size = (
-                self.vision_config["patch_size"]
-                * self.vision_config["pooling_kernel_size"]
-            )
-            self.patch_dim = model_patch_size**2 * 3
-            self.embed_vision = Gemma4UnifiedVisionEmbedder(
-                patch_dim=self.patch_dim,
-                mm_embed_dim=self.vision_config["mm_embed_dim"],
-                mm_posemb_size=self.vision_config["mm_posemb_size"],
-                text_hidden_size=text_hidden,
-                eps=self.vision_config.get("eps", eps),
-                name="embed_vision",
-            )
-        self.embed_audio = None
-        self.audio_dim = 0
-        if self.audio_config is not None:
-            self.audio_dim = self.audio_config["audio_embed_dim"]
-            self.embed_audio = Gemma4MultimodalEmbedder(
-                text_hidden,
-                eps=self.audio_config.get("eps", eps),
-                name="embed_audio",
-            )
+        # The encoder-free embedders' sublayers don't auto-build during functional
+        # graph construction (compute_output_spec skips their call); a concrete
+        # dummy forward materializes them. Text-only reuses the already-built lm.
+        if has_towers:
+            with inference_scope():
+                self.build_for_transfer()
 
     def build_for_transfer(self):
         # Materialize every sublayer weight before a weight transfer: one text
@@ -115,7 +273,9 @@ class Gemma4UnifiedModel(SubclassedBaseModel):
                 (1, 1, self.audio_dim), dtype="float32"
             )
             inputs["input_features_mask"] = ops.ones((1, 1), dtype="bool")
-        inputs["input_ids"] = ops.concatenate(input_ids, axis=1)
+        ids = ops.concatenate(input_ids, axis=1)
+        inputs["input_ids"] = ids
+        inputs["attention_mask"] = ops.ones_like(ids)
         self(inputs)
 
     def scatter_soft_tokens(self, text_embeds, slot_mask, features):
@@ -205,24 +365,6 @@ class Gemma4UnifiedModel(SubclassedBaseModel):
         full_mask, sliding_mask = lm.build_masks(seq, attention_mask, block_ids)
         return (cos_l, sin_l, cos_g, sin_g), (full_mask, sliding_mask)
 
-    def call(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        lm = self.language_model
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        attention_mask = inputs.get("attention_mask")
-        hidden, is_vision = self.fuse_embeds(
-            input_ids,
-            inputs.get("pixel_values"),
-            inputs.get("pixel_position_ids"),
-            inputs.get("input_features"),
-            inputs.get("input_features_mask"),
-        )
-        rope, masks = self.prefill_rope_masks(is_vision, attention_mask, batch, seq)
-        hidden = lm.run_layers(hidden, *rope, *masks)
-        return {"last_hidden_state": hidden}
-
     @staticmethod
     def vision_config_from_hf(vision):
         return {
@@ -303,19 +445,11 @@ class Gemma4UnifiedConditionalGenerate(Gemma4UnifiedModel, BaseGeneration):
     default_load_dtype = "bfloat16"  # Google ships gemma-4 in bf16
 
     eos_token_id = (1, 106)
+    output_logits = True
     # text-only checkpoints load with either head off the same weights
     HUB_REPO_SIBLINGS = frozenset(
         {"Gemma4UnifiedConditionalGenerate", "Gemma4UnifiedTextGenerate"}
     )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        lm = self.language_model
-        self.lm_head = (
-            None
-            if lm.tie_embeddings
-            else layers.Dense(lm.vocab_size, use_bias=False, name="lm_head")
-        )
 
     def project(self, hidden):
         lm = self.language_model
@@ -327,10 +461,6 @@ class Gemma4UnifiedConditionalGenerate(Gemma4UnifiedModel, BaseGeneration):
             cap = lm.final_logit_softcapping
             logits = ops.tanh(logits / cap) * cap
         return logits
-
-    def call(self, inputs):
-        hidden = super().call(inputs)["last_hidden_state"]
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(
         self,

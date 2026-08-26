@@ -1,7 +1,15 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import (
+    BaseGeneration,
+    BaseModel,
+    CausalMask,
+    MediaMerge,
+    TiedHead,
+    merge_media,
+)
+from kerasformers.base.base_mixin import inference_scope
 
 from .mistral3_config import MISTRAL3_CONFIG, MISTRAL3_WEIGHTS_URLS
 from .mistral3_layers import (
@@ -64,13 +72,14 @@ class Mistral3VisionModel(layers.Layer):
         self.patch_size = patch_size
         self.rope_theta = rope_theta
         self.head_dim = embed_dim // num_heads
+        self.data_format = keras.config.image_data_format()
 
         self.patch_conv = layers.Conv2D(
             embed_dim,
             kernel_size=patch_size,
             strides=patch_size,
             use_bias=False,
-            data_format="channels_last",
+            data_format=self.data_format,
             name="patch_conv",
         )
         self.ln_pre = Mistral3RMSNorm(eps=1e-5, name="ln_pre")
@@ -123,13 +132,10 @@ class Mistral3VisionModel(layers.Layer):
         return ops.cast(mask, "float32")[None, None]
 
     def call(self, pixel_values, image_sizes):
-        if (
-            pixel_values.shape[1] is not None
-            and int(pixel_values.shape[1]) == 3
-            and (pixel_values.shape[-1] is None or int(pixel_values.shape[-1]) != 3)
-        ):
-            pixel_values = ops.transpose(pixel_values, (0, 2, 3, 1))
-        patches = self.patch_conv(pixel_values)  # (N, gh_max, gw_max, D)
+        patches = self.patch_conv(pixel_values)
+        if self.data_format == "channels_first":
+            patches = ops.transpose(patches, (0, 2, 3, 1))
+        # patches: (N, gh_max, gw_max, D)
         grid_sizes = [
             (int(h) // self.patch_size, int(w) // self.patch_size)
             for h, w in image_sizes
@@ -148,6 +154,11 @@ class Mistral3VisionModel(layers.Layer):
         for block in self.blocks:
             hidden = block(hidden, cos, sin, attention_mask=mask)
         return hidden[0]
+
+    def compute_output_spec(self, pixel_values, image_sizes):
+        # Packed patch sequence over all images; length is grid-dependent (dynamic).
+        # The grid-iterating call runs eagerly at runtime.
+        return keras.KerasTensor((None, self.embed_dim), dtype=self.compute_dtype)
 
     def get_config(self):
         config = super().get_config()
@@ -253,6 +264,17 @@ class Mistral3TextModel(layers.Layer):
         hidden = self.final_norm(hidden)
         return (hidden, new_cache) if use_cache else hidden
 
+    def compute_output_spec(
+        self,
+        inputs_embeds,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_values=None,
+        use_cache=False,
+    ):
+        return keras.KerasTensor(inputs_embeds.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -271,7 +293,79 @@ class Mistral3TextModel(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Mistral3Model(SubclassedBaseModel):
+class Mistral3ImageFeatures(layers.Layer):
+    """Weightless wrapper: vision tower + projector, deferred to runtime.
+
+    Pixtral's tower + projector need concrete per-image grid sizes (a Python
+    ``convert_to_numpy`` on ``image_sizes``), which cannot run at symbolic-build
+    time. Holding the tower + projector by non-tracked references (they stay
+    top-level model layers, so weight paths are unchanged) behind an explicit
+    output spec keeps that grid-iterating work out of the graph build; it runs
+    eagerly when the model is called.
+    """
+
+    def __init__(
+        self, vision_tower, multi_modal_projector, patch_size, embed_dim, **kwargs
+    ):
+        super().__init__(**kwargs)
+        object.__setattr__(self, "vision_tower", vision_tower)
+        object.__setattr__(self, "multi_modal_projector", multi_modal_projector)
+        self.patch_size = patch_size
+        self.image_embed_dim = embed_dim
+
+    def call(self, pixel_values, image_sizes):
+        sizes = [
+            (int(h), int(w))
+            for h, w in ops.convert_to_numpy(
+                ops.convert_to_tensor(image_sizes)
+            ).tolist()
+        ]
+        grid_sizes = [(h // self.patch_size, w // self.patch_size) for h, w in sizes]
+        features = self.vision_tower(pixel_values, image_sizes=sizes)
+        return self.multi_modal_projector(features, grid_sizes=grid_sizes)
+
+    def compute_output_spec(self, pixel_values, image_sizes):
+        return keras.KerasTensor((None, self.image_embed_dim), dtype="float32")
+
+
+def mistral3_rope_tables(position_ids, head_dim, rope_theta, compute_dtype):
+    inv_freq = 1.0 / ops.power(
+        rope_theta, ops.arange(0, head_dim, 2, dtype="float32") / head_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def mistral3_backbone_features(
+    input_ids,
+    attention_mask,
+    pixel_values,
+    image_sizes,
+    *,
+    language_model,
+    image_features,
+    image_merge,
+    causal_mask,
+    head_dim,
+    rope_theta,
+    image_token_id,
+    compute_dtype,
+):
+    safe_ids = ops.where(ops.equal(input_ids, image_token_id), 0, input_ids)
+    inputs_embeds = language_model.token_embedding(safe_ids)
+    image_embeds = image_features(pixel_values, image_sizes)
+    inputs_embeds = image_merge(inputs_embeds, input_ids, image_embeds)
+    position_ids = ops.where(
+        attention_mask == 0, 1, ops.cumsum(attention_mask, axis=-1) - 1
+    )
+    cos, sin = mistral3_rope_tables(position_ids, head_dim, rope_theta, compute_dtype)
+    mask = causal_mask(input_ids, attention_mask)
+    return language_model(inputs_embeds, cos, sin, attention_mask=mask)
+
+
+@keras.saving.register_keras_serializable(package="kerasformers")
+class Mistral3Model(BaseModel):
     """Mistral 3 multimodal backbone (Mistral Small 3.1/3.2): Pixtral vision
     tower + 2x2 patch-merging projector + Mistral text decoder.
 
@@ -319,6 +413,7 @@ class Mistral3Model(SubclassedBaseModel):
     HF_MODEL_TYPE = "mistral3"
     BASE_MODEL_CONFIG = MISTRAL3_CONFIG
     BASE_WEIGHT_CONFIG = MISTRAL3_WEIGHTS_URLS
+    output_logits = False
 
     def __init__(
         self,
@@ -342,16 +437,111 @@ class Mistral3Model(SubclassedBaseModel):
         spatial_merge_size=2,
         projector_bias=False,
         image_token_id=10,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = head_dim or embed_dim // num_heads
+
+        vision_tower = Mistral3VisionModel(
+            embed_dim=vision_embed_dim,
+            mlp_dim=vision_mlp_dim,
+            num_layers=vision_num_layers,
+            num_heads=vision_num_heads,
+            image_size=image_size,
+            patch_size=patch_size,
+            rope_theta=vision_rope_theta,
+            name="vision_tower",
+        )
+        multi_modal_projector = Mistral3MultiModalProjector(
+            vision_embed_dim,
+            embed_dim,
+            spatial_merge_size,
+            norm_eps,
+            projector_bias,
+            name="multi_modal_projector",
+        )
+        language_model = Mistral3TextModel(
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            mlp_dim=mlp_dim,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            num_kv_heads=num_kv_heads,
+            head_dim=head_dim,
+            norm_eps=norm_eps,
+            name="language_model",
+        )
+        image_features = Mistral3ImageFeatures(
+            vision_tower,
+            multi_modal_projector,
+            patch_size,
+            embed_dim,
+            name="image_features",
+        )
+        causal_mask = CausalMask(name="causal_mask")
+        image_merge = MediaMerge(image_token_id, embed_dim, name="image_merge")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+            "pixel_values": layers.Input(
+                shape=(
+                    (3, None, None)
+                    if keras.config.image_data_format() == "channels_first"
+                    else (None, None, 3)
+                ),
+                dtype="float32",
+                name="pixel_values",
+            ),
+            "image_sizes": layers.Input(shape=(2,), dtype="int32", name="image_sizes"),
+        }
+        hidden = mistral3_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            inputs["pixel_values"],
+            inputs["image_sizes"],
+            language_model=language_model,
+            image_features=image_features,
+            image_merge=image_merge,
+            causal_mask=causal_mask,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            image_token_id=image_token_id,
+            compute_dtype=language_model.token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(language_model.token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.vision_tower = vision_tower
+        self.multi_modal_projector = multi_modal_projector
+        self.language_model = language_model
+        self.image_features = image_features
+        self.causal_mask_layer = causal_mask
+        self.image_merge = image_merge
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
-        self.head_dim = head_dim or embed_dim // num_heads
+        self.head_dim = head_dim
         self.norm_eps = norm_eps
         self.rope_theta = rope_theta
         self.tie_embeddings = tie_embeddings
@@ -366,35 +556,33 @@ class Mistral3Model(SubclassedBaseModel):
         self.projector_bias = projector_bias
         self.image_token_id = image_token_id
 
-        self.vision_tower = Mistral3VisionModel(
-            embed_dim=vision_embed_dim,
-            mlp_dim=vision_mlp_dim,
-            num_layers=vision_num_layers,
-            num_heads=vision_num_heads,
-            image_size=image_size,
-            patch_size=patch_size,
-            rope_theta=vision_rope_theta,
-            name="vision_tower",
-        )
-        self.multi_modal_projector = Mistral3MultiModalProjector(
-            vision_embed_dim,
-            embed_dim,
-            spatial_merge_size,
-            norm_eps,
-            projector_bias,
-            name="multi_modal_projector",
-        )
-        self.language_model = Mistral3TextModel(
-            vocab_size=vocab_size,
-            embed_dim=embed_dim,
-            mlp_dim=mlp_dim,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            num_kv_heads=num_kv_heads,
-            head_dim=self.head_dim,
-            norm_eps=norm_eps,
-            name="language_model",
-        )
+        # Vision tower's grid-iterating call is skipped by the symbolic auto-build;
+        # a concrete dummy forward materializes every weight for from_weights.
+        with inference_scope():
+            self(self.dummy_media_inputs())
+
+    def dummy_media_inputs(self):
+        merged = self.patch_size * self.spatial_merge_size
+        side = 2 * merged
+        n = (side // merged) ** 2
+        return {
+            "input_ids": ops.concatenate(
+                [
+                    ops.zeros((1, 1), dtype="int32"),
+                    ops.full((1, n), self.image_token_id, dtype="int32"),
+                    ops.ones((1, 1), dtype="int32"),
+                ],
+                axis=1,
+            ),
+            "attention_mask": ops.ones((1, n + 2), dtype="int32"),
+            "pixel_values": ops.zeros(
+                (1, 3, side, side)
+                if keras.config.image_data_format() == "channels_first"
+                else (1, side, side, 3),
+                dtype="float32",
+            ),
+            "image_sizes": ops.convert_to_tensor([[side, side]], dtype="int32"),
+        }
 
     def get_image_features(self, pixel_values, image_sizes):
         sizes = [
@@ -429,20 +617,20 @@ class Mistral3Model(SubclassedBaseModel):
         return mask
 
     def prepare_inputs(self, input_ids, pixel_values, image_sizes, attention_mask):
+        # Imperative fuse for the KV-cache prefill: handles absent media (None).
         input_ids = ops.cast(ops.convert_to_tensor(input_ids), "int32")
         batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        inputs_embeds = self.language_model.token_embedding(input_ids)
+        safe_ids = ops.where(ops.equal(input_ids, self.image_token_id), 0, input_ids)
+        inputs_embeds = self.language_model.token_embedding(safe_ids)
         if pixel_values is not None:
             image_embeds = self.get_image_features(pixel_values, image_sizes)
-            ids_flat = ops.convert_to_numpy(ops.reshape(input_ids, (-1,))).tolist()
-            idx = [j for j, v in enumerate(ids_flat) if v == self.image_token_id]
-            embeds_flat = ops.reshape(inputs_embeds, (batch * seq, self.embed_dim))
-            embeds_flat = ops.scatter_update(
-                embeds_flat,
-                ops.reshape(ops.convert_to_tensor(idx, dtype="int32"), (-1, 1)),
-                ops.cast(image_embeds, embeds_flat.dtype),
+            inputs_embeds = merge_media(
+                inputs_embeds,
+                input_ids,
+                image_embeds,
+                self.image_token_id,
+                self.embed_dim,
             )
-            inputs_embeds = ops.reshape(embeds_flat, (batch, seq, self.embed_dim))
         if attention_mask is not None:
             am = ops.cast(ops.convert_to_tensor(attention_mask), "int32")
             position_ids = ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
@@ -450,45 +638,9 @@ class Mistral3Model(SubclassedBaseModel):
             position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
         return inputs_embeds, position_ids
 
-    def forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            raise ValueError(f"{type(self).__name__} expects a dict of inputs.")
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        seq = int(input_ids.shape[1])
-        inputs_embeds, position_ids = self.prepare_inputs(
-            input_ids,
-            inputs.get("pixel_values"),
-            inputs.get("image_sizes"),
-            inputs.get("attention_mask"),
-        )
-        cos, sin = self.rope_tables(position_ids)
-        attn_mask = self.causal_mask(seq, inputs.get("attention_mask"))
-        return self.language_model(inputs_embeds, cos, sin, attention_mask=attn_mask)
-
-    def call(self, inputs):
-        return {"last_hidden_state": self.forward_features(inputs)}
-
     def build_for_transfer(self):
-        # Multimodal lazy build: mirror the conversion feed so the vision tower +
-        # projector weights exist before a weight stream (the base text-only
-        # build would leave them uncreated). from_hub_repo / converted cache.
-        merged = self.patch_size * self.spatial_merge_size
-        side = 2 * merged
-        n = (side // merged) ** 2
-        self(
-            {
-                "input_ids": ops.concatenate(
-                    [
-                        ops.zeros((1, 1), dtype="int32"),
-                        ops.full((1, n), self.image_token_id, dtype="int32"),
-                        ops.ones((1, 1), dtype="int32"),
-                    ],
-                    axis=1,
-                ),
-                "pixel_values": ops.zeros((1, side, side, 3), dtype="float32"),
-                "image_sizes": ops.convert_to_tensor([[side, side]], dtype="int32"),
-            }
-        )
+        with inference_scope():
+            self(self.dummy_media_inputs())
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -549,6 +701,7 @@ class Mistral3Model(SubclassedBaseModel):
                 "spatial_merge_size": self.spatial_merge_size,
                 "projector_bias": self.projector_bias,
                 "image_token_id": self.image_token_id,
+                "name": self.name,
             }
         )
         return config
@@ -571,14 +724,7 @@ class Mistral3ConditionalGenerate(Mistral3Model, BaseGeneration):
 
     # Mistral </s> stop id. Explicit generate() args override this.
     eos_token_id = (2,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
@@ -586,10 +732,6 @@ class Mistral3ConditionalGenerate(Mistral3Model, BaseGeneration):
         return ops.matmul(
             hidden, ops.transpose(self.language_model.token_embedding.embeddings)
         )
-
-    def call(self, inputs):
-        hidden = self.forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(
         self, token_ids, padding_mask, max_len, pixel_values=None, image_sizes=None

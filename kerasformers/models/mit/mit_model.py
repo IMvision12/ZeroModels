@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.mit.mit_layers import (
     MiTEfficientMultiheadSelfAttention,
@@ -259,7 +259,7 @@ def mit_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MiTModel(FunctionalBaseModel):
+class MiTModel(BaseModel):
     """Instantiates the Mix Transformer (MiT) backbone: the SegFormer encoder.
 
     MiT is a hierarchical transformer backbone built from four stages.
@@ -425,7 +425,7 @@ class MiTModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MiTImageClassify(FunctionalBaseModel):
+class MiTImageClassify(BaseModel):
     """Instantiates the Mix Transformer (MiT) classifier.
 
     This classifier wraps a :class:`MiTModel` backbone and attaches a

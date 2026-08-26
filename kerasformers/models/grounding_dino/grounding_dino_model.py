@@ -4,7 +4,8 @@ import keras
 import numpy as np
 from keras import layers, ops
 
-from kerasformers.base import SubclassedBaseModel
+from kerasformers.base import BaseModel
+from kerasformers.base.base_mixin import inference_scope
 
 from .grounding_dino_config import GroundingDinoConfig
 from .grounding_dino_layers import (
@@ -50,8 +51,14 @@ def special_token_masks_and_positions(input_ids):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class GroundingDinoModel(SubclassedBaseModel):
-    """Grounding DINO backbone + cross-modality encoder-decoder (no heads).
+class GroundingDinoCore(layers.Layer):
+    """Imperative Grounding DINO core (backbone + cross-modality encoder-decoder).
+
+    Holds every sublayer and runs the full detection forward eagerly. Wrapped by
+    the functional :class:`GroundingDinoModel` (a graph of ``inputs -> this core ->
+    outputs``); ``compute_output_spec`` keeps the dynamic spatial control flow and
+    host-side text masking out of the functional-graph trace, so the core's
+    ``call`` runs only at (eager) runtime with concrete shapes. No head.
 
     A Swin vision backbone and a BERT text encoder feed a 6-layer deformable
     encoder that fuses vision and text (bi-directional cross-attention + text
@@ -61,11 +68,6 @@ class GroundingDinoModel(SubclassedBaseModel):
     text cross-attention and image deformable cross-attention. Returns the decoder
     hidden states; use :class:`GroundingDinoDetect` for logits / boxes.
     """
-
-    HF_MODEL_TYPE = "grounding-dino"
-    BASE_MODEL_CONFIG = None
-    BASE_WEIGHT_CONFIG = None
-    config_class = GroundingDinoConfig
 
     def __init__(
         self,
@@ -98,9 +100,10 @@ class GroundingDinoModel(SubclassedBaseModel):
         text_intermediate_size=3072,
         text_max_position_embeddings=512,
         text_layer_norm_eps=1e-12,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__(name=name)
         self.d_model = d_model
         self.encoder_layers = encoder_layers
         self.encoder_ffn_dim = encoder_ffn_dim
@@ -484,64 +487,22 @@ class GroundingDinoModel(SubclassedBaseModel):
             "encoder_last_hidden_state_text": enc["text"],
         }
 
-    def build_for_transfer(self):
-        # Always-multimodal build: the base text-only build_for_transfer feeds no
-        # pixel_values, so the vision backbone + cross-modality encoder weights
-        # stay uncreated (and encode() would fail). Mirror the conversion feed so
-        # every sublayer exists. Used by from_hub_repo / the converted-weight cache.
-        self(
-            {
-                "input_ids": ops.convert_to_tensor(
-                    [[101, 102, 1012, 1029, 102, 102]], dtype="int32"
-                ),
-                "attention_mask": ops.ones((1, 6), dtype="int32"),
-                "pixel_values": ops.zeros((1, 384, 384, 3), dtype="float32"),
-            }
-        )
-
-    @classmethod
-    def config_from_hf(cls, hf_config):
-        bc = hf_config.get("backbone_config", {})
-        tc = hf_config.get("text_config", {})
+    def compute_output_spec(self, inputs):
+        # The whole core runs eagerly at runtime; declare the output shapes so the
+        # dynamic spatial / host-side text control flow stays out of the graph trace.
+        b = inputs["pixel_values"].shape[0]
         return {
-            "d_model": hf_config.get("d_model", 256),
-            "encoder_layers": hf_config.get("encoder_layers", 6),
-            "encoder_ffn_dim": hf_config.get("encoder_ffn_dim", 2048),
-            "encoder_attention_heads": hf_config.get("encoder_attention_heads", 8),
-            "decoder_layers": hf_config.get("decoder_layers", 6),
-            "decoder_ffn_dim": hf_config.get("decoder_ffn_dim", 2048),
-            "decoder_attention_heads": hf_config.get("decoder_attention_heads", 8),
-            "num_queries": hf_config.get("num_queries", 900),
-            "num_feature_levels": hf_config.get("num_feature_levels", 4),
-            "encoder_n_points": hf_config.get("encoder_n_points", 4),
-            "decoder_n_points": hf_config.get("decoder_n_points", 4),
-            "max_text_len": hf_config.get("max_text_len", 256),
-            "query_dim": hf_config.get("query_dim", 4),
-            "two_stage": hf_config.get("two_stage", True),
-            "positional_embedding_temperature": hf_config.get(
-                "positional_embedding_temperature", 20.0
+            "last_hidden_state": keras.KerasTensor(
+                (b, self.num_queries, self.d_model), dtype=self.compute_dtype
             ),
-            "layer_norm_eps": hf_config.get("layer_norm_eps", 1e-5),
-            "activation_function": hf_config.get("activation_function", "relu"),
-            "backbone_embed_dim": bc.get("embed_dim", 96),
-            "backbone_depths": tuple(bc.get("depths", (2, 2, 6, 2))),
-            "backbone_num_heads": tuple(bc.get("num_heads", (3, 6, 12, 24))),
-            "backbone_window_size": bc.get("window_size", 7),
-            "backbone_out_indices": tuple(bc.get("out_indices", (2, 3, 4))),
-            "text_vocab_size": tc.get("vocab_size", 30522),
-            "text_hidden_size": tc.get("hidden_size", 768),
-            "text_num_layers": tc.get("num_hidden_layers", 12),
-            "text_num_heads": tc.get("num_attention_heads", 12),
-            "text_intermediate_size": tc.get("intermediate_size", 3072),
-            "text_max_position_embeddings": tc.get("max_position_embeddings", 512),
-            "text_layer_norm_eps": tc.get("layer_norm_eps", 1e-12),
+            "intermediate_hidden_states": keras.KerasTensor(
+                (b, self.decoder_layers, self.num_queries, self.d_model),
+                dtype=self.compute_dtype,
+            ),
+            "encoder_last_hidden_state_text": keras.KerasTensor(
+                (b, None, self.d_model), dtype=self.compute_dtype
+            ),
         }
-
-    @classmethod
-    def transfer_from_hf(cls, keras_model, hf_state_dict):
-        from .convert_grounding_dino_hf_to_keras import transfer_grounding_dino_weights
-
-        transfer_grounding_dino_weights(keras_model, hf_state_dict)
 
     def get_config(self):
         config = super().get_config()
@@ -581,13 +542,12 @@ class GroundingDinoModel(SubclassedBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class GroundingDinoDetect(GroundingDinoModel):
-    """Grounding DINO with detection heads (open-set / text-grounded detection).
-
-    Adds per-decoder-layer contrastive class heads (vision-text similarity,
-    padded to ``max_text_len``) and bounding-box MLP heads with iterative
-    refinement. ``call`` returns ``logits`` ``(B, num_queries, max_text_len)``
-    and ``pred_boxes`` ``(B, num_queries, 4)`` (cx, cy, w, h in ``[0, 1]``).
+class GroundingDinoDetectCore(GroundingDinoCore):
+    """Imperative Grounding DINO detection core: the backbone core plus the
+    per-decoder-layer contrastive class heads and bounding-box MLP heads (iterative
+    refinement). Wrapped by the functional :class:`GroundingDinoDetect`. ``call``
+    returns ``logits`` ``(B, num_queries, max_text_len)`` and ``pred_boxes``
+    ``(B, num_queries, 4)`` (cx, cy, w, h in ``[0, 1]``).
     """
 
     def __init__(self, *args, **kwargs):
@@ -631,6 +591,155 @@ class GroundingDinoDetect(GroundingDinoModel):
             "pred_boxes": outputs_coords[-1],
             "last_hidden_state": intermediate[:, -1],
         }
+
+    def compute_output_spec(self, inputs):
+        b = inputs["pixel_values"].shape[0]
+        return {
+            "logits": keras.KerasTensor(
+                (b, self.num_queries, self.max_text_len), dtype=self.compute_dtype
+            ),
+            "pred_boxes": keras.KerasTensor(
+                (b, self.num_queries, 4), dtype=self.compute_dtype
+            ),
+            "last_hidden_state": keras.KerasTensor(
+                (b, self.num_queries, self.d_model), dtype=self.compute_dtype
+            ),
+        }
+
+
+def grounding_dino_config_from_hf(hf_config):
+    bc = hf_config.get("backbone_config", {})
+    tc = hf_config.get("text_config", {})
+    return {
+        "d_model": hf_config.get("d_model", 256),
+        "encoder_layers": hf_config.get("encoder_layers", 6),
+        "encoder_ffn_dim": hf_config.get("encoder_ffn_dim", 2048),
+        "encoder_attention_heads": hf_config.get("encoder_attention_heads", 8),
+        "decoder_layers": hf_config.get("decoder_layers", 6),
+        "decoder_ffn_dim": hf_config.get("decoder_ffn_dim", 2048),
+        "decoder_attention_heads": hf_config.get("decoder_attention_heads", 8),
+        "num_queries": hf_config.get("num_queries", 900),
+        "num_feature_levels": hf_config.get("num_feature_levels", 4),
+        "encoder_n_points": hf_config.get("encoder_n_points", 4),
+        "decoder_n_points": hf_config.get("decoder_n_points", 4),
+        "max_text_len": hf_config.get("max_text_len", 256),
+        "query_dim": hf_config.get("query_dim", 4),
+        "two_stage": hf_config.get("two_stage", True),
+        "positional_embedding_temperature": hf_config.get(
+            "positional_embedding_temperature", 20.0
+        ),
+        "layer_norm_eps": hf_config.get("layer_norm_eps", 1e-5),
+        "activation_function": hf_config.get("activation_function", "relu"),
+        "backbone_embed_dim": bc.get("embed_dim", 96),
+        "backbone_depths": tuple(bc.get("depths", (2, 2, 6, 2))),
+        "backbone_num_heads": tuple(bc.get("num_heads", (3, 6, 12, 24))),
+        "backbone_window_size": bc.get("window_size", 7),
+        "backbone_out_indices": tuple(bc.get("out_indices", (2, 3, 4))),
+        "text_vocab_size": tc.get("vocab_size", 30522),
+        "text_hidden_size": tc.get("hidden_size", 768),
+        "text_num_layers": tc.get("num_hidden_layers", 12),
+        "text_num_heads": tc.get("num_attention_heads", 12),
+        "text_intermediate_size": tc.get("intermediate_size", 3072),
+        "text_max_position_embeddings": tc.get("max_position_embeddings", 512),
+        "text_layer_norm_eps": tc.get("layer_norm_eps", 1e-12),
+    }
+
+
+_GD_INPUT_SHAPE = {
+    "channels_last": (None, None, 3),
+    "channels_first": (3, None, None),
+}
+
+
+class _GroundingDinoFunctional(BaseModel):
+    """Shared functional wrapper: a graph of ``{pixel_values, input_ids,
+    attention_mask} -> core -> outputs``. Subclasses set ``core_class``."""
+
+    HF_MODEL_TYPE = "grounding-dino"
+    BASE_MODEL_CONFIG = None
+    BASE_WEIGHT_CONFIG = None
+    config_class = GroundingDinoConfig
+    core_class = GroundingDinoCore
+
+    def __init__(self, name=None, **kwargs):
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        core = self.core_class(**kwargs, name="core")
+        img_shape = _GD_INPUT_SHAPE[keras.config.image_data_format()]
+        pv = layers.Input(shape=img_shape, dtype="float32", name="pixel_values")
+        ii = layers.Input(shape=(None,), dtype="int32", name="input_ids")
+        am = layers.Input(shape=(None,), dtype="int32", name="attention_mask")
+        inputs = {"pixel_values": pv, "input_ids": ii, "attention_mask": am}
+        outputs = core(inputs)
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__
+        )
+        self.core = core
+
+        # The core runs eagerly (compute_output_spec skips its call during graph
+        # construction), so its sublayers don't materialize until a real forward.
+        with inference_scope():
+            self.build_for_transfer()
+
+    def build_for_transfer(self):
+        # Always-multimodal build so the vision backbone + cross-modality encoder
+        # weights exist before a stream is loaded (used by conversion / caching).
+        px = (
+            (1, 3, 384, 384)
+            if keras.config.image_data_format() == "channels_first"
+            else (1, 384, 384, 3)
+        )
+        self(
+            {
+                "input_ids": ops.convert_to_tensor(
+                    [[101, 102, 1012, 1029, 102, 102]], dtype="int32"
+                ),
+                "attention_mask": ops.ones((1, 6), dtype="int32"),
+                "pixel_values": ops.zeros(px, dtype="float32"),
+            }
+        )
+
+    @classmethod
+    def config_from_hf(cls, hf_config):
+        return grounding_dino_config_from_hf(hf_config)
+
+    @classmethod
+    def transfer_from_hf(cls, keras_model, hf_state_dict):
+        from .convert_grounding_dino_hf_to_keras import transfer_grounding_dino_weights
+
+        transfer_grounding_dino_weights(keras_model, hf_state_dict)
+
+    def get_config(self):
+        config = super().get_config()
+        for k, v in self.core.get_config().items():
+            if k not in ("name", "trainable", "dtype"):
+                config[k] = v
+        return config
+
+
+@keras.saving.register_keras_serializable(package="kerasformers")
+class GroundingDinoModel(_GroundingDinoFunctional):
+    """Grounding DINO backbone + cross-modality encoder-decoder (no heads).
+
+    A functional model wrapping :class:`GroundingDinoCore`; returns the decoder
+    ``last_hidden_state`` ``(B, num_queries, d_model)`` plus the intermediate
+    decoder states and the text encoder output. Use :class:`GroundingDinoDetect`
+    for logits / boxes.
+    """
+
+    core_class = GroundingDinoCore
+
+
+@keras.saving.register_keras_serializable(package="kerasformers")
+class GroundingDinoDetect(_GroundingDinoFunctional):
+    """Grounding DINO with detection heads (open-set / text-grounded detection).
+
+    A functional model wrapping :class:`GroundingDinoDetectCore`; ``logits`` is
+    ``(B, num_queries, max_text_len)`` and ``pred_boxes`` ``(B, num_queries, 4)``
+    (cx, cy, w, h in ``[0, 1]``).
+    """
+
+    core_class = GroundingDinoDetectCore
 
 
 # Backward-compatible alias for the previous class name.

@@ -1,7 +1,15 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import (
+    BaseGeneration,
+    BaseModel,
+    CausalMask,
+    MediaMerge,
+    TiedHead,
+    merge_media,
+)
+from kerasformers.base.base_mixin import inference_scope
 
 from .minimax_m3_vl_config import MINIMAX_M3_VL_CONFIG, MINIMAX_M3_VL_WEIGHTS_URLS
 from .minimax_m3_vl_layers import (
@@ -68,6 +76,15 @@ class MiniMaxM3VLVisionModel(layers.Layer):
         ]
 
     def call(self, pixel_values, grid_thw=None):
+        # grid_thw drives host-side rope construction (``for t,h,w in grid_thw``),
+        # so it must be a concrete iterable. In the functional graph this call runs
+        # eagerly (see compute_output_spec), so a tensor grid is materialized here.
+        if not isinstance(grid_thw, (list, tuple)):
+            import numpy as np
+
+            grid_thw = (
+                np.asarray(ops.convert_to_numpy(grid_thw)).astype("int64").tolist()
+            )
         cos, sin = vision_rope_3d(
             grid_thw, self.head_dim, self.rope_theta, self.spatial_merge_size
         )
@@ -76,6 +93,12 @@ class MiniMaxM3VLVisionModel(layers.Layer):
         for block in self.blocks:
             x = block(x, cos, sin)
         return x[0]
+
+    def compute_output_spec(self, pixel_values, grid_thw=None):
+        # Merged-patch count is data-dependent (grid), so the leading axis is
+        # dynamic; keeping an explicit spec lets this tower live in the functional
+        # graph while its grid-iterating call runs eagerly at run time.
+        return keras.KerasTensor((None, self.embed_dim), dtype=self.compute_dtype)
 
     def get_config(self):
         config = super().get_config()
@@ -95,8 +118,95 @@ class MiniMaxM3VLVisionModel(layers.Layer):
         return config
 
 
+def minimax_m3_vl_rope_tables(position_ids, rotary_dim, rope_theta, compute_dtype):
+    inv_freq = 1.0 / ops.power(
+        rope_theta, ops.arange(0, rotary_dim, 2, dtype="float32") / rotary_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def minimax_m3_vl_image_features(
+    pixel_values,
+    grid_thw,
+    *,
+    vision_tower,
+    projector_linear_1,
+    projector_linear_2,
+    projector_merge_linear_1,
+    projector_merge_linear_2,
+    spatial_merge_size,
+    embed_dim,
+):
+    features = vision_tower(pixel_values, grid_thw)
+    h = projector_linear_2(ops.gelu(projector_linear_1(features), approximate=False))
+    h = ops.reshape(h, (-1, spatial_merge_size**2 * embed_dim))
+    return projector_merge_linear_2(
+        ops.gelu(projector_merge_linear_1(h), approximate=False)
+    )
+
+
+def minimax_m3_vl_backbone_features(
+    input_ids,
+    attention_mask,
+    pixel_values,
+    image_grid_thw,
+    pixel_values_videos,
+    video_grid_thw,
+    *,
+    token_embedding,
+    vision_tower,
+    projector_linear_1,
+    projector_linear_2,
+    projector_merge_linear_1,
+    projector_merge_linear_2,
+    image_merge,
+    video_merge,
+    decoder_layers,
+    final_norm,
+    causal_mask,
+    rotary_dim,
+    rope_theta,
+    spatial_merge_size,
+    embed_dim,
+    image_token_id,
+    video_token_id,
+    compute_dtype,
+):
+    media = ops.logical_or(
+        ops.equal(input_ids, image_token_id),
+        ops.equal(input_ids, video_token_id),
+    )
+    hidden = token_embedding(ops.where(media, 0, input_ids))
+    proj = {
+        "vision_tower": vision_tower,
+        "projector_linear_1": projector_linear_1,
+        "projector_linear_2": projector_linear_2,
+        "projector_merge_linear_1": projector_merge_linear_1,
+        "projector_merge_linear_2": projector_merge_linear_2,
+        "spatial_merge_size": spatial_merge_size,
+        "embed_dim": embed_dim,
+    }
+    image_feats = minimax_m3_vl_image_features(pixel_values, image_grid_thw, **proj)
+    hidden = image_merge(hidden, input_ids, image_feats)
+    video_feats = minimax_m3_vl_image_features(
+        pixel_values_videos, video_grid_thw, **proj
+    )
+    hidden = video_merge(hidden, input_ids, video_feats)
+
+    position_ids = ops.cumsum(ops.ones_like(input_ids), axis=-1) - 1
+    cos, sin = minimax_m3_vl_rope_tables(
+        position_ids, rotary_dim, rope_theta, compute_dtype
+    )
+    mask = causal_mask(input_ids, attention_mask)
+    for layer in decoder_layers:
+        hidden = layer(hidden, cos, sin, attention_mask=mask, position_ids=position_ids)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MiniMaxM3VLModel(SubclassedBaseModel):
+class MiniMaxM3VLModel(BaseModel):
     """MiniMax-M3 vision-language backbone (MiniMaxAI/MiniMax-M3).
 
     The packed vision features are projected per patch (GELU MLP to the text
@@ -131,6 +241,7 @@ class MiniMaxM3VLModel(SubclassedBaseModel):
     HF_MODEL_TYPE = "minimax_m3_vl"
     BASE_MODEL_CONFIG = MINIMAX_M3_VL_CONFIG
     BASE_WEIGHT_CONFIG = MINIMAX_M3_VL_WEIGHTS_URLS
+    output_logits = False
 
     def __init__(
         self,
@@ -171,13 +282,147 @@ class MiniMaxM3VLModel(SubclassedBaseModel):
         image_token_id=200025,
         video_token_id=200026,
         tie_embeddings=False,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
         if layer_types is None:
             layer_types = tuple("full_attention" for _ in range(num_layers))
         if mlp_layer_types is None:
             mlp_layer_types = tuple("sparse" for _ in range(num_layers))
+        layer_types = tuple(layer_types)
+        mlp_layer_types = tuple(mlp_layer_types)
+        head_dim = head_dim or embed_dim // num_heads
+        rotary_dim = int(head_dim * partial_rotary_factor)
+        patch_dim = 3 * temporal_patch_size * patch_size**2
+
+        vision_tower = MiniMaxM3VLVisionModel(
+            vision_embed_dim,
+            vision_mlp_dim,
+            vision_num_layers,
+            vision_num_heads,
+            patch_size,
+            temporal_patch_size,
+            spatial_merge_size,
+            vision_rope_theta,
+            vision_norm_eps,
+            name="vision_tower",
+        )
+        projector_linear_1 = layers.Dense(projector_dim, name="projector_linear_1")
+        projector_linear_2 = layers.Dense(embed_dim, name="projector_linear_2")
+        projector_merge_linear_1 = layers.Dense(
+            projector_dim, name="projector_merge_linear_1"
+        )
+        projector_merge_linear_2 = layers.Dense(
+            embed_dim, name="projector_merge_linear_2"
+        )
+        token_embedding = layers.Embedding(
+            vocab_size, embed_dim, name="token_embedding"
+        )
+        decoder_layers = [
+            MiniMaxM3VLDecoderLayer(
+                embed_dim,
+                mlp_dim,
+                dense_mlp_dim,
+                shared_mlp_dim,
+                num_heads,
+                num_kv_heads,
+                head_dim,
+                num_experts,
+                num_experts_per_tok,
+                mlp_type=mlp_layer_types[i],
+                routed_scaling_factor=routed_scaling_factor,
+                use_indexer=layer_types[i] == "minimax_m3_sparse",
+                index_n_heads=index_n_heads,
+                index_head_dim=index_head_dim,
+                index_block_size=index_block_size,
+                index_topk_blocks=index_topk_blocks,
+                index_local_blocks=index_local_blocks,
+                swiglu_alpha=swiglu_alpha,
+                swiglu_limit=swiglu_limit,
+                norm_eps=norm_eps,
+                name=f"decoder_layer_{i}",
+            )
+            for i in range(num_layers)
+        ]
+        final_norm = MiniMaxM3VLRMSNorm(eps=norm_eps, name="final_norm")
+        image_merge = MediaMerge(image_token_id, embed_dim, name="image_merge")
+        video_merge = MediaMerge(video_token_id, embed_dim, name="video_merge")
+        causal_mask = CausalMask(name="causal_mask")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+            "pixel_values": layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values"
+            ),
+            "image_grid_thw": layers.Input(
+                shape=(3,), dtype="int32", name="image_grid_thw"
+            ),
+            "pixel_values_videos": layers.Input(
+                shape=(patch_dim,), dtype="float32", name="pixel_values_videos"
+            ),
+            "video_grid_thw": layers.Input(
+                shape=(3,), dtype="int32", name="video_grid_thw"
+            ),
+        }
+        hidden = minimax_m3_vl_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            inputs["pixel_values"],
+            inputs["image_grid_thw"],
+            inputs["pixel_values_videos"],
+            inputs["video_grid_thw"],
+            token_embedding=token_embedding,
+            vision_tower=vision_tower,
+            projector_linear_1=projector_linear_1,
+            projector_linear_2=projector_linear_2,
+            projector_merge_linear_1=projector_merge_linear_1,
+            projector_merge_linear_2=projector_merge_linear_2,
+            image_merge=image_merge,
+            video_merge=video_merge,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            causal_mask=causal_mask,
+            rotary_dim=rotary_dim,
+            rope_theta=rope_theta,
+            spatial_merge_size=spatial_merge_size,
+            embed_dim=embed_dim,
+            image_token_id=image_token_id,
+            video_token_id=video_token_id,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.vision_tower = vision_tower
+        self.projector_linear_1 = projector_linear_1
+        self.projector_linear_2 = projector_linear_2
+        self.projector_merge_linear_1 = projector_merge_linear_1
+        self.projector_merge_linear_2 = projector_merge_linear_2
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.image_merge = image_merge
+        self.video_merge = video_merge
+        self.causal_mask_layer = causal_mask
+        self.lm_head = lm_head
+        self.rotary_dim = rotary_dim
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
@@ -215,58 +460,29 @@ class MiniMaxM3VLModel(SubclassedBaseModel):
         self.image_token_id = image_token_id
         self.video_token_id = video_token_id
         self.tie_embeddings = tie_embeddings
-        self.rotary_dim = int(self.head_dim * partial_rotary_factor)
 
-        self.vision_tower = MiniMaxM3VLVisionModel(
-            vision_embed_dim,
-            vision_mlp_dim,
-            vision_num_layers,
-            vision_num_heads,
-            patch_size,
-            temporal_patch_size,
-            spatial_merge_size,
-            vision_rope_theta,
-            vision_norm_eps,
-            name="vision_tower",
+        # Vision-tower / sparse-indexer sublayers do not all auto-build during the
+        # symbolic functional build; a concrete dummy forward materializes them so
+        # from_weights (which loads before any forward) has a complete model.
+        with inference_scope():
+            self(self.dummy_media_inputs())
+
+    def dummy_media_inputs(self):
+        sms = self.spatial_merge_size
+        patch_dim = 3 * self.temporal_patch_size * self.patch_size**2
+        ids = ops.convert_to_tensor(
+            [[0, self.image_token_id, self.video_token_id, 1]], dtype="int32"
         )
-        self.projector_linear_1 = layers.Dense(projector_dim, name="projector_linear_1")
-        self.projector_linear_2 = layers.Dense(embed_dim, name="projector_linear_2")
-        self.projector_merge_linear_1 = layers.Dense(
-            projector_dim, name="projector_merge_linear_1"
-        )
-        self.projector_merge_linear_2 = layers.Dense(
-            embed_dim, name="projector_merge_linear_2"
-        )
-        self.token_embedding = layers.Embedding(
-            vocab_size, embed_dim, name="token_embedding"
-        )
-        self.decoder_layers = [
-            MiniMaxM3VLDecoderLayer(
-                embed_dim,
-                mlp_dim,
-                dense_mlp_dim,
-                shared_mlp_dim,
-                num_heads,
-                num_kv_heads,
-                self.head_dim,
-                num_experts,
-                num_experts_per_tok,
-                mlp_type=self.mlp_layer_types[i],
-                routed_scaling_factor=routed_scaling_factor,
-                use_indexer=self.layer_types[i] == "minimax_m3_sparse",
-                index_n_heads=index_n_heads,
-                index_head_dim=index_head_dim,
-                index_block_size=index_block_size,
-                index_topk_blocks=index_topk_blocks,
-                index_local_blocks=index_local_blocks,
-                swiglu_alpha=swiglu_alpha,
-                swiglu_limit=swiglu_limit,
-                norm_eps=norm_eps,
-                name=f"decoder_layer_{i}",
-            )
-            for i in range(num_layers)
-        ]
-        self.final_norm = MiniMaxM3VLRMSNorm(eps=norm_eps, name="final_norm")
+        media = ops.zeros((sms * sms, patch_dim), dtype="float32")
+        grid = ops.convert_to_tensor([[1, sms, sms]], dtype="int32")
+        return {
+            "input_ids": ids,
+            "attention_mask": ops.ones_like(ids),
+            "pixel_values": media,
+            "image_grid_thw": grid,
+            "pixel_values_videos": media,
+            "video_grid_thw": grid,
+        }
 
     def get_image_features(self, pixel_values, grid_thw):
         features = self.vision_tower(pixel_values, grid_thw=grid_thw)
@@ -301,18 +517,8 @@ class MiniMaxM3VLModel(SubclassedBaseModel):
         return mask
 
     def scatter_features(self, inputs_embeds, input_ids, features, token_id):
-        batch = int(input_ids.shape[0])
-        seq = int(input_ids.shape[1])
-        features = ops.reshape(features, (-1, self.embed_dim))
-        ids_flat = ops.convert_to_numpy(ops.reshape(input_ids, (-1,))).tolist()
-        idx = [j for j, v in enumerate(ids_flat) if v == token_id]
-        embeds_flat = ops.reshape(inputs_embeds, (batch * seq, self.embed_dim))
-        embeds_flat = ops.scatter_update(
-            embeds_flat,
-            ops.reshape(ops.convert_to_tensor(idx, dtype="int32"), (-1, 1)),
-            ops.cast(features, embeds_flat.dtype),
-        )
-        return ops.reshape(embeds_flat, (batch, seq, self.embed_dim))
+        # Graph-safe cumsum-gather-where scatter (shared with the functional graph).
+        return merge_media(inputs_embeds, input_ids, features, token_id, self.embed_dim)
 
     def host_grid(self, grid_thw):
         if isinstance(grid_thw, (list, tuple)):
@@ -323,7 +529,11 @@ class MiniMaxM3VLModel(SubclassedBaseModel):
 
     def prepare_inputs(self, inputs):
         input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        hidden = self.token_embedding(input_ids)
+        media = ops.logical_or(
+            ops.equal(input_ids, self.image_token_id),
+            ops.equal(input_ids, self.video_token_id),
+        )
+        hidden = self.token_embedding(ops.where(media, 0, input_ids))
         if inputs.get("pixel_values") is not None:
             features = self.get_image_features(
                 ops.convert_to_tensor(inputs["pixel_values"]),
@@ -341,45 +551,6 @@ class MiniMaxM3VLModel(SubclassedBaseModel):
                 hidden, input_ids, features, self.video_token_id
             )
         return hidden
-
-    def forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        hidden = self.prepare_inputs(inputs)
-        position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        cos, sin = self.rope_tables(position_ids)
-        attn_mask = self.causal_mask(seq, inputs.get("attention_mask"))
-        for layer in self.decoder_layers:
-            hidden = layer(
-                hidden, cos, sin, attention_mask=attn_mask, position_ids=position_ids
-            )
-        return self.final_norm(hidden)
-
-    def call(self, inputs):
-        return {"last_hidden_state": self.forward_features(inputs)}
-
-    def build_for_transfer(self):
-        # Multimodal lazy build: mirror the conversion feed so the vision tower +
-        # projector weights exist before a weight stream (the base text-only
-        # build would leave them uncreated). from_hub_repo / converted cache.
-        sms = self.spatial_merge_size
-        patch_dim = 3 * self.temporal_patch_size * self.patch_size**2
-        self(
-            {
-                "input_ids": ops.concatenate(
-                    [
-                        ops.zeros((1, 1), dtype="int32"),
-                        ops.full((1, 1), self.image_token_id, dtype="int32"),
-                        ops.ones((1, 1), dtype="int32"),
-                    ],
-                    axis=1,
-                ),
-                "pixel_values": ops.zeros((sms * sms, patch_dim), dtype="float32"),
-                "image_grid_thw": ops.convert_to_tensor([[1, sms, sms]], dtype="int32"),
-            }
-        )
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -525,23 +696,12 @@ class MiniMaxM3VLConditionalGenerate(MiniMaxM3VLModel, BaseGeneration):
 
     # MiniMax-M3 eos `[e~[`. Explicit generate() args override.
     eos_token_id = (200020,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = self.forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(
         self,

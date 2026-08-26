@@ -1,7 +1,8 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
+from kerasformers.base.base_mixin import inference_scope
 
 from .glm5_moe_config import GLM5_MOE_CONFIG, GLM5_MOE_WEIGHTS_URLS
 from .glm5_moe_layers import Glm5MoeDecoderLayer, Glm5MoeRMSNorm
@@ -9,8 +10,42 @@ from .glm5_moe_layers import Glm5MoeDecoderLayer, Glm5MoeRMSNorm
 MASK_NEG = -1e9
 
 
+def glm5_moe_rope_tables(position_ids, qk_rope_head_dim, rope_theta, compute_dtype):
+    # Interleaved rope over qk_rope_head_dim. cos/sin keep the cat((freqs, freqs))
+    # layout the reference builds; apply_rope reads the first half.
+    rd = qk_rope_head_dim
+    inv_freq = 1.0 / ops.power(rope_theta, ops.arange(0, rd, 2, dtype="float32") / rd)
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def glm5_moe_backbone_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    decoder_layers,
+    final_norm,
+    causal_mask,
+    qk_rope_head_dim,
+    rope_theta,
+    compute_dtype,
+):
+    hidden = token_embedding(input_ids)
+    # Plain arange positions (0, 1, 2, ...), matching the original forward.
+    position_ids = ops.cumsum(ops.ones_like(input_ids), axis=-1) - 1
+    cos, sin = glm5_moe_rope_tables(
+        position_ids, qk_rope_head_dim, rope_theta, compute_dtype
+    )
+    mask = causal_mask(input_ids, attention_mask)
+    for layer in decoder_layers:
+        hidden = layer(hidden, cos, sin, attention_mask=mask)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Glm5MoeModel(SubclassedBaseModel):
+class Glm5MoeModel(BaseModel):
     """GLM-5 (glm_moe_dsa) decoder backbone (no LM head).
 
     Pre-norm decoder with Multi-head Latent Attention (DeepSeek-V3 style) plus a
@@ -19,13 +54,14 @@ class Glm5MoeModel(SubclassedBaseModel):
     ``e_score_correction_bias``, shared expert, first ``first_k_dense`` layers
     dense). GLM-5/5.1/5.2 share this forward; 5.2's IndexShare is an
     inference-time optimization not applied here. The checkpoint's trailing MTP
-    layer (index ``num_layers``) is ignored. Returns raw features; use
-    :class:`Glm5MoeTextGenerate` for logits / text.
+    layer (index ``num_layers``) is ignored. A functional model; returns
+    ``last_hidden_state``: use :class:`Glm5MoeTextGenerate` for logits / text.
     """
 
     HF_MODEL_TYPE = "glm_moe_dsa"
     BASE_MODEL_CONFIG = GLM5_MOE_CONFIG
     BASE_WEIGHT_CONFIG = GLM5_MOE_WEIGHTS_URLS
+    output_logits = False
 
     def __init__(
         self,
@@ -55,40 +91,16 @@ class Glm5MoeModel(SubclassedBaseModel):
         rope_theta=1000000.0,
         attention_bias=False,
         tie_embeddings=False,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.vocab_size = vocab_size
-        self.embed_dim = embed_dim
-        self.num_layers = num_layers
-        self.num_heads = num_heads
-        self.mlp_dim = mlp_dim
-        self.moe_mlp_dim = moe_mlp_dim
-        self.num_experts = num_experts
-        self.num_experts_per_tok = num_experts_per_tok
-        self.n_shared_experts = n_shared_experts
-        self.n_group = n_group
-        self.topk_group = topk_group
-        self.norm_topk_prob = norm_topk_prob
-        self.routed_scaling_factor = routed_scaling_factor
-        self.first_k_dense = first_k_dense
-        self.q_lora_rank = q_lora_rank
-        self.kv_lora_rank = kv_lora_rank
-        self.qk_nope_head_dim = qk_nope_head_dim
-        self.qk_rope_head_dim = qk_rope_head_dim
-        self.v_head_dim = v_head_dim
-        self.index_n_heads = index_n_heads
-        self.index_head_dim = index_head_dim
-        self.index_topk = index_topk
-        self.norm_eps = norm_eps
-        self.rope_theta = rope_theta
-        self.attention_bias = attention_bias
-        self.tie_embeddings = tie_embeddings
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
 
-        self.token_embedding = layers.Embedding(
+        token_embedding = layers.Embedding(
             vocab_size, embed_dim, name="token_embedding"
         )
-        self.decoder_layers = [
+        decoder_layers = [
             Glm5MoeDecoderLayer(
                 embed_dim,
                 num_heads,
@@ -116,20 +128,87 @@ class Glm5MoeModel(SubclassedBaseModel):
             )
             for i in range(num_layers)
         ]
-        self.final_norm = Glm5MoeRMSNorm(eps=norm_eps, name="final_norm")
+        final_norm = Glm5MoeRMSNorm(eps=norm_eps, name="final_norm")
+        causal_mask = CausalMask(name="causal_mask")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        hidden = glm5_moe_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            causal_mask=causal_mask,
+            qk_rope_head_dim=qk_rope_head_dim,
+            rope_theta=rope_theta,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.causal_mask_layer = causal_mask
+        self.lm_head = lm_head
+        self.vocab_size = vocab_size
+        self.embed_dim = embed_dim
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.mlp_dim = mlp_dim
+        self.moe_mlp_dim = moe_mlp_dim
+        self.num_experts = num_experts
+        self.num_experts_per_tok = num_experts_per_tok
+        self.n_shared_experts = n_shared_experts
+        self.n_group = n_group
+        self.topk_group = topk_group
+        self.norm_topk_prob = norm_topk_prob
+        self.routed_scaling_factor = routed_scaling_factor
+        self.first_k_dense = first_k_dense
+        self.q_lora_rank = q_lora_rank
+        self.kv_lora_rank = kv_lora_rank
+        self.qk_nope_head_dim = qk_nope_head_dim
+        self.qk_rope_head_dim = qk_rope_head_dim
+        self.v_head_dim = v_head_dim
+        self.index_n_heads = index_n_heads
+        self.index_head_dim = index_head_dim
+        self.index_topk = index_topk
+        self.norm_eps = norm_eps
+        self.rope_theta = rope_theta
+        self.attention_bias = attention_bias
+        self.tie_embeddings = tie_embeddings
+
+        # The MLA/DSA/MoE sublayers do not all materialize during Keras' symbolic
+        # auto-build on every backend; a concrete dummy forward builds every weight
+        # so ``from_weights`` (which loads before any forward) has a complete model.
+        with inference_scope():
+            self(
+                {
+                    "input_ids": ops.zeros((1, 4), dtype="int32"),
+                    "attention_mask": ops.ones((1, 4), dtype="int32"),
+                }
+            )
 
     def rope_tables(self, position_ids):
-        # Interleaved rope over qk_rope_head_dim. cos/sin keep the cat((freqs,
-        # freqs)) layout the reference builds; apply_rope reads the first half.
-        rd = self.qk_rope_head_dim
-        inv_freq = 1.0 / ops.power(
-            self.rope_theta, ops.arange(0, rd, 2, dtype="float32") / rd
-        )
-        freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
-        emb = ops.concatenate([freqs, freqs], axis=-1)
-        return (
-            ops.cast(ops.cos(emb), self.compute_dtype),
-            ops.cast(ops.sin(emb), self.compute_dtype),
+        return glm5_moe_rope_tables(
+            position_ids, self.qk_rope_head_dim, self.rope_theta, self.compute_dtype
         )
 
     def causal_mask(self, seq, attention_mask=None):
@@ -140,22 +219,6 @@ class Glm5MoeModel(SubclassedBaseModel):
             am = ops.cast(ops.convert_to_tensor(attention_mask), "float32")
             mask = mask + (1.0 - am)[:, None, None, :] * MASK_NEG
         return mask
-
-    def forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        hidden = self.token_embedding(input_ids)
-        position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        cos, sin = self.rope_tables(position_ids)
-        attn_mask = self.causal_mask(seq, inputs.get("attention_mask"))
-        for layer in self.decoder_layers:
-            hidden = layer(hidden, cos, sin, attention_mask=attn_mask)
-        return self.final_norm(hidden)
-
-    def call(self, inputs):
-        return {"last_hidden_state": self.forward_features(inputs)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -232,6 +295,7 @@ class Glm5MoeModel(SubclassedBaseModel):
                 "rope_theta": self.rope_theta,
                 "attention_bias": self.attention_bias,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -252,23 +316,12 @@ class Glm5MoeTextGenerate(Glm5MoeModel, BaseGeneration):
     256 on the released GLM-5 configs)."""
 
     eos_token_id = (154820, 154827, 154829)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = self.forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(self, token_ids, padding_mask, max_len):
         batch = int(token_ids.shape[0])

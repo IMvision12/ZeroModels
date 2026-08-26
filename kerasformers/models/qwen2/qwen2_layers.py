@@ -289,6 +289,20 @@ class Qwen2DecoderLayer(layers.Layer):
         hidden_states = residual + self.mlp(hidden_states)
         return (hidden_states, new_key_value) if use_cache else hidden_states
 
+    def compute_output_spec(
+        self,
+        hidden_states,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_value=None,
+        use_cache=False,
+    ):
+        # The residual stream keeps its shape; an explicit spec stops the
+        # functional builder from tracing the dynamic-shape reshapes / rope in
+        # attention (which resolve only at run time).
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+
     def decode_step(
         self, hidden_states, cos, sin, cache_k, cache_v, write_pos, key_mask
     ):

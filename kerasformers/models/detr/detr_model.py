@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.base.base_model import hf_num_classes
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.detr.detr_layers import (
@@ -402,7 +402,7 @@ def detr_functional(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DetrModel(FunctionalBaseModel):
+class DetrModel(BaseModel):
     """DETR backbone + transformer encoder/decoder (no detection heads).
 
     Matches the reference ``DetrModel`` pattern: outputs the decoder
@@ -451,7 +451,7 @@ class DetrModel(FunctionalBaseModel):
             Defaults to ``None``.
         name: Model name. Defaults to ``"DetrModel"``.
         **kwargs: Additional keyword arguments forwarded to
-            :class:`FunctionalBaseModel` / :class:`keras.Model`.
+            :class:`BaseModel` / :class:`keras.Model`.
     """
 
     BASE_MODEL_CONFIG = None
@@ -566,14 +566,14 @@ class DetrModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DETRDetect(FunctionalBaseModel):
+class DETRDetect(BaseModel):
     """DETR object detection model (encoder-decoder transformer + heads).
 
     Reference:
     - [End-to-End Object Detection with Transformers](https://arxiv.org/abs/2005.12872)
 
     Loads pretrained weights via ``DETRDetect.from_weights(...)``.
-    See ``FunctionalBaseModel.from_weights`` for the loading API.
+    See ``BaseModel.from_weights`` for the loading API.
     """
 
     BASE_MODEL_CONFIG = None
@@ -692,7 +692,7 @@ class DETRDetect(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DETRPanopticSegment(FunctionalBaseModel):
+class DETRPanopticSegment(BaseModel):
     """DETR for panoptic / instance segmentation: detection + per-query masks.
 
     Composes the
@@ -744,7 +744,7 @@ class DETRPanopticSegment(FunctionalBaseModel):
             ``images`` input.
         name: Model name. Defaults to ``"DETRPanopticSegment"``.
         **kwargs: Additional keyword arguments forwarded to
-            :class:`FunctionalBaseModel`.
+            :class:`BaseModel`.
     """
 
     BASE_MODEL_CONFIG = None

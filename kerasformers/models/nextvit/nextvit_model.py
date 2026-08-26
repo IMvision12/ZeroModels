@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -537,7 +537,7 @@ def nextvit_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class NextViTModel(FunctionalBaseModel):
+class NextViTModel(BaseModel):
     """Instantiates the NextViT backbone.
 
     NextViT is a next-generation hybrid CNN-Transformer backbone that
@@ -714,7 +714,7 @@ class NextViTModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class NextViTImageClassify(FunctionalBaseModel):
+class NextViTImageClassify(BaseModel):
     """Instantiates the NextViT classifier.
 
     This classifier wraps a :class:`NextViTModel` backbone and attaches

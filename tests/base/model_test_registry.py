@@ -779,6 +779,75 @@ MODEL_TEST_CONFIGS = {
             "pred_masks": (2, 10, 64, 64),
         },
     },
+    # ---------- Open-set detection (Grounding DINO: Swin + BERT + deformable) ----------
+    "GroundingDinoModel": {
+        "module": "kerasformers.models.grounding_dino",
+        "model_cls": "GroundingDinoModel",
+        "model_type": "object_detection",
+        "init_kwargs": {
+            "d_model": 32,
+            "encoder_layers": 1,
+            "encoder_ffn_dim": 64,
+            "encoder_attention_heads": 4,
+            "decoder_layers": 1,
+            "decoder_ffn_dim": 64,
+            "decoder_attention_heads": 4,
+            "num_queries": 10,
+            "num_feature_levels": 4,
+            "max_text_len": 16,
+            "backbone_embed_dim": 16,
+            "backbone_depths": (1, 1, 1, 1),
+            "backbone_num_heads": (1, 2, 4, 8),
+            "backbone_out_indices": (2, 3, 4),
+            "text_vocab_size": 2000,
+            "text_hidden_size": 32,
+            "text_num_layers": 1,
+            "text_num_heads": 2,
+            "text_intermediate_size": 64,
+            "text_max_position_embeddings": 64,
+        },
+        "input_factory": "grounding_dino_input",
+        "input_factory_kwargs": {"image_size": 224},
+        "expected_output_shape": {
+            "last_hidden_state": (2, 10, 32),
+            "intermediate_hidden_states": (2, 1, 10, 32),
+            "encoder_last_hidden_state_text": (2, 6, 32),
+        },
+    },
+    "GroundingDinoDetect": {
+        "module": "kerasformers.models.grounding_dino",
+        "model_cls": "GroundingDinoDetect",
+        "model_type": "object_detection",
+        "init_kwargs": {
+            "d_model": 32,
+            "encoder_layers": 1,
+            "encoder_ffn_dim": 64,
+            "encoder_attention_heads": 4,
+            "decoder_layers": 1,
+            "decoder_ffn_dim": 64,
+            "decoder_attention_heads": 4,
+            "num_queries": 10,
+            "num_feature_levels": 4,
+            "max_text_len": 16,
+            "backbone_embed_dim": 16,
+            "backbone_depths": (1, 1, 1, 1),
+            "backbone_num_heads": (1, 2, 4, 8),
+            "backbone_out_indices": (2, 3, 4),
+            "text_vocab_size": 2000,
+            "text_hidden_size": 32,
+            "text_num_layers": 1,
+            "text_num_heads": 2,
+            "text_intermediate_size": 64,
+            "text_max_position_embeddings": 64,
+        },
+        "input_factory": "grounding_dino_input",
+        "input_factory_kwargs": {"image_size": 224},
+        "expected_output_shape": {
+            "logits": (2, 10, 16),
+            "pred_boxes": (2, 10, 4),
+            "last_hidden_state": (2, 10, 32),
+        },
+    },
     # ---------- Depth estimation ----------
     "DepthAnythingV1DepthEstimation": {
         "module": "kerasformers.models.depth_anything_v1",
@@ -3376,7 +3445,7 @@ MODEL_TEST_CONFIGS = {
             "max_position_embeddings": 64,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "DeepseekV3Model": {
@@ -3403,7 +3472,7 @@ MODEL_TEST_CONFIGS = {
             "max_position_embeddings": 64,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "DeepseekV4Model": {
@@ -3424,7 +3493,7 @@ MODEL_TEST_CONFIGS = {
             "sliding_window": 4,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "GemmaModel": {
@@ -3441,7 +3510,7 @@ MODEL_TEST_CONFIGS = {
             "head_dim": 16,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Gemma2Model": {
@@ -3459,7 +3528,7 @@ MODEL_TEST_CONFIGS = {
             "sliding_window": 4,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Gemma4Model": {
@@ -3480,7 +3549,7 @@ MODEL_TEST_CONFIGS = {
             "sliding_window": 4,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     # MXFP4-packed experts variant: exercises GptOssMXFP4Experts (uint8 nibble
@@ -3503,7 +3572,7 @@ MODEL_TEST_CONFIGS = {
             "sliding_window": 4,
         },
         "quantization_config": {"quant_method": "mxfp4"},
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "GlmModel": {
@@ -3520,7 +3589,7 @@ MODEL_TEST_CONFIGS = {
             "mlp_dim": 128,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Glm4Model": {
@@ -3537,7 +3606,7 @@ MODEL_TEST_CONFIGS = {
             "mlp_dim": 128,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Glm4MoeModel": {
@@ -3560,7 +3629,7 @@ MODEL_TEST_CONFIGS = {
             "topk_group": 1,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Glm5MoeModel": {
@@ -3586,7 +3655,7 @@ MODEL_TEST_CONFIGS = {
             "v_head_dim": 16,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     # GLM-4.7-Flash: the DeepSeek-V3 MLA + DeepSeekMoE decoder (no DSA) under GLM names.
@@ -3614,7 +3683,7 @@ MODEL_TEST_CONFIGS = {
             "v_head_dim": 16,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "LlamaModel": {
@@ -3631,7 +3700,7 @@ MODEL_TEST_CONFIGS = {
             "head_dim": 16,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Llama2Model": {
@@ -3648,7 +3717,7 @@ MODEL_TEST_CONFIGS = {
             "head_dim": 16,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Llama4Model": {
@@ -3667,7 +3736,7 @@ MODEL_TEST_CONFIGS = {
             "num_experts_per_tok": 2,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "MiniMaxModel": {
@@ -3686,7 +3755,7 @@ MODEL_TEST_CONFIGS = {
             "num_experts_per_tok": 2,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "MiniMaxM2Model": {
@@ -3705,7 +3774,7 @@ MODEL_TEST_CONFIGS = {
             "num_experts_per_tok": 2,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "MistralModel": {
@@ -3723,7 +3792,7 @@ MODEL_TEST_CONFIGS = {
             "sliding_window": 4,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "MixtralModel": {
@@ -3743,7 +3812,7 @@ MODEL_TEST_CONFIGS = {
             "sliding_window": 4,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen2MoeModel": {
@@ -3764,7 +3833,7 @@ MODEL_TEST_CONFIGS = {
             "decoder_sparse_step": 1,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3MoeModel": {
@@ -3785,7 +3854,7 @@ MODEL_TEST_CONFIGS = {
             "decoder_sparse_step": 1,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3NextModel": {
@@ -3812,7 +3881,7 @@ MODEL_TEST_CONFIGS = {
             "moe_mlp_dim": 32,
             "decoder_sparse_step": 1,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     # ---- Text LLMs (Qwen): XModel -> features, XGenerate -> logits ----
@@ -3830,7 +3899,7 @@ MODEL_TEST_CONFIGS = {
             "head_dim": 16,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3Model": {
@@ -3847,7 +3916,7 @@ MODEL_TEST_CONFIGS = {
             "head_dim": 16,
             "tie_embeddings": True,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "Qwen3_5Model": {
@@ -3871,7 +3940,7 @@ MODEL_TEST_CONFIGS = {
             "linear_num_key_heads": 2,
             "linear_num_value_heads": 2,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "GptOssModel": {
@@ -3890,7 +3959,7 @@ MODEL_TEST_CONFIGS = {
             "num_experts_per_tok": 2,
             "sliding_window": 4,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "GptModel": {
@@ -3905,7 +3974,7 @@ MODEL_TEST_CONFIGS = {
             "num_heads": 4,
             "max_position_embeddings": 64,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
     "GPT2Model": {
@@ -3920,7 +3989,7 @@ MODEL_TEST_CONFIGS = {
             "num_heads": 4,
             "max_position_embeddings": 64,
         },
-        "input_factory": "qwen_text_input",
+        "input_factory": "causal_lm_input",
         "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
     },
 }
@@ -3992,6 +4061,63 @@ MODEL_TEST_CONFIGS["Gemma4ConditionalGenerate"] = {
     "model_type": "llm",
     "init_kwargs": {"text_config": dict(_g4["init_kwargs"])},
     "input_factory": _g4["input_factory"],
+    "expected_output_shape": {"logits": (2, 6, 128)},
+}
+# gemma4_unified mirrors gemma4: the encoder-free towers are keyed by vision_config /
+# audio_config, so a text_config-only build is a plain Gemma 4 text generator.
+MODEL_TEST_CONFIGS["Gemma4UnifiedModel"] = {
+    "module": "kerasformers.models.gemma4_unified",
+    "model_cls": "Gemma4UnifiedModel",
+    "model_type": "llm",
+    "init_kwargs": {"text_config": dict(_g4["init_kwargs"])},
+    "input_factory": "causal_lm_input",
+    "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
+}
+MODEL_TEST_CONFIGS["Gemma4UnifiedConditionalGenerate"] = {
+    "module": "kerasformers.models.gemma4_unified",
+    "model_cls": "Gemma4UnifiedConditionalGenerate",
+    "model_type": "llm",
+    "init_kwargs": {"text_config": dict(_g4["init_kwargs"])},
+    "input_factory": "causal_lm_input",
+    "expected_output_shape": {"logits": (2, 6, 128)},
+}
+# gemma3n text decoder (AltUp 4-stream + Per-Layer Embeddings + KV-sharing). The
+# multimodal towers are keyed by vision_config / audio_config, so a text-only build
+# is the plain on-device decoder.
+_g3n_text = {
+    "vocab_size": 128,
+    "embed_dim": 64,
+    "mlp_dim": 128,
+    "num_layers": 4,
+    "num_heads": 4,
+    "num_kv_heads": 2,
+    "head_dim": 16,
+    "sliding_window": 4,
+    "sliding_window_pattern": 2,
+    "num_kv_shared_layers": 2,
+    "altup_num_inputs": 4,
+    "hidden_size_per_layer_input": 8,
+    "vocab_size_per_layer_input": 128,
+    "laurel_rank": 8,
+    "final_logit_softcapping": 30.0,
+    "tie_embeddings": True,
+}
+MODEL_TEST_CONFIGS["Gemma3nTextModel"] = {
+    "module": "kerasformers.models.gemma3n",
+    "model_cls": "Gemma3nTextModel",
+    "model_type": "llm",
+    "init_kwargs": dict(_g3n_text),
+    "input_factory": "causal_lm_input",
+    "expected_output_shape": {"last_hidden_state": (2, 6, 64)},
+}
+# Test the multimodal generate class built text-only (matches Gemma4's convention);
+# Gemma3nTextGenerate is the same head behind the TextOnlyGeneration mixin.
+MODEL_TEST_CONFIGS["Gemma3nConditionalGenerate"] = {
+    "module": "kerasformers.models.gemma3n",
+    "model_cls": "Gemma3nConditionalGenerate",
+    "model_type": "llm",
+    "init_kwargs": {"text_config": dict(_g3n_text)},
+    "input_factory": "causal_lm_input",
     "expected_output_shape": {"logits": (2, 6, 128)},
 }
 

@@ -125,6 +125,14 @@ DeepSeek-VL Hybrid (7B) tokenizer.
 | `hf_id` | `None` | Hub repo to pull tokenizer/processor files from |
 | `tokenizer_file` | `None` | explicit path to a `tokenizer.json` |
 
+## Data Format
+
+The model reads `keras.config.image_data_format()` when it is constructed and accepts both
+`channels_last` and `channels_first` `pixel_values`. For `channels_first` input, the image is
+transposed to `channels_last` at the SAM high-res tower's entry (the "door"), so its
+convolutions and resizes run in `channels_last` internally. The soft image tokens are
+identical under either layout.
+
 ## End-to-end example
 
 ### Single input (image + text)

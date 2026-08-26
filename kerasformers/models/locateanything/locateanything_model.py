@@ -1,7 +1,13 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import SubclassedBaseModel
+from kerasformers.base import (
+    BaseModel,
+    CausalMask,
+    MediaMerge,
+    TiedHead,
+)
+from kerasformers.base.base_mixin import inference_scope
 from kerasformers.models.qwen2.qwen2_layers import Qwen2DecoderLayer, Qwen2RMSNorm
 
 from .locateanything_config import LocateAnythingConfig
@@ -10,8 +16,51 @@ from .locateanything_vision import LocateAnythingVisionModel
 MASK_NEG = -1e9
 
 
+def locateanything_backbone_features(
+    input_ids,
+    attention_mask,
+    pixel_values,
+    image_grid_hws,
+    *,
+    token_embedding,
+    vision_model,
+    mlp1_norm,
+    mlp1_fc1,
+    mlp1_fc2,
+    image_merge,
+    causal_mask,
+    decoder_layers,
+    final_norm,
+    head_dim,
+    rope_theta,
+):
+    # Always-media multimodal graph: vision runs unconditionally (no-op merge when
+    # the image token is absent), then the reused Qwen2 decoder (causal mask,
+    # matching the old non-magi forward). The magi block mask stays in the
+    # imperative MTP/PBD generation path.
+    hidden = token_embedding(
+        ops.where(ops.equal(input_ids, image_merge.token_id), 0, input_ids)
+    )
+    vit = vision_model(pixel_values, image_grid_hws)
+    vit = mlp1_norm(vit)
+    vit = ops.gelu(mlp1_fc1(vit), approximate=False)
+    vit = mlp1_fc2(vit)
+    hidden = image_merge(hidden, input_ids, vit)
+    position_ids = ops.cumsum(ops.ones_like(input_ids), axis=-1) - 1
+    inv_freq = 1.0 / ops.power(
+        rope_theta, ops.arange(0, head_dim, 2, dtype="float32") / head_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    cos, sin = ops.cos(emb), ops.sin(emb)
+    mask = causal_mask(input_ids, attention_mask)
+    for layer in decoder_layers:
+        hidden = layer(hidden, cos, sin, attention_mask=mask)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class LocateAnythingModel(SubclassedBaseModel):
+class LocateAnythingModel(BaseModel):
     """LocateAnything-3B backbone (no LM head).
 
     MoonViT vision tokens are projected by ``mlp1`` (LayerNorm -> Linear -> GELU
@@ -30,6 +79,7 @@ class LocateAnythingModel(SubclassedBaseModel):
     HUB_REPO_SIBLINGS = frozenset(
         {"LocateAnythingModel", "LocateAnythingConditionalGenerate"}
     )
+    output_logits = False
 
     def __init__(
         self,
@@ -55,16 +105,110 @@ class LocateAnythingModel(SubclassedBaseModel):
         image_token_index=151665,
         block_size=6,
         max_position_embeddings=32768,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = head_dim or embed_dim // num_heads
+
+        vision_model = LocateAnythingVisionModel(
+            embed_dim=vision_embed_dim,
+            depth=vision_depth,
+            num_heads=vision_num_heads,
+            mlp_dim=vision_mlp_dim,
+            patch_size=vision_patch_size,
+            init_pos_h=vision_init_pos_h,
+            init_pos_w=vision_init_pos_w,
+            merge_kernel=merge_kernel,
+            rope_theta=vision_rope_theta,
+            name="vision_model",
+        )
+        mlp1_norm = layers.LayerNormalization(epsilon=1e-5, name="mlp1_norm")
+        mlp1_fc1 = layers.Dense(embed_dim, name="mlp1_fc1")
+        mlp1_fc2 = layers.Dense(embed_dim, name="mlp1_fc2")
+        token_embedding = layers.Embedding(
+            vocab_size, embed_dim, name="token_embedding"
+        )
+        decoder_layers = [
+            Qwen2DecoderLayer(
+                embed_dim,
+                mlp_dim,
+                num_heads,
+                num_kv_heads,
+                head_dim=head_dim,
+                norm_eps=norm_eps,
+                name=f"decoder_layer_{i}",
+            )
+            for i in range(num_layers)
+        ]
+        final_norm = Qwen2RMSNorm(eps=norm_eps, name="final_norm")
+        causal_mask = CausalMask(name="causal_mask")
+        image_merge = MediaMerge(image_token_index, embed_dim, name="image_merge")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+            "pixel_values": layers.Input(
+                shape=(3, vision_patch_size, vision_patch_size),
+                dtype="float32",
+                name="pixel_values",
+            ),
+            "image_grid_hws": layers.Input(
+                shape=(2,), dtype="int32", name="image_grid_hws"
+            ),
+        }
+        hidden = locateanything_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            inputs["pixel_values"],
+            inputs["image_grid_hws"],
+            token_embedding=token_embedding,
+            vision_model=vision_model,
+            mlp1_norm=mlp1_norm,
+            mlp1_fc1=mlp1_fc1,
+            mlp1_fc2=mlp1_fc2,
+            image_merge=image_merge,
+            causal_mask=causal_mask,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.vision_model = vision_model
+        self.mlp1_norm = mlp1_norm
+        self.mlp1_fc1 = mlp1_fc1
+        self.mlp1_fc2 = mlp1_fc2
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.causal_mask_layer = causal_mask
+        self.image_merge = image_merge
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
-        self.head_dim = head_dim or embed_dim // num_heads
+        self.head_dim = head_dim
         self.norm_eps = norm_eps
         self.rope_theta = rope_theta
         self.tie_embeddings = tie_embeddings
@@ -81,37 +225,8 @@ class LocateAnythingModel(SubclassedBaseModel):
         self.block_size = block_size
         self.max_position_embeddings = max_position_embeddings
 
-        self.vision_model = LocateAnythingVisionModel(
-            embed_dim=vision_embed_dim,
-            depth=vision_depth,
-            num_heads=vision_num_heads,
-            mlp_dim=vision_mlp_dim,
-            patch_size=vision_patch_size,
-            init_pos_h=vision_init_pos_h,
-            init_pos_w=vision_init_pos_w,
-            merge_kernel=merge_kernel,
-            rope_theta=vision_rope_theta,
-            name="vision_model",
-        )
-        self.mlp1_norm = layers.LayerNormalization(epsilon=1e-5, name="mlp1_norm")
-        self.mlp1_fc1 = layers.Dense(embed_dim, name="mlp1_fc1")
-        self.mlp1_fc2 = layers.Dense(embed_dim, name="mlp1_fc2")
-        self.token_embedding = layers.Embedding(
-            vocab_size, embed_dim, name="token_embedding"
-        )
-        self.decoder_layers = [
-            Qwen2DecoderLayer(
-                embed_dim,
-                mlp_dim,
-                num_heads,
-                num_kv_heads,
-                head_dim=self.head_dim,
-                norm_eps=norm_eps,
-                name=f"decoder_layer_{i}",
-            )
-            for i in range(num_layers)
-        ]
-        self.final_norm = Qwen2RMSNorm(eps=norm_eps, name="final_norm")
+        with inference_scope():
+            self.build_for_transfer()
 
     def get_image_features(self, pixel_values, grid_hws):
         feats = self.vision_model(pixel_values, grid_hws)  # (M, vision_embed*merge)
@@ -238,9 +353,6 @@ class LocateAnythingModel(SubclassedBaseModel):
             new_caches.append(kv)
         return self.final_norm(hidden), new_caches
 
-    def call(self, inputs):
-        return {"last_hidden_state": self.forward_features(inputs)}
-
     @classmethod
     def config_from_hf(cls, hf_config):
         t = hf_config["text_config"]
@@ -278,13 +390,15 @@ class LocateAnythingModel(SubclassedBaseModel):
 
     def build_for_transfer(self):
         grid = ops.convert_to_tensor([[2, 2]], dtype="int64")
-        pixel_values = ops.zeros((4, 3, 14, 14), dtype="float32")
+        ps = self.vision_patch_size
+        pixel_values = ops.zeros((4, 3, ps, ps), dtype="float32")
         input_ids = ops.convert_to_tensor(
-            [[self.image_token_index, 0, 0, 0]], dtype="int64"
+            [[self.image_token_index, 0, 0, 0]], dtype="int32"
         )
         self(
             {
                 "input_ids": input_ids,
+                "attention_mask": ops.ones_like(input_ids),
                 "pixel_values": pixel_values,
                 "image_grid_hws": grid,
             }
@@ -326,23 +440,12 @@ class LocateAnythingConditionalGenerate(LocateAnythingModel):
     """LocateAnything-3B with the (tied) Qwen2 LM head -> logits."""
 
     eos_token_id = (151645,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = self.forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def forward_logits(self, inputs):
         return ops.cast(self.project(self.forward_features(inputs)), "float32")

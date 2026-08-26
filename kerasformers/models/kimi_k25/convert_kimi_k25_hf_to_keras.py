@@ -233,7 +233,8 @@ def transfer_kimi_k25_weights(keras_model, hf_state_dict):
     if not keras_model.built or not keras_model.weights:
         keras_model.build_for_transfer()
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        path = weight.path.split("/", 1)[1].replace("/", ".")
+        # Functional model weight paths are flat (no model-name root to strip).
+        path = weight.path.replace("/", ".")
         name = hf_name_for(path)
         if name not in state:
             raise WeightMappingError(weight.path, name)

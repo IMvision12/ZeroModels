@@ -52,6 +52,7 @@ class DeepseekVLHybridSamEncoder(layers.Layer):
         self.global_attn_indexes = tuple(global_attn_indexes)
         self.norm_eps = norm_eps
         self.grid_size = image_size // patch_size
+        self.data_format = keras.config.image_data_format()
 
         self.patch_embed = layers.Conv2D(
             hidden_size,
@@ -85,15 +86,26 @@ class DeepseekVLHybridSamEncoder(layers.Layer):
         # SAM projection neck (768 -> 256), channels-last LayerNorm == HF's
         # channels-first LN over the channel axis.
         self.neck_conv1 = layers.Conv2D(
-            output_channels, 1, use_bias=False, name="neck_conv1"
+            output_channels,
+            1,
+            use_bias=False,
+            data_format="channels_last",
+            name="neck_conv1",
         )
         self.neck_ln1 = layers.LayerNormalization(epsilon=norm_eps, name="neck_ln1")
         self.neck_conv2 = layers.Conv2D(
-            output_channels, 3, padding="same", use_bias=False, name="neck_conv2"
+            output_channels,
+            3,
+            padding="same",
+            use_bias=False,
+            data_format="channels_last",
+            name="neck_conv2",
         )
         self.neck_ln2 = layers.LayerNormalization(epsilon=norm_eps, name="neck_ln2")
 
     def call(self, pixel_values):
+        if self.data_format == "channels_first":
+            pixel_values = ops.transpose(pixel_values, (0, 2, 3, 1))
         x = self.patch_embed(pixel_values)
         x = self.pos_embed(x)
         global_hidden_state = None
@@ -140,12 +152,23 @@ class DeepseekVLSamVisionNeck(layers.Layer):
         super().__init__(**kwargs)
         self.output_channels = output_channels
         self.norm_eps = norm_eps
-        self.conv1 = layers.Conv2D(output_channels, 1, use_bias=False, name="conv1")
+        self.conv1 = layers.Conv2D(
+            output_channels,
+            1,
+            use_bias=False,
+            data_format="channels_last",
+            name="conv1",
+        )
         self.layer_norm1 = layers.LayerNormalization(
             epsilon=norm_eps, name="layer_norm1"
         )
         self.conv2 = layers.Conv2D(
-            output_channels, 3, padding="same", use_bias=False, name="conv2"
+            output_channels,
+            3,
+            padding="same",
+            use_bias=False,
+            data_format="channels_last",
+            name="conv2",
         )
         self.layer_norm2 = layers.LayerNormalization(
             epsilon=norm_eps, name="layer_norm2"
@@ -186,6 +209,7 @@ class DeepseekVLSamVisionProj(layers.Layer):
             strides=2,
             padding="same",
             use_bias=False,
+            data_format="channels_last",
             name="conv1",
         )
         self.conv2 = layers.Conv2D(
@@ -194,13 +218,18 @@ class DeepseekVLSamVisionProj(layers.Layer):
             strides=2,
             padding="same",
             use_bias=False,
+            data_format="channels_last",
             name="conv2",
         )
 
     def call(self, features):
         size = 4 * self.output_size
         features = ops.image.resize(
-            features, (size, size), interpolation="bilinear", antialias=False
+            features,
+            (size, size),
+            interpolation="bilinear",
+            antialias=False,
+            data_format="channels_last",
         )
         features = self.conv1(features)
         features = self.conv2(features)

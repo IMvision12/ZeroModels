@@ -982,6 +982,20 @@ class DeepseekV4DecoderLayer(layers.Layer):
         hidden_streams = self.mix(hidden_streams, post, comb, mlp_out)
         return (hidden_streams, pieces) if use_cache else hidden_streams
 
+    def compute_output_spec(
+        self,
+        hidden_streams,
+        cos,
+        sin,
+        cos_comp,
+        sin_comp,
+        position_ids=None,
+        sliding_mask=None,
+        input_ids=None,
+        use_cache=False,
+    ):
+        return keras.KerasTensor(hidden_streams.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(

@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
 from .qwen2_moe_config import Qwen2MoeConfig
 from .qwen2_moe_layers import Qwen2MoeDecoderLayer, Qwen2MoeRMSNorm
@@ -9,8 +9,40 @@ from .qwen2_moe_layers import Qwen2MoeDecoderLayer, Qwen2MoeRMSNorm
 MASK_NEG = -1e9
 
 
+def qwen2_moe_rope_tables(position_ids, head_dim, rope_theta, compute_dtype):
+    inv_freq = 1.0 / ops.power(
+        rope_theta, ops.arange(0, head_dim, 2, dtype="float32") / head_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def qwen2_moe_backbone_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    decoder_layers,
+    final_norm,
+    causal_mask,
+    head_dim,
+    rope_theta,
+    compute_dtype,
+):
+    hidden = token_embedding(input_ids)
+    position_ids = ops.where(
+        attention_mask == 0, 1, ops.cumsum(attention_mask, axis=-1) - 1
+    )
+    cos, sin = qwen2_moe_rope_tables(position_ids, head_dim, rope_theta, compute_dtype)
+    mask = causal_mask(input_ids, attention_mask)
+    for layer in decoder_layers:
+        hidden = layer(hidden, cos, sin, attention_mask=mask)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class Qwen2MoeModel(SubclassedBaseModel):
+class Qwen2MoeModel(BaseModel):
     """Qwen2-MoE sparse decoder (e.g. Qwen1.5-MoE-A2.7B, Qwen2-57B-A14B).
 
     Standard Qwen2 GQA (biased QKV) with a Qwen-MoE block on the sparse
@@ -18,7 +50,8 @@ class Qwen2MoeModel(SubclassedBaseModel):
     experts (optionally renormalized) plus a full-width shared expert scaled
     by ``sigmoid(shared_expert_gate(x))``. Layers selected by
     ``decoder_sparse_step`` / ``mlp_only_layers`` are MoE; the rest are dense
-    SwiGLU. Returns raw features; use :class:`Qwen2MoeTextGenerate` for logits.
+    SwiGLU. A functional model; returns ``last_hidden_state``; use
+    :class:`Qwen2MoeTextGenerate` for logits.
 
     Args:
         vocab_size / embed_dim / num_layers / num_heads / num_kv_heads /
@@ -38,6 +71,7 @@ class Qwen2MoeModel(SubclassedBaseModel):
     HF_MODEL_TYPE = "qwen2_moe"
     default_load_dtype = "bfloat16"
     config_class = Qwen2MoeConfig
+    output_logits = False
 
     def __init__(
         self,
@@ -58,37 +92,31 @@ class Qwen2MoeModel(SubclassedBaseModel):
         rope_theta=1000000.0,
         norm_eps=1e-6,
         tie_embeddings=False,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.vocab_size = vocab_size
-        self.embed_dim = embed_dim
-        self.num_layers = num_layers
-        self.num_heads = num_heads
-        self.num_kv_heads = num_kv_heads
-        self.head_dim = head_dim or embed_dim // num_heads
-        self.mlp_dim = mlp_dim
-        self.num_experts = num_experts
-        self.num_experts_per_tok = num_experts_per_tok
-        self.moe_mlp_dim = moe_mlp_dim
-        self.shared_mlp_dim = shared_mlp_dim
-        self.norm_topk_prob = norm_topk_prob
-        self.decoder_sparse_step = decoder_sparse_step
-        self.mlp_only_layers = tuple(mlp_only_layers)
-        self.rope_theta = rope_theta
-        self.norm_eps = norm_eps
-        self.tie_embeddings = tie_embeddings
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = head_dim or embed_dim // num_heads
+        mlp_only_layers = tuple(mlp_only_layers)
 
-        self.token_embedding = layers.Embedding(
+        def is_moe(i):
+            return (
+                i not in mlp_only_layers
+                and num_experts > 0
+                and (i + 1) % decoder_sparse_step == 0
+            )
+
+        token_embedding = layers.Embedding(
             vocab_size, embed_dim, name="token_embedding"
         )
-        self.decoder_layers = [
+        decoder_layers = [
             Qwen2MoeDecoderLayer(
                 embed_dim,
                 num_heads,
                 num_kv_heads,
-                self.head_dim,
-                use_moe=self.is_moe_layer(i),
+                head_dim,
+                use_moe=is_moe(i),
                 mlp_dim=mlp_dim,
                 num_experts=num_experts,
                 num_experts_per_tok=num_experts_per_tok,
@@ -100,7 +128,63 @@ class Qwen2MoeModel(SubclassedBaseModel):
             )
             for i in range(num_layers)
         ]
-        self.final_norm = Qwen2MoeRMSNorm(eps=norm_eps, name="final_norm")
+        final_norm = Qwen2MoeRMSNorm(eps=norm_eps, name="final_norm")
+        causal_mask = CausalMask(name="causal_mask")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        hidden = qwen2_moe_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            causal_mask=causal_mask,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.causal_mask_layer = causal_mask
+        self.lm_head = lm_head
+        self.vocab_size = vocab_size
+        self.embed_dim = embed_dim
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = head_dim
+        self.mlp_dim = mlp_dim
+        self.num_experts = num_experts
+        self.num_experts_per_tok = num_experts_per_tok
+        self.moe_mlp_dim = moe_mlp_dim
+        self.shared_mlp_dim = shared_mlp_dim
+        self.norm_topk_prob = norm_topk_prob
+        self.decoder_sparse_step = decoder_sparse_step
+        self.mlp_only_layers = mlp_only_layers
+        self.rope_theta = rope_theta
+        self.norm_eps = norm_eps
+        self.tie_embeddings = tie_embeddings
 
     def is_moe_layer(self, i):
         return (
@@ -110,22 +194,9 @@ class Qwen2MoeModel(SubclassedBaseModel):
         )
 
     def rope_tables(self, position_ids):
-        hd = self.head_dim
-        inv_freq = 1.0 / ops.power(
-            self.rope_theta, ops.arange(0, hd, 2, dtype="float32") / hd
+        return qwen2_moe_rope_tables(
+            position_ids, self.head_dim, self.rope_theta, self.compute_dtype
         )
-        freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
-        emb = ops.concatenate([freqs, freqs], axis=-1)
-        return (
-            ops.cast(ops.cos(emb), self.compute_dtype),
-            ops.cast(ops.sin(emb), self.compute_dtype),
-        )
-
-    def positions_from_mask(self, batch, seq, attention_mask):
-        if attention_mask is not None:
-            am = ops.cast(ops.convert_to_tensor(attention_mask), "int32")
-            return ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
-        return ops.broadcast_to(ops.arange(seq), (batch, seq))
 
     def causal_mask(self, seq, attention_mask=None):
         qi = ops.arange(seq)[:, None]
@@ -135,24 +206,6 @@ class Qwen2MoeModel(SubclassedBaseModel):
             am = ops.cast(ops.convert_to_tensor(attention_mask), "float32")
             mask = mask + (1.0 - am)[:, None, None, :] * MASK_NEG
         return mask
-
-    def forward_features(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        attention_mask = inputs.get("attention_mask")
-        hidden = self.token_embedding(input_ids)
-        cos, sin = self.rope_tables(
-            self.positions_from_mask(batch, seq, attention_mask)
-        )
-        attn_mask = self.causal_mask(seq, attention_mask)
-        for layer in self.decoder_layers:
-            hidden = layer(hidden, cos, sin, attention_mask=attn_mask)
-        return self.final_norm(hidden)
-
-    def call(self, inputs):
-        return {"last_hidden_state": self.forward_features(inputs)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -207,6 +260,7 @@ class Qwen2MoeModel(SubclassedBaseModel):
                 "rope_theta": self.rope_theta,
                 "norm_eps": self.norm_eps,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -221,29 +275,22 @@ class Qwen2MoeTextGenerate(Qwen2MoeModel, BaseGeneration):
     """
 
     eos_token_id = (151645, 151643)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
 
-    def call(self, inputs):
-        hidden = self.forward_features(inputs)
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
-
     def build_cache(self, token_ids, padding_mask, max_len):
         batch = int(token_ids.shape[0])
         prompt_len = int(token_ids.shape[1])
         hd, nkv = self.head_dim, self.num_kv_heads
-        position_ids = self.positions_from_mask(batch, prompt_len, padding_mask)
+        if padding_mask is not None:
+            am = ops.cast(padding_mask, "int32")
+            position_ids = ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
+        else:
+            position_ids = ops.broadcast_to(ops.arange(prompt_len), (batch, prompt_len))
         cos_p, sin_p = self.rope_tables(position_ids)
         causal = self.causal_mask(prompt_len, padding_mask)
         hidden = self.token_embedding(ops.cast(token_ids, "int32"))

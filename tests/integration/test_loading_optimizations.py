@@ -5,37 +5,48 @@ import numpy as np
 import pytest
 from keras import layers, ops
 
-from kerasformers.base import SubclassedBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import converted_cache
 from kerasformers.conversion.hf_download_utils import LazyStateDict
-from kerasformers.quantization import quantize_model
 
 
 @keras.saving.register_keras_serializable(package="kerasformers_tests")
-class _CacheToy(SubclassedBaseModel):
-    def __init__(self, dim=32, depth=2, vocab=64, **kwargs):
-        super().__init__(**kwargs)
+class _CacheToy(BaseModel):
+    """A minimal functional model for exercising the converted-weight cache."""
+
+    def __init__(self, dim=32, depth=2, vocab=64, name=None, **kwargs):
+        ids = layers.Input(shape=(None,), dtype="int32", name="input_ids")
+        embedding = layers.Embedding(vocab, dim, name="embedding")
+        blocks = [layers.Dense(dim, name=f"block_{i}") for i in range(depth)]
+        head = layers.Dense(vocab, name="head")
+        x = embedding(ids)
+        for block in blocks:
+            x = block(x)
+        outputs = head(x)
+        super().__init__(
+            inputs={"input_ids": ids},
+            outputs=outputs,
+            name=name or type(self).__name__,
+            **kwargs,
+        )
+        self.embedding = embedding
+        self.blocks = blocks
+        self.head = head
         self.dim = dim
         self.depth = depth
         self.vocab = vocab
-        self.embedding = layers.Embedding(vocab, dim, name="embedding")
-        for index in range(depth):
-            setattr(self, f"block_{index}", layers.Dense(dim, name=f"block_{index}"))
-        self.output = layers.Dense(vocab, name="output")
-
-    def call(self, inputs):
-        x = self.embedding(inputs["input_ids"])
-        for index in range(self.depth):
-            x = getattr(self, f"block_{index}")(x)
-        return self.output(x)
 
     def get_config(self):
-        return {
-            "dim": self.dim,
-            "depth": self.depth,
-            "vocab": self.vocab,
-            **super().get_config(),
-        }
+        config = super().get_config()
+        config.update(
+            {
+                "dim": self.dim,
+                "depth": self.depth,
+                "vocab": self.vocab,
+                "name": self.name,
+            }
+        )
+        return config
 
 
 def test_converted_cache_streams_bounded_shards(tmp_path, monkeypatch):
@@ -43,23 +54,21 @@ def test_converted_cache_streams_bounded_shards(tmp_path, monkeypatch):
     rng = np.random.default_rng(5)
     inputs = {"input_ids": np.array([[2, 4, 8, 16]], dtype="int32")}
     model = _CacheToy()
-    model(inputs)
     for weight in model.weights:
         weight.assign(rng.standard_normal(tuple(weight.shape)).astype("float32"))
-    quantize_model(model, "int4")
     expected = ops.convert_to_numpy(model(inputs))
 
-    converted_cache.save_converted(model, str(tmp_path), "int4")
+    converted_cache.save_converted(model, str(tmp_path), None)
     with open(tmp_path / "meta.json") as f:
         meta = json.load(f)
     assert meta["cache_format"] == converted_cache.CACHE_FORMAT_VERSION
     assert len(meta["shards"]) > 1
 
-    restored = converted_cache.load_converted(str(tmp_path), "int4", None)
+    restored = converted_cache.load_converted(str(tmp_path), None, None)
     actual = ops.convert_to_numpy(restored(inputs))
     np.testing.assert_array_equal(actual, expected)
     with pytest.raises(ValueError, match="load_dtype"):
-        converted_cache.load_converted(str(tmp_path), "int4", "float16")
+        converted_cache.load_converted(str(tmp_path), None, "float16")
 
 
 def test_cache_key_includes_source_revision(monkeypatch):

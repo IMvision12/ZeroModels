@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import CheckpointSource, FunctionalBaseModel
+from kerasformers.base import BaseModel, CheckpointSource
 
 from .deberta_config import (
     DebertaConfig,
@@ -142,7 +142,7 @@ def deberta_backbone(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaModel(FunctionalBaseModel):
+class DebertaModel(BaseModel):
     """Instantiates the DeBERTa (v1) encoder backbone.
 
     DeBERTa feeds only word embeddings into a stack of transformer layers whose
@@ -317,7 +317,7 @@ class DebertaModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaMaskedLM(FunctionalBaseModel):
+class DebertaMaskedLM(BaseModel):
     """DeBERTa with the masked-language-modeling head.
 
     Wraps a :class:`DebertaModel` backbone and attaches DeBERTa's MLM head, a
@@ -396,7 +396,7 @@ class DebertaMaskedLM(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaSequenceClassify(FunctionalBaseModel):
+class DebertaSequenceClassify(BaseModel):
     """DeBERTa sentence/sequence classifier.
 
     Wraps a :class:`DebertaModel` backbone and attaches DeBERTa's context pooler
@@ -509,7 +509,7 @@ class DebertaSequenceClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaTokenClassify(FunctionalBaseModel):
+class DebertaTokenClassify(BaseModel):
     """DeBERTa token classifier (e.g. NER / POS tagging).
 
     Wraps a :class:`DebertaModel` backbone and attaches dropout plus a per-token
@@ -613,7 +613,7 @@ class DebertaTokenClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DebertaQnA(FunctionalBaseModel):
+class DebertaQnA(BaseModel):
     """DeBERTa extractive question-answering head.
 
     Wraps a :class:`DebertaModel` backbone and attaches a dense span head that

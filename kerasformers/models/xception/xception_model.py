@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -436,7 +436,7 @@ def xception_aligned_backbone(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class XceptionModel(FunctionalBaseModel):
+class XceptionModel(BaseModel):
     """Instantiates the Aligned Xception backbone (timm-compatible).
 
     Aligned Xception (Chen et al., DeepLab) is a refinement of the
@@ -600,7 +600,7 @@ class XceptionModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class XceptionImageClassify(FunctionalBaseModel):
+class XceptionImageClassify(BaseModel):
     """Instantiates the Aligned Xception classifier.
 
     This classifier wraps an :class:`XceptionModel` backbone and

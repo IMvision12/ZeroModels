@@ -59,17 +59,19 @@ def transfer_janus_weights(keras_model, hf_state_dict):
     if not keras_model.built or not keras_model.weights:
         size = keras_model.image_size
         n_tokens = (size // keras_model.patch_size) ** 2
+        ids = np.array(
+            [[0] + [keras_model.image_token_id] * n_tokens + [1]], dtype="int32"
+        )
         keras_model(
             {
-                "input_ids": np.array(
-                    [[0] + [keras_model.image_token_id] * n_tokens + [1]],
-                    dtype="int64",
-                ),
+                "input_ids": ids,
+                "attention_mask": np.ones_like(ids),
                 "pixel_values": np.zeros((1, size, size, 3), dtype="float32"),
             }
         )
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        name = weight.path.split("/", 1)[1].replace("/", ".")
+        # Functional model weight paths are flat (no model-name root to strip).
+        name = weight.path.replace("/", ".")
         if name.startswith("vision_model."):
             mapping = VISION_MAPPING
         elif name.startswith("aligner_"):

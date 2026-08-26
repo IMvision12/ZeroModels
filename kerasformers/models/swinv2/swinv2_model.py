@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.swinv2.swinv2_layers import (
     SwinV2Attention,
@@ -464,7 +464,7 @@ def swinv2_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class SwinV2Model(FunctionalBaseModel):
+class SwinV2Model(BaseModel):
     """Instantiates the Swin Transformer V2 backbone.
 
     SwinV2 is an improved Swin variant introducing scaled cosine
@@ -646,7 +646,7 @@ class SwinV2Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class SwinV2ImageClassify(FunctionalBaseModel):
+class SwinV2ImageClassify(BaseModel):
     """Instantiates the Swin Transformer V2 classifier.
 
     This classifier wraps a :class:`SwinV2Model` backbone and attaches a

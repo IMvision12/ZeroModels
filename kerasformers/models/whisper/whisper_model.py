@@ -4,7 +4,7 @@ import keras
 import numpy as np
 from keras import layers, ops
 
-from kerasformers.base import BaseSeq2SeqGeneration, FunctionalBaseModel
+from kerasformers.base import BaseModel, BaseSeq2SeqGeneration
 
 from .whisper_config import WhisperConfig
 from .whisper_layers import (
@@ -252,7 +252,7 @@ def whisper_decoder(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class WhisperModel(FunctionalBaseModel):
+class WhisperModel(BaseModel):
     """Whisper encoder-decoder transformer for ASR / translation.
 
     Wires :func:`whisper_encoder` and :func:`whisper_decoder` into a single
@@ -755,7 +755,7 @@ class WhisperConditionalGenerate(WhisperModel, BaseSeq2SeqGeneration):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class WhisperAudioClassify(FunctionalBaseModel):
+class WhisperAudioClassify(BaseModel):
     """Whisper encoder + linear classifier for audio classification.
 
     Uses **only the

@@ -45,8 +45,9 @@ ones worth knowing:
 - **pred_boxes** (`(B, num_queries, 4)`): normalized `(cx, cy, w, h)` in `[0, 1]`.
 - **last_hidden_state** (`(B, num_queries, d_model)`): final decoder features.
 
-Unlike the closed-set detectors, this is a **subclassed** model, so it accepts varying
-input shapes from call to call. No rebuilding to change resolution.
+Unlike the closed-set detectors, its functional graph uses dynamic spatial dimensions (an
+eager inner core handles the size-dependent control flow), so it accepts varying input
+shapes from call to call. No rebuilding to change resolution.
 
 > **Wrap inference in `torch.no_grad()` on the torch backend.** Without it, autograd
 > retains every encoder intermediate and the deformable-attention gathers push
@@ -272,8 +273,9 @@ works here without any manual stacking.
 
 ## Input Resolution
 
-Grounding DINO is **subclassed**, not Functional, so one built model handles any input
-size. Change the resolution on the processor alone:
+Grounding DINO's functional graph uses dynamic spatial dimensions (its eager inner core
+handles the size-dependent control flow), so one built model handles any input size. Change
+the resolution on the processor alone:
 
 ```python
 processor = GroundingDinoProcessor.from_weights(
@@ -295,6 +297,10 @@ on the short side gives roughly 20k tokens for a landscape image.
 |---|---|
 | Processors | A `data_format` kwarg, per instance. `None` (the default) resolves to `keras.config.image_data_format()`. |
 | Models | Read `keras.config.image_data_format()` when they are **constructed**. There is no `data_format` argument. |
+
+The Swin backbone works in `channels_last` internally: a `channels_first` image is
+transposed to `channels_last` at the model's entry (the "door"), so the window attention
+and convolutions all run in `channels_last`.
 
 Set the global format before constructing the model and both sides agree:
 

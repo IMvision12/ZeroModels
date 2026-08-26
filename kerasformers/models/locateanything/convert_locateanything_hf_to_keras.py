@@ -50,7 +50,7 @@ def transfer_locateanything_weights(keras_model, hf_state_dict):
     if not keras_model.built or not keras_model.weights:
         build_for_transfer(keras_model)
     for weight in tqdm(keras_model.weights, desc="Transferring weights to Keras"):
-        path = weight.path.split("/", 1)[1].replace("/", ".")
+        path = weight.path.replace("/", ".")
         name = hf_name_for(path)
         if name not in hf_state_dict:
             raise WeightMappingError(weight.path, name)

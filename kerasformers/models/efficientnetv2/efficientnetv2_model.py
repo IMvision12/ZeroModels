@@ -4,7 +4,7 @@ import math
 import keras
 from keras import initializers, layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -791,7 +791,7 @@ def efficientnetv2_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class EfficientNetV2Model(FunctionalBaseModel):
+class EfficientNetV2Model(BaseModel):
     """Instantiates the EfficientNetV2 backbone.
 
     EfficientNetV2 is the faster-training successor to EfficientNet. It
@@ -964,7 +964,7 @@ class EfficientNetV2Model(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class EfficientNetV2ImageClassify(FunctionalBaseModel):
+class EfficientNetV2ImageClassify(BaseModel):
     """Instantiates the EfficientNetV2 classifier.
 
     This classifier wraps a :class:`EfficientNetV2Model` backbone and

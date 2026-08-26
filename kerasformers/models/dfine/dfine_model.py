@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.base.base_model import hf_num_classes
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
@@ -1585,7 +1585,7 @@ def dfine_functional(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DFineModel(FunctionalBaseModel):
+class DFineModel(BaseModel):
     """D-FINE backbone + hybrid encoder + decoder (no class heads).
 
     Matches the reference ``DFineModel`` pattern: outputs the decoder
@@ -1760,7 +1760,7 @@ class DFineModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class DFineDetect(FunctionalBaseModel):
+class DFineDetect(BaseModel):
     """D-FINE: Detection with Fine-grained Distribution Refinement.
 
     A real-time object detection model combining an HGNetV2 backbone with

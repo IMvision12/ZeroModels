@@ -3,7 +3,7 @@ from typing import Optional
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.utils import standardize_input_shape
 from kerasformers.utils.image_util import normalize_image_for_classify_models
@@ -314,7 +314,7 @@ def resnet_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ResNetModel(FunctionalBaseModel):
+class ResNetModel(BaseModel):
     """Instantiates the Residual Network (ResNet) backbone.
 
     ResNet stacks 4 stages of residual bottleneck blocks at progressively
@@ -514,7 +514,7 @@ class ResNetModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ResNetImageClassify(FunctionalBaseModel):
+class ResNetImageClassify(BaseModel):
     """Instantiates the Residual Network (ResNet) classifier.
 
     This classifier wraps a :class:`ResNetModel` backbone and attaches a

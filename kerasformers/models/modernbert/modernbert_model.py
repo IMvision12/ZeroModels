@@ -3,7 +3,7 @@ import math
 import keras
 from keras import layers, ops
 
-from kerasformers.base import CheckpointSource, FunctionalBaseModel
+from kerasformers.base import BaseModel, CheckpointSource
 
 from .modernbert_config import ModernBertConfig
 from .modernbert_layers import (
@@ -187,7 +187,7 @@ def modernbert_backbone(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ModernBertModel(FunctionalBaseModel):
+class ModernBertModel(BaseModel):
     """Instantiates the ModernBERT encoder backbone.
 
     ModernBERT embeds tokens (no absolute-position or token-type embeddings) and
@@ -360,7 +360,7 @@ class ModernBertModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ModernBertMaskedLM(FunctionalBaseModel):
+class ModernBertMaskedLM(BaseModel):
     """ModernBERT with the masked-language-modeling head.
 
     Wraps a :class:`ModernBertModel` backbone and attaches ModernBERT's MLM head,
@@ -495,7 +495,7 @@ class ModernBertMaskedLM(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ModernBertSequenceClassify(FunctionalBaseModel):
+class ModernBertSequenceClassify(BaseModel):
     """ModernBERT sentence/sequence classifier.
 
     Wraps a :class:`ModernBertModel` backbone, pools the token states
@@ -654,7 +654,7 @@ class ModernBertSequenceClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ModernBertTokenClassify(FunctionalBaseModel):
+class ModernBertTokenClassify(BaseModel):
     """ModernBERT token classifier (e.g. NER / POS tagging).
 
     Wraps a :class:`ModernBertModel` backbone and applies the prediction head +
@@ -804,7 +804,7 @@ class ModernBertTokenClassify(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ModernBertQnA(FunctionalBaseModel):
+class ModernBertQnA(BaseModel):
     """ModernBERT extractive question-answering head.
 
     Wraps a :class:`ModernBertModel` backbone, applies the prediction head +
@@ -947,7 +947,7 @@ class ModernBertQnA(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ModernBertMultipleChoice(FunctionalBaseModel):
+class ModernBertMultipleChoice(BaseModel):
     """ModernBERT multiple-choice head (e.g. SWAG).
 
     Takes a dict of ``(B, num_choices, seq)`` int tensors, flattens the choices

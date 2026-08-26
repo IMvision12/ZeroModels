@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.tipsv2.tipsv2_layers import Tipsv2RegisterTokens
 from kerasformers.models.vit.vit_layers import ViTAddPositionEmbs, ViTClassDistToken
@@ -295,7 +295,7 @@ def task_output(
     raise ValueError(f"Unknown DPT task: {task!r}")
 
 
-class Tipsv2DptBase(FunctionalBaseModel):
+class Tipsv2DptBase(BaseModel):
     """Shared TIPSv2-DPT construction, config, and loading for the task models.
 
     Subclasses set :attr:`TASKS` (the DPT heads to build). All heads share the same

@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.vit.vit_layers import (
     ViTAddPositionEmbs,
@@ -188,7 +188,7 @@ def vit_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ViTModel(FunctionalBaseModel):
+class ViTModel(BaseModel):
     """Instantiates the Vision Transformer (ViT) backbone.
 
     ViT splits the input image into fixed-size patches via a convolutional
@@ -411,7 +411,7 @@ class ViTModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class ViTImageClassify(FunctionalBaseModel):
+class ViTImageClassify(BaseModel):
     """Instantiates the Vision Transformer (ViT) classifier.
 
     This classifier wraps a :class:`ViTModel` backbone and attaches a

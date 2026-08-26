@@ -1,26 +1,33 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
 from .gpt2_config import GPT2Config
-from .gpt2_layers import GPT2Block
+from .gpt2_layers import MASK_NEG, GPT2Block
 
-MASK_NEG = -1e9
-
-# The backbone (GPT2Model) and generative head (GPT2TextGenerate) share the variant's
-# weights repo, whose kf_config.json declares GPT2Model.
 GPT2_HUB_SIBLINGS = frozenset({"GPT2Model", "GPT2TextGenerate"})
 
 
+def gpt2_backbone_features(
+    input_ids, attention_mask, token_embedding, wpe, blocks, ln_f, causal_mask
+):
+    positions = ops.cumsum(ops.ones_like(input_ids), axis=-1) - 1
+    hidden = token_embedding(input_ids) + wpe(positions)
+    mask = causal_mask(input_ids, attention_mask)
+    for block in blocks:
+        hidden = block(hidden, attention_mask=mask)
+    return ln_f(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class GPT2Model(SubclassedBaseModel):
+class GPT2Model(BaseModel):
     """GPT-2 decoder-only transformer backbone (no LM head).
 
     Learned token (``wte``) + absolute-position (``wpe``) embeddings, a stack of
-    pre-LayerNorm causal blocks, and a final LayerNorm (``ln_f``). Subclassed
-    (imperative) model: the forward runs eagerly with ``keras.ops``. Returns raw
-    features; use :class:`GPT2TextGenerate` for logits / text.
+    pre-LayerNorm causal blocks, and a final LayerNorm (``ln_f``). A functional
+    model: the forward is a static graph over ``input_ids`` / ``attention_mask``.
+    Returns ``last_hidden_state``; use :class:`GPT2TextGenerate` for logits / text.
 
     Args:
         vocab_size: Token vocabulary size.
@@ -40,6 +47,8 @@ class GPT2Model(SubclassedBaseModel):
     BASE_WEIGHT_CONFIG = None
     config_class = GPT2Config
     HUB_REPO_SIBLINGS = GPT2_HUB_SIBLINGS
+    # GPT2TextGenerate flips this on to also emit tied-head logits from the graph.
+    output_logits = False
 
     def __init__(
         self,
@@ -51,9 +60,49 @@ class GPT2Model(SubclassedBaseModel):
         max_position_embeddings=1024,
         norm_eps=1e-5,
         tie_embeddings=True,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+
+        token_embedding = layers.Embedding(vocab_size, embed_dim, name="wte")
+        wpe = layers.Embedding(max_position_embeddings, embed_dim, name="wpe")
+        blocks = [
+            GPT2Block(embed_dim, mlp_dim, num_heads, norm_eps, name=f"block_{i}")
+            for i in range(num_layers)
+        ]
+        ln_f = layers.LayerNormalization(epsilon=norm_eps, name="ln_f")
+        causal_mask = CausalMask(name="causal_mask")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        hidden = gpt2_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding,
+            wpe,
+            blocks,
+            ln_f,
+            causal_mask,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = TiedHead(token_embedding, name="lm_head")(hidden)
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.wpe = wpe
+        self.blocks = blocks
+        self.ln_f = ln_f
+        self.causal_mask_layer = causal_mask
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
@@ -63,14 +112,6 @@ class GPT2Model(SubclassedBaseModel):
         self.norm_eps = norm_eps
         self.tie_embeddings = tie_embeddings
 
-        self.token_embedding = layers.Embedding(vocab_size, embed_dim, name="wte")
-        self.wpe = layers.Embedding(max_position_embeddings, embed_dim, name="wpe")
-        self.blocks = [
-            GPT2Block(embed_dim, mlp_dim, num_heads, norm_eps, name=f"block_{i}")
-            for i in range(num_layers)
-        ]
-        self.ln_f = layers.LayerNormalization(epsilon=norm_eps, name="ln_f")
-
     def causal_mask(self, seq, attention_mask=None):
         qi = ops.arange(seq)[:, None]
         ki = ops.arange(seq)[None, :]
@@ -79,19 +120,6 @@ class GPT2Model(SubclassedBaseModel):
             am = ops.cast(ops.convert_to_tensor(attention_mask), "float32")
             mask = mask + (1.0 - am)[:, None, None, :] * MASK_NEG
         return mask
-
-    def call(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        attention_mask = inputs.get("attention_mask")
-        positions = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        hidden = self.token_embedding(input_ids) + self.wpe(positions)
-        mask = self.causal_mask(seq, attention_mask)
-        for block in self.blocks:
-            hidden = block(hidden, attention_mask=mask)
-        return {"last_hidden_state": self.ln_f(hidden)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -124,6 +152,7 @@ class GPT2Model(SubclassedBaseModel):
                 "max_position_embeddings": self.max_position_embeddings,
                 "norm_eps": self.norm_eps,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -133,23 +162,23 @@ class GPT2Model(SubclassedBaseModel):
 class GPT2TextGenerate(GPT2Model, BaseGeneration):
     """GPT-2 backbone + a (tied) language-model head and fast ``.generate()``.
 
-    ``call`` returns ``logits`` ``(batch, seq, vocab_size)`` and
-    ``last_hidden_state``. The LM head is the transposed token embedding (GPT-2 ties
-    them). Fast generation comes from :class:`~kerasformers.base.BaseGeneration`,
-    fulfilled here by ``build_cache`` (parallel prefill into a fixed KV cache) and
-    ``call_with_cache`` (one compiled decode step); GPT-2 uses learned absolute
-    positions (``wpe``), so no rotary tables are threaded. Constructor ``Args`` are
-    inherited from :class:`GPT2Model`.
+    The forward graph returns ``logits`` ``(batch, seq, vocab_size)`` and
+    ``last_hidden_state``. The LM head is the transposed token embedding (GPT-2
+    ties them), applied by the weightless :class:`~kerasformers.base.TiedHead` so
+    no extra weight is added and the graph reads the live embedding. Fast generation
+    comes from
+    :class:`~kerasformers.base.BaseGeneration`, fulfilled here by ``build_cache``
+    (parallel prefill into a fixed KV cache) and ``call_with_cache`` (one compiled
+    decode step); GPT-2 uses learned absolute positions (``wpe``), so no rotary
+    tables are threaded. Constructor ``Args`` are inherited from :class:`GPT2Model`.
     """
 
+    output_logits = True
     eos_token_id = (50256,)  # GPT-2 <|endoftext|>
 
     def project(self, hidden):
-        return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = super().call(inputs)["last_hidden_state"]
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
+        kernel = ops.transpose(ops.cast(self.token_embedding.embeddings, hidden.dtype))
+        return ops.matmul(hidden, kernel)
 
     def build_cache(self, token_ids, padding_mask, max_len):
         batch = int(token_ids.shape[0])

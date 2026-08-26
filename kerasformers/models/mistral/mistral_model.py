@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from kerasformers.base import BaseGeneration, SubclassedBaseModel
+from kerasformers.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
 from .mistral_config import MISTRAL_CONFIG, MISTRAL_WEIGHTS_URLS
 from .mistral_layers import MistralDecoderLayer, MistralRMSNorm
@@ -9,8 +9,43 @@ from .mistral_layers import MistralDecoderLayer, MistralRMSNorm
 MASK_NEG = -1e9
 
 
+def mistral_rope_tables(position_ids, head_dim, rope_theta, compute_dtype):
+    # cos/sin rotary tables for the given integer positions, in the compute
+    # dtype. ``inv_freq`` folds to a build-time constant; only the position
+    # product runs per call, so this wires directly into the functional graph.
+    inv_freq = 1.0 / ops.power(
+        rope_theta, ops.arange(0, head_dim, 2, dtype="float32") / head_dim
+    )
+    freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cast(ops.cos(emb), compute_dtype), ops.cast(ops.sin(emb), compute_dtype)
+
+
+def mistral_backbone_features(
+    input_ids,
+    attention_mask,
+    *,
+    token_embedding,
+    decoder_layers,
+    final_norm,
+    causal_mask,
+    head_dim,
+    rope_theta,
+    compute_dtype,
+):
+    hidden = token_embedding(input_ids)
+    position_ids = ops.where(
+        attention_mask == 0, 1, ops.cumsum(attention_mask, axis=-1) - 1
+    )
+    cos, sin = mistral_rope_tables(position_ids, head_dim, rope_theta, compute_dtype)
+    mask = causal_mask(input_ids, attention_mask)
+    for layer in decoder_layers:
+        hidden = layer(hidden, cos, sin, attention_mask=mask)
+    return final_norm(hidden)
+
+
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MistralModel(SubclassedBaseModel):
+class MistralModel(BaseModel):
     """Mistral decoder-only transformer backbone (no LM head).
 
     ``token_embedding -> num_layers x MistralDecoderLayer -> final RMSNorm``,
@@ -19,12 +54,13 @@ class MistralModel(SubclassedBaseModel):
     (Mistral-7B-v0.1, Ministral-8B): a sliding-window causal mask on every
     layer. ``head_dim`` may differ from ``embed_dim // num_heads``
     (Mistral-Nemo). Covers the whole ``model_type: "mistral"`` line: 7B
-    v0.1-v0.3, Nemo-12B, Small-24B-2501, Ministral-8B. Subclassed
-    (imperative) model; returns raw features: use :class:`MistralTextGenerate`
-    for logits / text.
+    v0.1-v0.3, Nemo-12B, Small-24B-2501, Ministral-8B. A functional model:
+    the forward is a static graph over ``input_ids`` / ``attention_mask``.
+    Returns ``last_hidden_state``; use :class:`MistralTextGenerate` for
+    logits / text.
 
         model = MistralModel.from_weights("mistral-7b-v0.3")
-        out = model({"input_ids": ids})["last_hidden_state"]  # (B, L, embed_dim)
+        out = model({"input_ids": ids, "attention_mask": mask})["last_hidden_state"]
 
     Args:
         vocab_size: Token vocabulary size.
@@ -45,6 +81,8 @@ class MistralModel(SubclassedBaseModel):
     HF_MODEL_TYPE = "mistral"
     BASE_MODEL_CONFIG = MISTRAL_CONFIG
     BASE_WEIGHT_CONFIG = MISTRAL_WEIGHTS_URLS
+    # MistralTextGenerate flips this on to also emit LM-head logits from the graph.
+    output_logits = False
 
     def __init__(
         self,
@@ -59,53 +97,90 @@ class MistralModel(SubclassedBaseModel):
         rope_theta=10000.0,
         sliding_window=None,
         tie_embeddings=False,
+        name=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        for k in ("model", "hf_id", "url", "num_classes"):
+            kwargs.pop(k, None)
+        head_dim = head_dim or embed_dim // num_heads
+
+        token_embedding = layers.Embedding(
+            vocab_size, embed_dim, name="token_embedding"
+        )
+        decoder_layers = [
+            MistralDecoderLayer(
+                embed_dim,
+                mlp_dim,
+                num_heads,
+                num_kv_heads,
+                head_dim,
+                norm_eps,
+                name=f"decoder_layer_{i}",
+            )
+            for i in range(num_layers)
+        ]
+        final_norm = MistralRMSNorm(eps=norm_eps, name="final_norm")
+        causal_mask = CausalMask(sliding_window=sliding_window, name="causal_mask")
+        lm_head = None
+        if self.output_logits and not tie_embeddings:
+            lm_head = layers.Dense(vocab_size, use_bias=False, name="lm_head")
+
+        inputs = {
+            "input_ids": layers.Input(shape=(None,), dtype="int32", name="input_ids"),
+            "attention_mask": layers.Input(
+                shape=(None,), dtype="int32", name="attention_mask"
+            ),
+        }
+        hidden = mistral_backbone_features(
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            token_embedding=token_embedding,
+            decoder_layers=decoder_layers,
+            final_norm=final_norm,
+            causal_mask=causal_mask,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            compute_dtype=token_embedding.compute_dtype,
+        )
+        outputs = {"last_hidden_state": hidden}
+        if self.output_logits:
+            outputs["logits"] = (
+                lm_head(hidden)
+                if lm_head is not None
+                else TiedHead(token_embedding, name="lm_head")(hidden)
+            )
+
+        super().__init__(
+            inputs=inputs, outputs=outputs, name=name or type(self).__name__, **kwargs
+        )
+
+        self.token_embedding = token_embedding
+        self.decoder_layers = decoder_layers
+        self.final_norm = final_norm
+        self.causal_mask_layer = causal_mask
+        self.lm_head = lm_head
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
-        self.head_dim = head_dim or embed_dim // num_heads
+        self.head_dim = head_dim
         self.norm_eps = norm_eps
         self.rope_theta = rope_theta
         self.sliding_window = sliding_window
         self.tie_embeddings = tie_embeddings
 
-        self.token_embedding = layers.Embedding(
-            vocab_size, embed_dim, name="token_embedding"
-        )
-        self.decoder_layers = [
-            MistralDecoderLayer(
-                embed_dim,
-                mlp_dim,
-                num_heads,
-                num_kv_heads,
-                self.head_dim,
-                norm_eps,
-                name=f"decoder_layer_{i}",
-            )
-            for i in range(num_layers)
-        ]
-        self.final_norm = MistralRMSNorm(eps=norm_eps, name="final_norm")
-
     def rope_tables(self, position_ids):
-        hd = self.head_dim
-        inv_freq = 1.0 / ops.power(
-            self.rope_theta, ops.arange(0, hd, 2, dtype="float32") / hd
-        )
-        freqs = ops.cast(position_ids, "float32")[..., None] * inv_freq
-        emb = ops.concatenate([freqs, freqs], axis=-1)
-        return (
-            ops.cast(ops.cos(emb), self.compute_dtype),
-            ops.cast(ops.sin(emb), self.compute_dtype),
+        # Imperative cos/sin for the KV-cache prefill / decode (concrete positions);
+        # the forward graph wires mistral_rope_tables directly.
+        return mistral_rope_tables(
+            position_ids, self.head_dim, self.rope_theta, self.compute_dtype
         )
 
     def causal_mask(self, seq, attention_mask=None):
-        # Full causal, or sliding-window causal when the config sets a window
-        # (key visible iff q - window < k <= q).
+        # Imperative additive mask for the KV-cache prefill (concrete ``seq``);
+        # full causal, or sliding-window causal when the config sets a window.
         qi = ops.arange(seq)[:, None]
         ki = ops.arange(seq)[None, :]
         keep = ki <= qi
@@ -116,24 +191,6 @@ class MistralModel(SubclassedBaseModel):
             am = ops.cast(ops.convert_to_tensor(attention_mask), "float32")
             mask = mask + (1.0 - am)[:, None, None, :] * MASK_NEG
         return mask
-
-    def call(self, inputs):
-        if not isinstance(inputs, dict):
-            inputs = {"input_ids": inputs}
-        input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")
-        batch, seq = int(input_ids.shape[0]), int(input_ids.shape[1])
-        attention_mask = inputs.get("attention_mask")
-        hidden = self.token_embedding(input_ids)
-        if attention_mask is not None:
-            am = ops.cast(ops.convert_to_tensor(attention_mask), "int32")
-            position_ids = ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
-        else:
-            position_ids = ops.broadcast_to(ops.arange(seq), (batch, seq))
-        cos, sin = self.rope_tables(position_ids)
-        attn_mask = self.causal_mask(seq, attention_mask)
-        for layer in self.decoder_layers:
-            hidden = layer(hidden, cos, sin, attention_mask=attn_mask)
-        return {"last_hidden_state": self.final_norm(hidden)}
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -174,6 +231,7 @@ class MistralModel(SubclassedBaseModel):
                 "rope_theta": self.rope_theta,
                 "sliding_window": self.sliding_window,
                 "tie_embeddings": self.tie_embeddings,
+                "name": self.name,
             }
         )
         return config
@@ -185,8 +243,8 @@ class MistralTextGenerate(MistralModel, BaseGeneration):
 
     Adds a vocabulary projection on top of :class:`MistralModel`: a separate
     bias-free ``lm_head`` when ``tie_embeddings`` is ``False`` (all Mistral
-    checkpoints), otherwise the transposed token embedding. ``call`` returns
-    both ``logits`` ``(batch, seq, vocab_size)`` and ``last_hidden_state``.
+    checkpoints), otherwise the transposed token embedding. The forward graph
+    returns both ``logits`` ``(batch, seq, vocab_size)`` and ``last_hidden_state``.
     Fast generation comes from :class:`~kerasformers.base.BaseGeneration`,
     fulfilled here by ``build_cache`` (parallel prefill into a fixed KV cache)
     and ``call_with_cache`` (one compiled decode step): both respect the
@@ -199,23 +257,12 @@ class MistralTextGenerate(MistralModel, BaseGeneration):
 
     # Mistral </s> stop id. Explicit generate() args override this.
     eos_token_id = (2,)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lm_head = (
-            None
-            if self.tie_embeddings
-            else layers.Dense(self.vocab_size, use_bias=False, name="lm_head")
-        )
+    output_logits = True
 
     def project(self, hidden):
         if self.lm_head is not None:
             return self.lm_head(hidden)
         return ops.matmul(hidden, ops.transpose(self.token_embedding.embeddings))
-
-    def call(self, inputs):
-        hidden = super().call(inputs)["last_hidden_state"]
-        return {"logits": self.project(hidden), "last_hidden_state": hidden}
 
     def build_cache(self, token_ids, padding_mask, max_len):
         # Parallel prefill: run the prompt and write each layer's K/V into a

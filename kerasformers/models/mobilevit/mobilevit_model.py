@@ -1,7 +1,7 @@
 import keras
 from keras import layers, utils
 
-from kerasformers.base import FunctionalBaseModel
+from kerasformers.base import BaseModel
 from kerasformers.conversion import copy_weights_by_path_suffix
 from kerasformers.models.mobilevit.mobilevit_layers import (
     MobileViTImageToPatchesLayer,
@@ -404,7 +404,7 @@ def mobilevit_backbone_feature(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MobileViTModel(FunctionalBaseModel):
+class MobileViTModel(BaseModel):
     """Instantiates the MobileViT backbone.
 
     MobileViT is a hybrid CNN-Transformer backbone designed for mobile
@@ -595,7 +595,7 @@ class MobileViTModel(FunctionalBaseModel):
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MobileViTImageClassify(FunctionalBaseModel):
+class MobileViTImageClassify(BaseModel):
     """Instantiates the MobileViT classifier.
 
     This classifier wraps a :class:`MobileViTModel` backbone and attaches
@@ -897,7 +897,7 @@ def mobilevit_aspp_head(
 
 
 @keras.saving.register_keras_serializable(package="kerasformers")
-class MobileViTSemanticSegment(FunctionalBaseModel):
+class MobileViTSemanticSegment(BaseModel):
     """MobileViT + DeepLabV3 semantic segmentation head.
 
     Composes :class:`MobileViTModel` (with ``output_stride=16`` and atrous
