@@ -57,7 +57,7 @@ model = Qwen3TextGenerate.from_weights("qwen3-4b", quantization="int4")
 
 To load a checkpoint that does not fit in float at all, use a repo that ships **already
 quantized** in a native packed format (e.g. GPT-OSS's mxfp4), whose packed weights load
-directly without a float intermediate (see [`ZmQuantizer`](#loading-a-pre-quantized-repo-kfquantizer)).
+directly without a float intermediate (see [`ZmQuantizer`](#loading-a-pre-quantized-repo-zmquantizer)).
 
 ## Production usage
 
@@ -80,7 +80,7 @@ quantize_model(model, "int4-g128")  # or a named scheme
 
 **Save / load / revert.** A quantized model saves and reloads itself quantized through
 ordinary Keras save (the quantization is carried in `get_config` and re-applied in
-`from_config`, see [`ZmQuantizer`](#loading-a-pre-quantized-repo-kfquantizer)):
+`from_config`, see [`ZmQuantizer`](#loading-a-pre-quantized-repo-zmquantizer)):
 
 ```python
 import keras
