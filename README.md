@@ -10,29 +10,6 @@
 [![Keras](https://img.shields.io/badge/keras-v3.5.0+-success.svg)](https://github.com/keras-team/keras)
 ![Python](https://img.shields.io/badge/python-v3.10.0+-success.svg)
 
-</div>
-
-  > [!IMPORTANT]
-  > **zeromodels is under active development**, and we are currently migrating
-  > from GitHub-hosted release weights to the Hugging Face Hub.
-  > The PyPI package may lag behind the latest models, fixes, and API updates.
-  > This migration includes properly typed configuration files and dedicated
-  > weights for each model. Until the migration is complete, we recommend
-  > installing `zeromodels` directly from the `main` branch on GitHub rather
-  > than from PyPI:
-  >
-  > ```bash
-  > pip install git+https://github.com/IMvision12/ZeroModels.git
-  > ```
-  >
-  > Or clone it for local development:
-  >
-  > ```bash
-  > git clone https://github.com/IMvision12/ZeroModels.git
-  > cd ZeroModels
-  > pip install -e .
-  > ```
->
 ## 📖 Introduction
 
 ZeroModels is a collection of models with pretrained weights, built entirely with Keras 3. It supports a range of tasks, including classification, object detection (DETR, RT-DETR, RT-DETRv2, RF-DETR, D-FINE, OWL-ViT, OWLv2, Grounding DINO), segmentation (SAM, SAM2, SAM3, SegFormer, DeepLabV3, EoMT, MaskFormer, Mask2Former, OneFormer, MobileViT-DeepLabV3, RF-DETR), monocular depth estimation (Depth Anything V1, Depth Anything V2, TIPSv2-DPT), feature extraction (DINO, DINOv2, DINOv3), vision-language modeling (CLIP, SigLIP, SigLIP2, MetaCLIP 2, TIPSv2), speech recognition (Whisper, Speech2Text, Moonshine), speech-aware language modeling (Granite Speech, Granite Speech Plus), text encoding and masked language modeling (BERT, ModernBERT, ELECTRA, RoBERTa, XLM-RoBERTa, DeBERTa, DeBERTa-v2, DeBERTa-v3), text generation with large language models (GPT, GPT-2, Qwen2, Qwen2-MoE, Qwen3, Qwen3-MoE, Qwen3-Next, Qwen3.5, GPT-OSS, Llama 2, Llama 3, Llama 4, Mistral, Mixtral, Gemma, Gemma 2, MiniMax-Text-01, MiniMax-M2, DeepSeek-V2, DeepSeek-V3, DeepSeek-V4, GLM-4, GLM-4-0414, GLM-4.5/GLM-4.6, GLM-5/GLM-5.1/GLM-5.2), text-to-text encoder-decoder modeling (T5), multimodal vision-language generation (Qwen2-VL, Qwen2.5-VL, Qwen3-VL, Qwen3-VL-MoE, Qwen3.5-MoE, InternVL3, Gemma 3, Gemma 3n, Gemma 4, Gemma 4 Unified, Mistral 3, DeepSeek-VL, Janus-Pro, MiniMax-M3-VL, GLM-4V, GLM-4.5V, Kimi K2.5, Kimi K2.6, Kimi K2.7-Code), vision-language grounding across object detection, OCR, pointing, and referring (LocateAnything), and more. It includes hybrid architectures like MaxViT alongside traditional CNNs and pure transformers. zeromodels includes custom layers and backbone support, providing flexibility and efficiency across various applications. For backbones, there are various weight variants like `in1k`, `in21k`, `fb_dist_in1k`, `ms_in22k`, `fb_in22k_ft_in1k`, `ns_jft_in1k`, `aa_in1k`, `cvnets_in1k`, `augreg_in21k_ft_in1k`, `augreg_in21k`, and many more.
