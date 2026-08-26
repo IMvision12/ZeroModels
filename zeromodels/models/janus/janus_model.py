@@ -21,7 +21,7 @@ from .janus_layers import (
 MASK_NEG = -1e9
 
 # The backbone (JanusModel) and generative head (JanusConditionalGenerate) share the
-# variant's weights repo, whose kf_config.json declares JanusModel.
+# variant's weights repo, whose zm_config.json declares JanusModel.
 JANUS_HUB_SIBLINGS = frozenset({"JanusModel", "JanusConditionalGenerate"})
 
 
@@ -176,7 +176,7 @@ class JanusModel(BaseModel):
     default_load_dtype = "bfloat16"  # official Janus-Pro checkpoints are bf16
     BASE_MODEL_CONFIG = None
     # Weights load by Hub repo id, e.g. from_weights("zeromodels/janus_pro_1b"),
-    # via kf_config.json on the repo (no url table in the package).
+    # via zm_config.json on the repo (no url table in the package).
     BASE_WEIGHT_CONFIG = None
     config_class = JanusConfig
     HUB_REPO_SIBLINGS = JANUS_HUB_SIBLINGS

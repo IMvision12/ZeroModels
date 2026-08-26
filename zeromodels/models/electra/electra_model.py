@@ -13,10 +13,10 @@ from .electra_layers import (
 
 MASK_NEG = -1e9
 
-# ELECTRA ships two checkpoint families per size. The DISCRIMINATOR repo (kf_config
+# ELECTRA ships two checkpoint families per size. The DISCRIMINATOR repo (zm_config
 # declares ElectraModel) hosts the encoder and serves ElectraModel + the classify / QA /
 # multiple-choice heads (each loads the encoder subset via CHECKPOINT_SOURCE, its own head
-# random-init for fine-tuning). The GENERATOR repo (kf_config declares ElectraMaskedLM)
+# random-init for fine-tuning). The GENERATOR repo (zm_config declares ElectraMaskedLM)
 # hosts the masked-LM (encoder + generator head + tied decoder) and serves ElectraMaskedLM.
 ELECTRA_DISCRIMINATOR_SIBLINGS = frozenset(
     {

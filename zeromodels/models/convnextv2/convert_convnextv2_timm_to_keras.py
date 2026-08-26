@@ -11,7 +11,7 @@ from zeromodels.models.convnext.convert_convnext_timm_to_keras import (
 from zeromodels.models.convnextv2 import ConvNeXtV2ImageClassify
 
 # Architecture presets, moved here from convnextv2_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 CONVNEXTV2_MODEL_CONFIG = {
     "convnextv2_atto": {
@@ -134,7 +134,7 @@ CONVNEXTV2_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 CONVNEXTV2_VARIANTS = {
     "convnextv2_atto_fcmae_ft_in1k": {
         "model": "convnextv2_atto",

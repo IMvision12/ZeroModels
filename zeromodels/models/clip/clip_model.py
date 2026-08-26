@@ -14,7 +14,7 @@ from .clip_layers import (
 )
 
 # The full CLIPModel plus its task heads (vision / text / embed / zero-shot /
-# classify) all load from one repo per variant, whose kf_config.json declares the
+# classify) all load from one repo per variant, whose zm_config.json declares the
 # canonical CLIPModel. Listing them as siblings lets any head load that repo.
 CLIP_HUB_SIBLINGS = frozenset(
     {
@@ -305,7 +305,7 @@ class CLIPVisionModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full CLIPModel; build
-        # it from the repo's kf_config, then copy the matching weights across.
+        # it from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = CLIPModel.from_weights(repo_id, skip_mismatch=skip_mismatch)
@@ -463,7 +463,7 @@ class CLIPTextModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full CLIPModel; build
-        # it from the repo's kf_config, then copy the matching weights across.
+        # it from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = CLIPModel.from_weights(repo_id, skip_mismatch=skip_mismatch)
@@ -630,7 +630,7 @@ class CLIPImageEmbed(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full CLIPModel; build
-        # it from the repo's kf_config, then copy the matching weights across.
+        # it from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = CLIPModel.from_weights(repo_id, skip_mismatch=skip_mismatch)
@@ -792,7 +792,7 @@ class CLIPTextEmbed(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full CLIPModel; build
-        # it from the repo's kf_config, then copy the matching weights across.
+        # it from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = CLIPModel.from_weights(repo_id, skip_mismatch=skip_mismatch)
@@ -1327,7 +1327,7 @@ class CLIPImageClassify(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full CLIPModel; build
-        # it from the repo's kf_config, then copy the matching weights across.
+        # it from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = CLIPModel.from_weights(repo_id, skip_mismatch=skip_mismatch)

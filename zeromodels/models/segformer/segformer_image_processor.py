@@ -80,7 +80,7 @@ class SegFormerImageProcessor(BaseImageProcessor):
 
         The variants train at 512 (ADE), 640 (b5 ADE), 768 or 1024
         (Cityscapes). The per-variant resolution is no longer kept in the
-        package: it travels in the repo's ``kf_preprocessor.json`` and is
+        package: it travels in the repo's ``zm_preprocessor.json`` and is
         applied when loading via ``from_weights("zeromodels/<variant>")``.
         Direct construction without an explicit ``size`` falls back to 512.
         """

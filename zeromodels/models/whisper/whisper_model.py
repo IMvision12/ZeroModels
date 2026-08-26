@@ -15,7 +15,7 @@ from .whisper_layers import (
 )
 
 # WhisperModel (encoder-decoder) and WhisperConditionalGenerate (+ .generate) share the
-# variant's weights repo, whose kf_config.json declares the canonical WhisperModel.
+# variant's weights repo, whose zm_config.json declares the canonical WhisperModel.
 WHISPER_HUB_SIBLINGS = frozenset({"WhisperModel", "WhisperConditionalGenerate"})
 
 _ACTIVATION_ALIASES = {
@@ -306,7 +306,7 @@ class WhisperModel(BaseModel):
     config_class = WhisperConfig
     HUB_REPO_SIBLINGS = WHISPER_HUB_SIBLINGS
     HF_MODEL_TYPE = "whisper"
-    # Default generation settings, written to kf_config.json under generate_args and
+    # Default generation settings, written to zm_config.json under generate_args and
     # re-attached on repo-id load; WhisperConditionalGenerate.generate() reads them.
     generate_args = {
         "suppress_tokens": [
@@ -577,7 +577,7 @@ class WhisperConditionalGenerate(WhisperModel, BaseSeq2SeqGeneration):
         suppress_tokens: Optional[List[int]] = None,
         begin_suppress_tokens: Optional[List[int]] = None,
     ) -> Union[List[str], List[List[int]]]:
-        # Generation settings come from self.generate_args: the repo's kf_config
+        # Generation settings come from self.generate_args: the repo's zm_config
         # generate_args (the OpenAI generation_config, verbatim) when loaded by repo
         # id, else the class default. Explicit call args override; the processor /
         # tokenizer are the last-resort fallback. This mirrors how transformers

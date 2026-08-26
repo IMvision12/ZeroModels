@@ -200,7 +200,7 @@ def transfer_grounding_dino_weights(keras_model, hf_state_dict):
 
 
 # Per-variant recipes (relocated from grounding_dino_config.py). Conversion goes
-# through the hf: path; these drive the backfill's kf_config.json.
+# through the hf: path; these drive the backfill's zm_config.json.
 GROUNDING_DINO_VARIANTS = {
     "grounding_dino_tiny": {
         "d_model": 256,

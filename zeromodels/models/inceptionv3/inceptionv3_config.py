@@ -6,7 +6,7 @@ class InceptionV3Config(BaseConfig):
 
     Inception V3 factorizes larger convolutions into smaller and asymmetric ones and
     uses grid-reduction blocks for an efficient deep network at 299x299. One
-    `kf_config.json` (declaring the canonical [`InceptionV3ImageClassify`]) sits on
+    `zm_config.json` (declaring the canonical [`InceptionV3ImageClassify`]) sits on
     each variant's repo, and both the backbone and classifier load from it. Fields
     mirror the model constructor and serialize flat.
 

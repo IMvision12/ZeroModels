@@ -19,7 +19,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.convmixer import ConvMixerImageClassify
 
 # Architecture presets, moved here from convmixer_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 CONVMIXER_MODEL_CONFIG = {
     "convmixer_1536_20": {
@@ -52,7 +52,7 @@ CONVMIXER_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json). Architecture presets now live in the converter.
+# (zm_config.json). Architecture presets now live in the converter.
 CONVMIXER_VARIANTS = {
     "convmixer_1536_20_in1k": {
         "model": "convmixer_1536_20",

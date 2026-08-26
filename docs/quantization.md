@@ -57,7 +57,7 @@ model = Qwen3TextGenerate.from_weights("qwen3-4b", quantization="int4")
 
 To load a checkpoint that does not fit in float at all, use a repo that ships **already
 quantized** in a native packed format (e.g. GPT-OSS's mxfp4), whose packed weights load
-directly without a float intermediate (see [`KfQuantizer`](#loading-a-pre-quantized-repo-kfquantizer)).
+directly without a float intermediate (see [`ZmQuantizer`](#loading-a-pre-quantized-repo-zmquantizer)).
 
 ## Production usage
 
@@ -80,18 +80,18 @@ quantize_model(model, "int4-g128")  # or a named scheme
 
 **Save / load / revert.** A quantized model saves and reloads itself quantized through
 ordinary Keras save (the quantization is carried in `get_config` and re-applied in
-`from_config`, see [`KfQuantizer`](#loading-a-pre-quantized-repo-kfquantizer)):
+`from_config`, see [`ZmQuantizer`](#loading-a-pre-quantized-repo-zmquantizer)):
 
 ```python
 import keras
-from zeromodels.quantization import dequantize_model, get_kf_quantizer
+from zeromodels.quantization import dequantize_model, get_zm_quantizer
 
 # Full save: the quantization round-trips automatically.
 model.save("model.keras")
 model = keras.saving.load_model("model.keras")  # rebuilt quantized, weights loaded
 
 # Weights-only (.weights.h5) carries values, not structure, so the target must already
-# be quantized before load_weights. From a Hub repo that is automatic (kf_config's
+# be quantized before load_weights. From a Hub repo that is automatic (zm_config's
 # quantization_config drives it):
 model = Qwen3TextGenerate.from_weights("zeromodels/qwen3-4b-int8")
 
@@ -99,7 +99,7 @@ model = Qwen3TextGenerate.from_weights("zeromodels/qwen3-4b-int8")
 # functional model preprocess_model returns a NEW (cloned) quantized model, so use it:
 model.save_weights("model.weights.h5")
 skeleton = Qwen3TextGenerate.from_weights("qwen3-4b", load_weights=False)
-skeleton = get_kf_quantizer({"quant_method": "int8"}).preprocess_model(skeleton)
+skeleton = get_zm_quantizer({"quant_method": "int8"}).preprocess_model(skeleton)
 skeleton.load_weights("model.weights.h5")
 
 dequantize_model(model)  # revert to float layers
@@ -115,10 +115,10 @@ returned model:
 qmodel = quantize_model(vit_model, "int8")  # functional -> returns a NEW model
 ```
 
-## Loading a pre-quantized repo (`KfQuantizer`)
+## Loading a pre-quantized repo (`ZmQuantizer`)
 
 Everything above *applies* quantization to a float model. A repo can also **ship
-already quantized** and declare it in `kf_config.json` with a transformers-style
+already quantized** and declare it in `zm_config.json` with a transformers-style
 block:
 
 ```json
@@ -134,21 +134,21 @@ model = GptOssTextGenerate.from_weights("zeromodels/gpt-oss-20b")
 ```
 
 The models stay **quantization-agnostic** (no per-model flags): the model builds the
-plain float architecture, and a `KfQuantizer` swaps in the quantized layers **before
+plain float architecture, and a `ZmQuantizer` swaps in the quantized layers **before
 the weights load**, exactly like transformers'
-`HfQuantizer._process_model_before_weight_loading`. `KfQuantizer` is a **second
+`HfQuantizer._process_model_before_weight_loading`. `ZmQuantizer` is a **second
 level** above the tensor-level `BaseQuantizer`:
 
 | level | class | job |
 |---|---|---|
 | tensor | `BaseQuantizer` (`Int8Quantizer`, `MXFP4Quantizer`, …) | quantize / dequantize one weight along an axis |
-| model | `KfQuantizer` (transformers' `HfQuantizer` analog) | read `quantization_config`, swap modules before load |
+| model | `ZmQuantizer` (transformers' `HfQuantizer` analog) | read `quantization_config`, swap modules before load |
 
-`get_kf_quantizer(block)` dispatches on `quant_method`:
+`get_zm_quantizer(block)` dispatches on `quant_method`:
 
-- `mxfp4` -> `Mxfp4KfQuantizer` (GPT-OSS native: swaps the float `GptOssExperts` for
+- `mxfp4` -> `Mxfp4ZmQuantizer` (GPT-OSS native: swaps the float `GptOssExperts` for
   the packed `GptOssMXFP4Experts`).
-- `int8` / `int4` / `fp8` -> `WeightOnlyKfQuantizer` (generic: swaps `Dense` /
+- `int8` / `int4` / `fp8` -> `WeightOnlyZmQuantizer` (generic: swaps `Dense` /
   `Embedding` for their quantized layers via `quantize_model`, which clones a
   functional model, so `preprocess_model` returns the prepared model to load into).
 
@@ -223,7 +223,7 @@ class plus one file per scheme:
 | `QuantizationConfig` / `Int8Config` / `Int4Config` / `Fp8Config` / `Mxfp4Config` / `SCHEMES` | `quant_config.py` | recipe (mode, group_size, skip_modules, quantize_embeddings, overrides) + per-method configs + named presets |
 | `quantize_model` / `quantize_functional` | `quantize.py` | model surgery: clone (functional models) / in-place (non-functional) |
 | `quantize_skeleton` / `quantize_and_load` | `quantize.py` | legacy no-float path for **unbuilt** (non-functional) models; unused now that every model is functional |
-| `KfQuantizer` / `Mxfp4KfQuantizer` / `WeightOnlyKfQuantizer` / `get_kf_quantizer` | `kf_quantizer.py` | model-level quantizers (transformers `HfQuantizer` analog): read a repo's `quantization_config` and swap in packed / int layers before load; dispatched by `quant_method` |
+| `ZmQuantizer` / `Mxfp4ZmQuantizer` / `WeightOnlyZmQuantizer` / `get_zm_quantizer` | `zm_quantizer.py` | model-level quantizers (transformers `HfQuantizer` analog): read a repo's `quantization_config` and swap in packed / int layers before load; dispatched by `quant_method` |
 | `dequantize_model` | `quantize.py` | revert quantized layers back to float |
 
 A `QuantizedDense` holds an `Int8Quantizer` / `Int4Quantizer` / `Fp8Quantizer` /
@@ -273,9 +273,9 @@ Worked examples (int4, ≈ 0.55 B/param):
   `load_dtype`) and swaps in quantized layers after, freeing the floats. Peak memory is
   the float model, not the quantized size, so a checkpoint larger than your float budget
   must ship already quantized in a native packed format (mxfp4), which loads packed
-  without a float intermediate. Loading a repo whose `kf_config.json` declares a
+  without a float intermediate. Loading a repo whose `zm_config.json` declares a
   weight-only `quantization_config` follows the same build-then-quantize path (the
-  `KfQuantizer` swaps in quantized layers before the packed weights load).
+  `ZmQuantizer` swaps in quantized layers before the packed weights load).
 - **Coverage.** `Dense`, `EinsumDense`, `Embedding`, and fused-SwiGLU MoE expert
   banks (`gate_up_proj`/`down_proj`) are quantized; other custom weight layouts
   stay float. A `Dense`/`Embedding` stored inside a Python list (rare:

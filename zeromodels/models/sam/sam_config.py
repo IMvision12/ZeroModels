@@ -6,7 +6,7 @@ class SamConfig(BaseConfig):
 
     The defaults describe the SAM ViT-Base image encoder. Other variants override
     the vision-encoder dimensions. Fields serialize flat to a repo's
-    `kf_config.json`.
+    `zm_config.json`.
 
     Args:
         vision_hidden_size (`int`, *optional*, defaults to 768):

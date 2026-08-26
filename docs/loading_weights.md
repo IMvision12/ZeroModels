@@ -17,7 +17,7 @@ load, and how long it takes.
 
 | # | Way | What happens | Used by |
 |---|---|---|---|
-| 1 | [**HuggingFace Hub**](#1-hub-keras-weights) | `zeromodels/<variant>`. The repo's `kf_config.json` rebuilds the model and `model.weights.h5` (or a sharded `.weights.json`) loads with no conversion. | Vision, detection, segmentation, depth, speech, text encoders, CLIP-family, classification backbones |
+| 1 | [**HuggingFace Hub**](#1-hub-keras-weights) | `zeromodels/<variant>`. The repo's `zm_config.json` rebuilds the model and `model.weights.h5` (or a sharded `.weights.json`) loads with no conversion. | Vision, detection, segmentation, depth, speech, text encoders, CLIP-family, classification backbones |
 | 2 | [**On the fly**](#2-on-the-fly-conversion) | A bare variant whose entry carries an `hf_id`. Upstream safetensors are downloaded and converted in process. | The LLMs and VLMs: Qwen, Llama, Gemma, DeepSeek, GLM, Mistral, ... |
 | 3 | [**`hf:` prefix**](#3-the-hf-prefix) | Any Hub repo, named explicitly. Same conversion machinery as way 2, but you pick the repo. | Fine-tunes and community weights, for any architecture |
 
@@ -39,9 +39,9 @@ classification models.** Official checkpoints live under the
 [zeromodels](https://huggingface.co/zeromodels) org on Hugging Face. Each repo is
 self-describing:
 
-- `kf_config.json` — model class + flat architecture fields
+- `zm_config.json` — model class + flat architecture fields
 - `model.weights.h5` (or sharded `model.weights.json` + shard files)
-- optionally `kf_preprocessor.json` — processor / tokenizer settings
+- optionally `zm_preprocessor.json` — processor / tokenizer settings
 
 ```python
 model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
@@ -166,7 +166,7 @@ model = SegFormerSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
 For LLMs / VLMs, the bare variant is enough — it resolves through the class's
 `BASE_WEIGHT_CONFIG` to an upstream `hf_id`.
 
-The architecture travels with the checkpoint (`kf_config.json` on Hub Keras repos, or the
+The architecture travels with the checkpoint (`zm_config.json` on Hub Keras repos, or the
 upstream `config.json` for on-the-fly / `hf:` loads), so you do not pass `hidden_size`,
 `num_layers`, or `num_classes` unless you are overriding them on purpose.
 

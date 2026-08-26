@@ -14,10 +14,10 @@ from zeromodels.utils.image_util import normalize_image_for_classify_models
 from .mobilevit_config import MobileViTConfig
 
 # The backbone (MobileViTModel) and classifier (MobileViTImageClassify) share the
-# classification variant's repo, whose kf_config.json declares MobileViTImageClassify.
+# classification variant's repo, whose zm_config.json declares MobileViTImageClassify.
 MOBILEVIT_HUB_SIBLINGS = frozenset({"MobileViTModel", "MobileViTImageClassify"})
 
-# Each *_deeplabv3 repo carries its own kf_config.json declaring the segment model.
+# Each *_deeplabv3 repo carries its own zm_config.json declaring the segment model.
 MOBILEVIT_SEGMENT_HUB_SIBLINGS = frozenset({"MobileViTSemanticSegment"})
 
 
@@ -469,7 +469,7 @@ class MobileViTModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # Backbone shares the variant's repo with MobileViTImageClassify (which the
-        # kf_config declares); build from kf_config, then copy the backbone weights.
+        # zm_config declares); build from zm_config, then copy the backbone weights.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = MobileViTImageClassify.from_weights(

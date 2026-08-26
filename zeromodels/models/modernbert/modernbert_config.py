@@ -7,7 +7,7 @@ class ModernBertConfig(BaseConfig):
     ModernBERT is a modernized bidirectional transformer encoder: rotary position
     embeddings, attention that alternates between a global (full) layer and local
     sliding-window layers, GeGLU feed-forwards, and pre-LayerNorm residuals, with
-    no absolute-position or token-type embeddings. One `kf_config.json` (declaring
+    no absolute-position or token-type embeddings. One `zm_config.json` (declaring
     the canonical [`ModernBertModel`]) sits on each variant's repo; the encoder,
     masked-LM, and task-head classes all load from it. Fields mirror the model
     constructor and serialize flat.

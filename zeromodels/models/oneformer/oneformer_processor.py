@@ -128,7 +128,7 @@ class OneFormerProcessor(BaseProcessor):
         self.variant = variant
         self.hf_id = hf_id
         # The per-variant resolution is no longer kept in the package: it
-        # travels in the repo's kf_preprocessor.json and is applied when loading
+        # travels in the repo's zm_preprocessor.json and is applied when loading
         # via from_weights("zeromodels/<variant>"). Bare construction uses 512.
         if target_size is None:
             target_size = 512

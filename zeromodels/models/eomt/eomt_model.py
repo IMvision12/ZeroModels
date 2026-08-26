@@ -549,7 +549,7 @@ class EoMTUniversalSegment(BaseModel):
     BASE_MODEL_CONFIG = None
     config_class = EoMTConfig
     # Weights load by Hub repo id, e.g.
-    # from_weights("zeromodels/eomt_large_coco_panoptic_640"), via kf_config.json
+    # from_weights("zeromodels/eomt_large_coco_panoptic_640"), via zm_config.json
     # on the repo (no url table in the package).
     BASE_WEIGHT_CONFIG = None
     HF_MODEL_TYPE = "eomt"

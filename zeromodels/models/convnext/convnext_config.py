@@ -6,7 +6,7 @@ class ConvNeXtConfig(BaseConfig):
 
     ConvNeXt is a pure-convolutional network that modernizes a ResNet with a
     patchify stem, depthwise 7x7 convolutions, inverted bottlenecks, LayerNorm, and
-    per-channel layer scaling. One `kf_config.json` (declaring the canonical
+    per-channel layer scaling. One `zm_config.json` (declaring the canonical
     [`ConvNeXtImageClassify`]) sits on each variant's repo, and both the backbone and
     classifier load from it. Fields mirror the model constructor and serialize flat.
 

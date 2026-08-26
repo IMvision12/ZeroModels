@@ -19,7 +19,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.resnetv2 import ResNetV2ImageClassify
 
 # Architecture presets, moved here from resnetv2_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 RESNETV2_MODEL_CONFIG = {
     "resnetv2_50x1_in21k": {
@@ -97,7 +97,7 @@ RESNETV2_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 RESNETV2_VARIANTS = {
     "resnetv2_50x1_bit_goog_in21k": {
         "model": "resnetv2_50x1_in21k",

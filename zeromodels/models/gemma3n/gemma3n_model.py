@@ -1545,7 +1545,7 @@ class Gemma3nTextGenerate(TextOnlyGeneration, Gemma3nConditionalGenerate):
     The text-only counterpart to :class:`Gemma3nConditionalGenerate` (built with no vision
     or audio tower). All generation logic is inherited; :class:`TextOnlyGeneration` builds
     it text-only and drops the multimodal prefill inputs. The Gemma 3n checkpoints are
-    multimodal (kf_config declares Gemma3nConditionalGenerate), so this head extracts just
+    multimodal (zm_config declares Gemma3nConditionalGenerate), so this head extracts just
     their text backbone via :attr:`CHECKPOINT_SOURCE`, dropping the towers.
 
         gen = Gemma3nTextGenerate.from_weights("zeromodels/gemma-3n-...")

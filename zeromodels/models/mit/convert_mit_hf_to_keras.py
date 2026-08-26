@@ -21,7 +21,7 @@ from zeromodels.models.mit import MiTImageClassify
 from zeromodels.models.mit.mit_config import MIT_VARIANTS
 
 # Architecture presets, moved here from mit_config.py: the package config no longer
-# carries arch (models load by Hub repo id / kf_config). Only this converter builds an
+# carries arch (models load by Hub repo id / zm_config). Only this converter builds an
 # untrained model to transfer the SegFormer encoder weights into.
 MIT_MODEL_CONFIG = {
     "mit_b0": {

@@ -6,7 +6,7 @@ class PoolFormerConfig(BaseConfig):
 
     PoolFormer instantiates the MetaFormer template with a parameter-free average-
     pooling token mixer, showing the general architecture, not attention, drives much
-    of the performance. One `kf_config.json` (declaring the canonical
+    of the performance. One `zm_config.json` (declaring the canonical
     [`PoolFormerImageClassify`]) sits on each variant's repo, and both the backbone and
     classifier load from it. Fields mirror the model constructor and serialize flat.
 

@@ -18,7 +18,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.maxvit import MaxViTImageClassify as MaxViT
 
 # Architecture presets, moved here from maxvit_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 MAXVIT_MODEL_CONFIG = {
     "maxvit_tiny_224": {
@@ -177,7 +177,7 @@ MAXVIT_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 MAXVIT_VARIANTS = {
     "maxvit_tiny_tf_224_in1k": {
         "model": "maxvit_tiny_224",

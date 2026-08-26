@@ -6,7 +6,7 @@ class RFDetrConfig(BaseConfig):
 
     The defaults describe the rfdetr-base configuration; other variants override
     the patch / window / resolution / depth fields. Fields serialize flat to a
-    repo's `kf_config.json`.
+    repo's `zm_config.json`.
 
     Args:
         hidden_dim (`int`, *optional*, defaults to 256):

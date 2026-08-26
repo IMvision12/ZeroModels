@@ -302,7 +302,7 @@ class Qwen3_5TextGenerate(Qwen3_5Model, BaseGeneration):
     # turn-end). Explicit generate() args (or the tokenizer's eos) override this.
     eos_token_id = (248044, 248046)
     output_logits = True
-    # The dense Qwen3.5 checkpoints are VLMs (kf_config declares Qwen3_5ConditionalGenerate);
+    # The dense Qwen3.5 checkpoints are VLMs (zm_config declares Qwen3_5ConditionalGenerate);
     # this text head loads just their text backbone, dropping the vision tower. Handled
     # generically by BaseGeneration._load_backbone_from_full.
     CHECKPOINT_SOURCE = CheckpointSource(

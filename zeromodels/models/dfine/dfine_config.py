@@ -6,7 +6,7 @@ class DFineConfig(BaseConfig):
 
     The defaults describe the largest (x-large) HGNetV2 + hybrid-encoder
     configuration; smaller variants override the channel / depth fields. Fields
-    serialize flat to a repo's `kf_config.json`.
+    serialize flat to a repo's `zm_config.json`.
 
     Args:
         stem_channels (`tuple`, *optional*, defaults to `(3, 16, 16)`):

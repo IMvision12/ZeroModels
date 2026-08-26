@@ -295,7 +295,7 @@ class SAM3Processor(BaseProcessor):
     Mirrors transformers' ``Sam3Processor``: one call turns raw images, a text
     noun phrase, and optional box prompts into the tensors the model consumes.
     Load it alongside the model with ``SAM3Processor.from_weights("zeromodels/sam3")``
-    (the image config comes from ``kf_preprocessor.json``, the tokenizer from
+    (the image config comes from ``zm_preprocessor.json``, the tokenizer from
     ``tokenizer.json``); both are hosted ungated.
 
         proc = SAM3Processor.from_weights("zeromodels/sam3")
@@ -344,15 +344,15 @@ class SAM3Processor(BaseProcessor):
 
     @classmethod
     def from_hub_repo(cls, repo_id, **kwargs):
-        # tokenizer.json for the tokenizer, kf_preprocessor.json for the image
+        # tokenizer.json for the tokenizer, zm_preprocessor.json for the image
         # processor (the composed processor is not itself described by a file).
         import inspect
 
-        from zeromodels.conversion.kf_config import load_kf_preprocessor
+        from zeromodels.conversion.zm_config import load_zm_preprocessor
 
         repo_id = repo_id.rstrip("/")
         tokenizer = cls.TOKENIZER_CLS.from_weights(repo_id)
-        spec = load_kf_preprocessor(repo_id) or {}
+        spec = load_zm_preprocessor(repo_id) or {}
         img_params = set(inspect.signature(cls.IMAGE_PROCESSOR_CLS.__init__).parameters)
         img_kwargs = {k: v for k, v in spec.items() if k in img_params}
         return cls(

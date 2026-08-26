@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> the GLM-4.5-Air checkpoints are hosted as preconverted Keras weights on
 Hugging Face under <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + a sharded <code>model.weights.json</code>).
+(each repo carries <code>zm_config.json</code> + a sharded <code>model.weights.json</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>. The full-size
 GLM-4.5 / GLM-4.6 (~358B) are too large to re-host: convert them on the fly with
 <code>from_weights("hf:zai-org/GLM-4.5")</code>. See
@@ -24,7 +24,7 @@ resident.
 The hosted weights are stored **bfloat16** except the MoE router correction bias
 (`e_score_correction_bias`, one per MoE layer), kept in **float32** so bf16 rounding
 cannot flip the group / expert top-k selection (mirroring transformers'
-`_keep_in_fp32_modules_strict`). `kf_config.json` records this as `weight_dtype:
+`_keep_in_fp32_modules_strict`). `zm_config.json` records this as `weight_dtype:
 "bfloat16"` + `weight_dtype_overrides: {"e_score_correction_bias": "float32"}`.
 
 Links:

@@ -21,7 +21,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.pit import PiTImageClassify
 
 # Architecture presets, moved here from pit_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 PIT_MODEL_CONFIG = {
     "pit_xs": {
@@ -115,7 +115,7 @@ PIT_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 PIT_VARIANTS = {
     "pit_xs_224_in1k": {
         "model": "pit_xs",

@@ -6,7 +6,7 @@ class ResMLPConfig(BaseConfig):
 
     ResMLP is an all-MLP image classifier that swaps LayerNorm for a learned affine
     (Aff) transform and mixes patches with a single linear layer plus residual
-    connections. One `kf_config.json` (declaring the canonical [`ResMLPImageClassify`])
+    connections. One `zm_config.json` (declaring the canonical [`ResMLPImageClassify`])
     sits on each variant's repo, and both the backbone and classifier load from it.
     Fields mirror the model constructor and serialize flat.
 

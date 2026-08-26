@@ -14,7 +14,7 @@ def transfer_xlm_roberta_weights(
 
 
 # Architecture per variant, moved here from xlm_roberta_config.py: the package config no longer
-# carries arch (models load by Hub repo id / kf_config). Only this converter
+# carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer the HF weights into.
 XLM_ROBERTA_MODEL_CONFIG = {
     "xlm_roberta_base": {

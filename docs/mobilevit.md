@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
@@ -101,7 +101,7 @@ Resizes the shortest edge, center-crops, rescales, and flips RGB to BGR.
 > **Prefer `MobileViTImageProcessor.from_weights("zeromodels/<variant>")`.** The
 > classification and segmentation checkpoints train at different resolutions, and the
 > bare constructor gives the classification pair (288/256). Loading a `*_deeplabv3` Hub
-> repo (with `kf_preprocessor.json`) resolves the segmentation pair (544/512) instead.
+> repo (with `zm_preprocessor.json`) resolves the segmentation pair (544/512) instead.
 
 **Parameters**
 

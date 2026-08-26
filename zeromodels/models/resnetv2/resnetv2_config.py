@@ -7,7 +7,7 @@ class ResNetV2Config(BaseConfig):
     ResNetV2 (BiT) applies pre-activation group-normalized residual blocks with a
     width multiplier. The hosted variants override `depths` / `width_factor` /
     `image_size` / `num_classes` (the in21k variants classify 21843 classes at 224
-    px; the in1k fine-tunes classify 1000 at 448/480 px). One `kf_config.json`
+    px; the in1k fine-tunes classify 1000 at 448/480 px). One `zm_config.json`
     (declaring the canonical [`ResNetV2ImageClassify`]) sits on each variant's repo,
     and both the backbone and the classifier load from it. Fields mirror the model
     constructor and serialize flat.

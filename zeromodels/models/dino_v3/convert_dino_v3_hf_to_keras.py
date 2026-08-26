@@ -44,7 +44,7 @@ DINOV3_CONVNEXT_VARIANTS: List[Tuple[str, str]] = [
 ]
 
 # Per-variant recipes (relocated from dino_v3_config.py). Models load from the Hub
-# by repo id; these build the arch for conversion + drive the kf_config backfill.
+# by repo id; these build the arch for conversion + drive the zm_config backfill.
 DINOV3_VIT_RECIPES = {
     "dinov3-vits16-pretrain-lvd1689m": {
         "patch_size": 16,

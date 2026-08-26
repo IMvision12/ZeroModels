@@ -1,16 +1,16 @@
-"""Self-describing Hub repos: kf_config.json (model) and kf_preprocessor.json.
+"""Self-describing Hub repos: zm_config.json (model) and zm_preprocessor.json.
 
 Each zeromodels weight repo can carry two small namespaced json files at its
 root, next to model.weights.h5:
 
-  kf_config.json        the model: class + flat hyperparameters + weights filename.
-  kf_preprocessor.json  the image processor / feature extractor (when present).
+  zm_config.json        the model: class + flat hyperparameters + weights filename.
+  zm_preprocessor.json  the image processor / feature extractor (when present).
 
 They let a model be rebuilt and loaded from the repo alone, so a caller loads by
 repo id (zeromodels/detr-resnet-50) instead of a variant hardcoded in the
 package. The files are FLAT, transformers style: every hyperparameter sits at the
 top level next to ``model_type``, alongside a few zeromodels loader keys
-(``model_module`` / ``model_class`` / ``variant`` / ``weights``). The kf_ prefix
+(``model_module`` / ``model_class`` / ``variant`` / ``weights``). The zm_ prefix
 avoids the config.json / preprocessor_config.json names that would make the Hub
 mis-detect these Keras repos as transformers or keras-hub. The tokenizer stays a
 real tokenizer.json and is not described here.
@@ -21,10 +21,10 @@ import json
 import os
 from importlib.metadata import PackageNotFoundError, version
 
-CONFIG_FILE = "kf_config.json"
-PREPROCESSOR_FILE = "kf_preprocessor.json"
+CONFIG_FILE = "zm_config.json"
+PREPROCESSOR_FILE = "zm_preprocessor.json"
 
-KF_METADATA_KEYS = frozenset(
+ZM_METADATA_KEYS = frozenset(
     {
         "library_name",
         "zeromodels_version",
@@ -43,7 +43,7 @@ KF_METADATA_KEYS = frozenset(
 )
 
 
-def _kf_version():
+def _zm_version():
     try:
         return version("zeromodels")
     except PackageNotFoundError:
@@ -115,7 +115,7 @@ def _write(path, payload):
 SCHEMA_VERSION = 2
 
 
-def write_kf_config(
+def write_zm_config(
     dest_dir,
     model_cls,
     variant,
@@ -126,7 +126,7 @@ def write_kf_config(
     quantization_config=None,
     generate_args=None,
 ):
-    """Write a self-describing kf_config.json for ``variant`` into ``dest_dir``.
+    """Write a self-describing zm_config.json for ``variant`` into ``dest_dir``.
 
     ``config`` is a built :class:`BaseConfig` instance (the per-variant config,
     typically ``model_cls.config_class(**overrides)``); it serializes nested
@@ -146,7 +146,7 @@ def write_kf_config(
     ``quantization_config`` (a
     ``{"quant_method": ...}`` dict, transformers style) records the quant scheme so a
     quantized repo loads without a flag: the loader builds the plain model and runs
-    the matching ``KfQuantizer``. Both are omitted when ``None``.
+    the matching ``ZmQuantizer``. Both are omitted when ``None``.
 
     ``generate_args`` (a dict of default generation settings, e.g. Whisper's
     ``suppress_tokens``) is written under a nested ``generate_args`` key so the
@@ -156,7 +156,7 @@ def write_kf_config(
     """
     payload = {
         "library_name": "zeromodels",
-        "zeromodels_version": _kf_version(),
+        "zeromodels_version": _zm_version(),
         "model_module": _package_module(model_cls),
         "model_class": model_cls.__name__,
         "variant": variant,
@@ -180,11 +180,11 @@ def write_kf_config(
     return _write(os.path.join(dest_dir, CONFIG_FILE), payload)
 
 
-def write_kf_preprocessor(dest_dir, preprocessor, variant):
-    """Write a flat kf_preprocessor.json for a built ``preprocessor`` instance."""
+def write_zm_preprocessor(dest_dir, preprocessor, variant):
+    """Write a flat zm_preprocessor.json for a built ``preprocessor`` instance."""
     payload = {
         "library_name": "zeromodels",
-        "zeromodels_version": _kf_version(),
+        "zeromodels_version": _zm_version(),
         "preprocessor_module": _package_module(type(preprocessor)),
         "preprocessor_class": type(preprocessor).__name__,
         "variant": variant,
@@ -206,26 +206,26 @@ def _download_repo_json(repo_id, filename):
         return json.load(f)
 
 
-_KF_CONFIG_CACHE = {}
+_ZM_CONFIG_CACHE = {}
 
 
-def load_kf_config(repo_id):
-    """Fetch and parse kf_config.json from ``repo_id`` (None if the repo lacks it).
+def load_zm_config(repo_id):
+    """Fetch and parse zm_config.json from ``repo_id`` (None if the repo lacks it).
 
     Successful results are memoized per process, so a repo resolved twice in one
     ``from_weights`` call (once for its ``weight_dtype``, once to build) is fetched
     only once. The returned spec is shared: treat it as read-only. Absent / failed
     lookups are not cached, so a transient failure is retried on the next call.
     """
-    cached = _KF_CONFIG_CACHE.get(repo_id)
+    cached = _ZM_CONFIG_CACHE.get(repo_id)
     if cached is not None:
         return cached
     spec = _download_repo_json(repo_id, CONFIG_FILE)
     if spec is not None:
-        _KF_CONFIG_CACHE[repo_id] = spec
+        _ZM_CONFIG_CACHE[repo_id] = spec
     return spec
 
 
-def load_kf_preprocessor(repo_id):
-    """Fetch and parse kf_preprocessor.json from ``repo_id`` (None if absent)."""
+def load_zm_preprocessor(repo_id):
+    """Fetch and parse zm_preprocessor.json from ``repo_id`` (None if absent)."""
     return _download_repo_json(repo_id, PREPROCESSOR_FILE)

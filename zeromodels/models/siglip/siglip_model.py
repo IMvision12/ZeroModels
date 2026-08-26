@@ -15,7 +15,7 @@ from .siglip_layers import (
 )
 
 # The full SigLIPModel plus its task heads (vision / text / zero-shot / classify)
-# all load from one repo per variant, whose kf_config.json declares the canonical
+# all load from one repo per variant, whose zm_config.json declares the canonical
 # SigLIPZeroShotClassify. Listing them as siblings lets any head load that repo.
 SIGLIP_HUB_SIBLINGS = frozenset(
     {
@@ -574,7 +574,7 @@ class SigLIPVisionModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full model; build it
-        # from the repo's kf_config, then copy the matching weights across.
+        # from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = cls._release_warm_start_cls().from_weights(
@@ -738,7 +738,7 @@ class SigLIPTextModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full model; build it
-        # from the repo's kf_config, then copy the matching weights across.
+        # from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = cls._release_warm_start_cls().from_weights(
@@ -1244,7 +1244,7 @@ class SigLIPImageClassify(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full model; build it
-        # from the repo's kf_config, then copy the matching weights across.
+        # from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = cls._release_warm_start_cls().from_weights(

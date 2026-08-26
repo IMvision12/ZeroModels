@@ -20,7 +20,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.swinv2 import SwinV2ImageClassify
 
 # Architecture presets, moved here from swinv2_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 SWINV2_MODEL_CONFIG = {
     "swinv2_tiny_window8_256": {
@@ -146,7 +146,7 @@ SWINV2_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 SWINV2_VARIANTS = {
     "swinv2_tiny_window8_256_ms_in1k": {
         "model": "swinv2_tiny_window8_256",

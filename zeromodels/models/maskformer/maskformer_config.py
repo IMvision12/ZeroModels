@@ -6,7 +6,7 @@ class MaskFormerConfig(BaseConfig):
 
     Instantiating it with the defaults yields a configuration close to the
     maskformer-swin-tiny-ade style. Fields mirror the model constructor and
-    serialize flat to a repo's `kf_config.json`.
+    serialize flat to a repo's `zm_config.json`.
 
     Args:
         backbone_embed_dim (`int`, *optional*, defaults to 96):

@@ -6,7 +6,7 @@ class MaxViTConfig(BaseConfig):
 
     MaxViT stacks MBConv blocks with block (local window) and grid (dilated) attention,
     giving a multi-axis hybrid backbone with global receptive field at linear cost. One
-    `kf_config.json` (declaring the canonical [`MaxViTImageClassify`]) sits on each
+    `zm_config.json` (declaring the canonical [`MaxViTImageClassify`]) sits on each
     variant's repo, and both the backbone and classifier load from it. Fields mirror
     the model constructor and serialize flat.
 

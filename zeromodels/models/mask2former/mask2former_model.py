@@ -676,7 +676,7 @@ class Mask2FormerUniversalSegment(Mask2FormerModel):
     config_class = Mask2FormerConfig
     # Weights load by Hub repo id, e.g.
     # from_weights("zeromodels/mask2former-swin-tiny-coco-instance"), via
-    # kf_config.json on the repo (no url table in the package).
+    # zm_config.json on the repo (no url table in the package).
     BASE_WEIGHT_CONFIG = None
     HF_MODEL_TYPE = "mask2former"
 

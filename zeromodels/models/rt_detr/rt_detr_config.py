@@ -6,7 +6,7 @@ class RTDetrConfig(BaseConfig):
 
     The defaults describe the ResNet-50 (r50vd) configuration; other variants
     override the backbone / encoder fields. Fields serialize flat to a repo's
-    `kf_config.json`.
+    `zm_config.json`.
 
     Args:
         backbone_hidden_sizes (`tuple`, *optional*, defaults to `(256, 512, 1024, 2048)`):

@@ -13,7 +13,7 @@ from .xlm_roberta_config import (
 )
 
 # All classes (encoder + masked-LM + task heads) share the variant's weights repo,
-# whose kf_config.json declares the canonical XLMRobertaModel encoder (model.weights.h5).
+# whose zm_config.json declares the canonical XLMRobertaModel encoder (model.weights.h5).
 XLM_ROBERTA_HUB_SIBLINGS = frozenset(
     {
         "XLMRobertaModel",

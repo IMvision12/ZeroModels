@@ -20,7 +20,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.inceptionv3 import InceptionV3ImageClassify
 
 # Architecture presets, moved here from inceptionv3_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 INCEPTIONV3_MODEL_CONFIG = {
     "inception_v3": {
@@ -30,7 +30,7 @@ INCEPTIONV3_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 INCEPTIONV3_VARIANTS = {
     "inception_v3_tf_in1k": {
         "model": "inception_v3",

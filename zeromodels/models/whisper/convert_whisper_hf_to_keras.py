@@ -26,7 +26,7 @@ HF_CHECKPOINT = {
 
 
 # Per-variant recipes (relocated from whisper_config.py). Models load from the Hub
-# by repo id; these build the arch for conversion + drive the kf_config backfill.
+# by repo id; these build the arch for conversion + drive the zm_config backfill.
 def _w(hidden, el, eh, ef, dl, dh, df, vocab, mel):
     return {
         "hidden_dim": hidden,

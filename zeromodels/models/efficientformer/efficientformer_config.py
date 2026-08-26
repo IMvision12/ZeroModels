@@ -6,7 +6,7 @@ class EfficientFormerConfig(BaseConfig):
 
     EfficientFormer is a hybrid conv/transformer network: convolutional MetaBlocks in
     the early stages and attention-based (`num_vit`) blocks in the last stage. One
-    `kf_config.json` (declaring the canonical [`EfficientFormerImageClassify`]) sits on
+    `zm_config.json` (declaring the canonical [`EfficientFormerImageClassify`]) sits on
     each variant's repo, and both the backbone and classifier load from it. Fields
     mirror the model constructor and serialize flat.
 

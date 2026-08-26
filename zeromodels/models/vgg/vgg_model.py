@@ -9,7 +9,7 @@ from zeromodels.utils.image_util import normalize_image_for_classify_models
 from .vgg_config import VGGConfig
 
 # The backbone (VGGModel) and classifier (VGGImageClassify) share the variant's
-# weights repo, whose kf_config.json declares VGGImageClassify.
+# weights repo, whose zm_config.json declares VGGImageClassify.
 VGG_HUB_SIBLINGS = frozenset({"VGGModel", "VGGImageClassify"})
 
 
@@ -185,7 +185,7 @@ class VGGModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # Backbone shares the variant's repo with VGGImageClassify (which the
-        # kf_config declares); build from kf_config, then copy the backbone weights.
+        # zm_config declares); build from zm_config, then copy the backbone weights.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = VGGImageClassify.from_weights(repo_id, skip_mismatch=skip_mismatch)

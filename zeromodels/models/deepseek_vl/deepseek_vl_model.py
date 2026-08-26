@@ -21,7 +21,7 @@ from .deepseek_vl_layers import (
 MASK_NEG = -1e9
 
 # The backbone (DeepseekVLModel) and generative head (DeepseekVLConditionalGenerate) share the
-# variant's weights repo, whose kf_config.json declares DeepseekVLModel.
+# variant's weights repo, whose zm_config.json declares DeepseekVLModel.
 DEEPSEEK_VL_HUB_SIBLINGS = frozenset(
     {"DeepseekVLModel", "DeepseekVLConditionalGenerate"}
 )
@@ -208,7 +208,7 @@ class DeepseekVLModel(BaseModel):
     HF_MODEL_TYPE = "deepseek_vl"
     BASE_MODEL_CONFIG = None
     # Weights load by Hub repo id, e.g. from_weights("zeromodels/deepseek_vl_1.3b_chat"),
-    # via kf_config.json on the repo (no url table in the package).
+    # via zm_config.json on the repo (no url table in the package).
     BASE_WEIGHT_CONFIG = None
     config_class = DeepseekVLConfig
     HUB_REPO_SIBLINGS = DEEPSEEK_VL_HUB_SIBLINGS

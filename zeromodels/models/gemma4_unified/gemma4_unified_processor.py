@@ -5,7 +5,7 @@ import numpy as np
 from keras import ops
 
 from zeromodels.base import BaseProcessor
-from zeromodels.conversion.kf_config import load_kf_preprocessor
+from zeromodels.conversion.zm_config import load_zm_preprocessor
 
 from .gemma4_unified_audio_feature_extractor import Gemma4UnifiedAudioFeatureExtractor
 from .gemma4_unified_image_processor import Gemma4UnifiedImageProcessor
@@ -63,7 +63,7 @@ class Gemma4UnifiedProcessor(BaseProcessor):
     def from_hub_repo(cls, repo_id, **kwargs):
         repo_id = repo_id.rstrip("/")
         tokenizer = cls.TOKENIZER_CLS.from_weights(repo_id)
-        spec = load_kf_preprocessor(repo_id) or {}
+        spec = load_zm_preprocessor(repo_id) or {}
         img_params = set(inspect.signature(cls.IMAGE_PROCESSOR_CLS.__init__).parameters)
         img_kwargs = {k: v for k, v in spec.items() if k in img_params}
         return cls(

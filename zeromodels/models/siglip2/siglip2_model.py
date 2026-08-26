@@ -12,7 +12,7 @@ from zeromodels.models.siglip.siglip_model import (
 from .siglip2_config import Siglip2Config
 
 # SigLIP 2 has its own weights repos (separate from SigLIP). The full SigLIP2Model
-# plus its heads all load from one repo per variant, whose kf_config.json declares
+# plus its heads all load from one repo per variant, whose zm_config.json declares
 # the canonical SigLIP2ZeroShotClassify.
 SIGLIP2_HUB_SIBLINGS = frozenset(
     {

@@ -6,7 +6,7 @@ class Res2NetConfig(BaseConfig):
 
     Res2Net adds multi-scale residual connections inside the bottleneck via a
     `scale` split. The hosted variants override `depth` / `base_width` / `scale` /
-    `cardinality`. One `kf_config.json` (declaring the canonical
+    `cardinality`. One `zm_config.json` (declaring the canonical
     [`Res2NetImageClassify`]) sits on each variant's repo, and both the backbone and
     classifier load from it. Fields mirror the model constructor and serialize flat.
 

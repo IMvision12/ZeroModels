@@ -5,7 +5,7 @@ class EfficientNetV2Config(BaseConfig):
     r"""Configuration for [`EfficientNetV2Model`] / [`EfficientNetV2ImageClassify`].
 
     EfficientNetV2 refines EfficientNet with fused-MBConv blocks in the early stages
-    and a training-aware compound scaling. One `kf_config.json` (declaring the
+    and a training-aware compound scaling. One `zm_config.json` (declaring the
     canonical [`EfficientNetV2ImageClassify`]) sits on each variant's repo, and both
     the backbone and classifier load from it. Fields mirror the model constructor and
     serialize flat.

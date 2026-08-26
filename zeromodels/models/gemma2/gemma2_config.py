@@ -7,7 +7,7 @@ class Gemma2Config(BaseConfig):
     Gemma 2 is Google's decoder-only transformer, extending Gemma with alternating
     sliding-window / full causal attention, attention- and final-logit tanh
     soft-capping, a `query_pre_attn_scalar` query scaling, grouped-query attention,
-    and pre/post-norm blocks. One `kf_config.json` sits on each variant's repo, and
+    and pre/post-norm blocks. One `zm_config.json` sits on each variant's repo, and
     fields mirror the model constructor and serialize flat.
 
     Args:

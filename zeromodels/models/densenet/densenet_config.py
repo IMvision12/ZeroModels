@@ -6,7 +6,7 @@ class DenseNetConfig(BaseConfig):
 
     DenseNet connects each layer to every other layer within a dense block, so feature
     maps are concatenated (not summed), giving strong feature reuse at low parameter
-    count. One `kf_config.json` (declaring the canonical [`DenseNetImageClassify`]) sits
+    count. One `zm_config.json` (declaring the canonical [`DenseNetImageClassify`]) sits
     on each variant's repo, and both the backbone and classifier load from it. Fields
     mirror the model constructor and serialize flat.
 

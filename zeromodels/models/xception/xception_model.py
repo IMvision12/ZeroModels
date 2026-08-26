@@ -9,7 +9,7 @@ from zeromodels.utils.image_util import normalize_image_for_classify_models
 from .xception_config import XceptionConfig
 
 # The backbone (XceptionModel) and classifier (XceptionImageClassify) share the
-# variant's repo, whose kf_config.json declares XceptionImageClassify.
+# variant's repo, whose zm_config.json declares XceptionImageClassify.
 XCEPTION_HUB_SIBLINGS = frozenset({"XceptionModel", "XceptionImageClassify"})
 
 # Per-variant block configs. Each entry is a list of dicts; each dict configures
@@ -501,7 +501,7 @@ class XceptionModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # Backbone shares the variant's repo with XceptionImageClassify (which the
-        # kf_config declares); build from kf_config, then copy the backbone weights.
+        # zm_config declares); build from zm_config, then copy the backbone weights.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = XceptionImageClassify.from_weights(

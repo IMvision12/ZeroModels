@@ -21,7 +21,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.cait import CaiTImageClassify
 
 # Architecture presets, moved here from cait_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 CAIT_MODEL_CONFIG = {
     "cait_xxs24_224": {
@@ -107,7 +107,7 @@ CAIT_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 CAIT_VARIANTS = {
     "cait_xxs24_224_fb_dist_in1k": {
         "model": "cait_xxs24_224",

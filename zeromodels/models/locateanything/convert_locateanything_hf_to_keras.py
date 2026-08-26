@@ -65,7 +65,7 @@ def transfer_locateanything_weights(keras_model, hf_state_dict):
 
 # Single-variant recipe (relocated from locateanything_config.py). The conversion
 # below builds from the HF config.json via config_from_hf; this recipe drives the
-# kf_config backfill so the repo declares LocateAnythingConditionalGenerate.
+# zm_config backfill so the repo declares LocateAnythingConditionalGenerate.
 LOCATEANYTHING_RECIPES = {
     "locateanything_3b": {
         "vocab_size": 152681,

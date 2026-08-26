@@ -4,7 +4,7 @@
 <b>Weights:</b> the eight dense sizes (2B / 4B / 8B / 32B, each Instruct + Thinking)
 are hosted as pretrained Keras weights on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> and <code>kf_preprocessor.json</code> plus a
+(each repo carries <code>zm_config.json</code> and <code>zm_preprocessor.json</code> plus a
 sharded <code>model.weights.json</code> + shards and a <code>tokenizer.json</code>). Load the
 model and processor with <code>from_weights("zeromodels/&lt;variant&gt;")</code>. The MoE
 sizes (30B-A3B / 235B-A22B) are a separate architecture and are not hosted here.

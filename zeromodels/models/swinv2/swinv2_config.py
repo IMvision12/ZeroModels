@@ -6,7 +6,7 @@ class SwinV2Config(BaseConfig):
 
     Swin Transformer V2 scales Swin with cosine attention, log-spaced continuous
     relative-position bias, and residual post-normalization, enabling training at
-    higher resolutions. One `kf_config.json` (declaring the canonical
+    higher resolutions. One `zm_config.json` (declaring the canonical
     [`SwinV2ImageClassify`]) sits on each variant's repo, and both the backbone and
     classifier load from it. Fields mirror the model constructor and serialize flat.
 

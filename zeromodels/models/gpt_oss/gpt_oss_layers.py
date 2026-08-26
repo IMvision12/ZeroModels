@@ -140,7 +140,7 @@ class GptOssMLP(layers.Layer):
         self.embed_dim = embed_dim
         self.mlp_dim = mlp_dim
         self.router = layers.Dense(num_experts, use_bias=True, name="router")
-        # Always builds the float bank; a KfQuantizer swaps in GptOssMXFP4Experts at
+        # Always builds the float bank; a ZmQuantizer swaps in GptOssMXFP4Experts at
         # load time for an mxfp4 checkpoint (the model stays quantization-agnostic).
         self.experts = GptOssExperts(num_experts, embed_dim, mlp_dim, name="experts")
 

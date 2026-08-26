@@ -15,7 +15,7 @@ def transfer_siglip2_weights(keras_model, hf_state_dict: Dict[str, np.ndarray]) 
 
 
 # Per-variant recipes (relocated from siglip2_config.py). The zeromodels repos
-# hold a SigLIP2ZeroShotClassify checkpoint; its kf_config.json declares
+# hold a SigLIP2ZeroShotClassify checkpoint; its zm_config.json declares
 # SigLIP2ZeroShotClassify and every SigLIP 2 head loads from it.
 def _s2(
     image_size, patch_size, vh, vl, vhd, vm, embed, tl, th, tm, vocab=256000, seq=64

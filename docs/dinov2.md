@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
@@ -65,7 +65,7 @@ token sequence `(B, 1 + num_patches, embed_dim)`, the leading token being `[CLS]
 ## Preprocessing
 
 `DinoV2ImageProcessor.from_weights("zeromodels/<variant>")` reads its settings from the
-repo's `kf_preprocessor.json`; `DinoV2ImageProcessor()` with no arguments gives the same
+repo's `zm_preprocessor.json`; `DinoV2ImageProcessor()` with no arguments gives the same
 defaults. Two matching options:
 
 - **`DinoV2ImageProcessor`** (matches transformers' `BitImageProcessor` for
@@ -77,9 +77,7 @@ defaults. Two matching options:
   ```python
   from zeromodels.models.dino_v2 import DinoV2Model, DinoV2ImageProcessor
 
-  model = DinoV2Model.from_weights(
-      "zeromodels/dinov2-base", include_normalization=False
-  )
+  model = DinoV2Model.from_weights("zeromodels/dinov2-base", include_normalization=False)
   processor = DinoV2ImageProcessor.from_weights("zeromodels/dinov2-base")
 
   pixel_values = processor("bear.jpg")["pixel_values"]  # (1, 224, 224, 3), normalized

@@ -242,7 +242,7 @@ class SegFormerSemanticSegment(BaseModel):
     BASE_MODEL_CONFIG = None
     config_class = SegformerConfig
     # Weights load by Hub repo id, e.g. from_weights("zeromodels/segformer_b0_ade_512"),
-    # via kf_config.json on the repo (no url table in the package).
+    # via zm_config.json on the repo (no url table in the package).
     BASE_WEIGHT_CONFIG = None
     HF_MODEL_TYPE = "segformer"
 

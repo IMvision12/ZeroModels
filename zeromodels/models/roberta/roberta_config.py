@@ -5,7 +5,7 @@ class RobertaConfig(BaseConfig):
     r"""Configuration for the RoBERTa encoder ([`RobertaModel`]) and its task heads.
 
     RoBERTa is a BERT-style encoder trained with a robust, longer masked-LM recipe (no
-    next-sentence objective, byte-level BPE, a single token type). One `kf_config.json`
+    next-sentence objective, byte-level BPE, a single token type). One `zm_config.json`
     (declaring the canonical [`RobertaModel`]) sits on each variant's repo; the encoder,
     masked-LM, and task-head classes all load from it. Fields mirror the model
     constructor and serialize flat.

@@ -8,7 +8,7 @@ class MobileNetV4Config(BaseConfig):
     Bottleneck (UIB) block, which generalizes the inverted residual with optional
     starting and mid depthwise convolutions (yielding the IB / ConvNeXt / ExtraDW /
     FFN shapes), plus a Mobile Multi-Query Attention (Mobile MQA) block in the hybrid
-    variants. One `kf_config.json` (declaring the canonical
+    variants. One `zm_config.json` (declaring the canonical
     [`MobileNetV4ImageClassify`]) sits on each variant's repo, and both the backbone
     and classifier load from it. Fields mirror the model constructor and serialize
     flat.

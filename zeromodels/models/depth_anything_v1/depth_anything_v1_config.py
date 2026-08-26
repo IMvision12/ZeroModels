@@ -7,7 +7,7 @@ class DepthAnythingV1Config(BaseConfig):
 
     The defaults describe the Depth Anything V1 Small variant; other variants
     override the backbone dimensions and neck widths. Fields mirror the model
-    constructor and serialize flat to a repo's `kf_config.json`.
+    constructor and serialize flat to a repo's `zm_config.json`.
 
     Args:
         backbone_dim (`int`, *optional*, defaults to 384):

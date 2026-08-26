@@ -7,7 +7,7 @@ class GemmaConfig(BaseConfig):
     Gemma is Google's decoder-only transformer: `(1 + w)` RMSNorm, GeGLU
     (tanh-approximate gelu) MLPs, scaled token embeddings, a `head_dim` (256)
     decoupled from `embed_dim // num_heads` (the 2B is multi-query, one K/V head),
-    rotary positions, and a tied LM head. One `kf_config.json` sits on each
+    rotary positions, and a tied LM head. One `zm_config.json` sits on each
     variant's repo, and fields mirror the model constructor and serialize flat.
 
     Args:

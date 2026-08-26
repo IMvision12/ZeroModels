@@ -6,7 +6,7 @@ class ResNetConfig(BaseConfig):
 
     A ResNet stacks four stages of residual bottleneck blocks. The defaults
     describe an 18-block-style layout; the hosted variants override `depths` /
-    `filters` (resnet50 / resnet101 / resnet152). One `kf_config.json` (declaring
+    `filters` (resnet50 / resnet101 / resnet152). One `zm_config.json` (declaring
     the canonical [`ResNetImageClassify`]) sits on each variant's repo, and both the
     backbone and the classifier load from it. Fields mirror the model constructor
     and serialize flat.

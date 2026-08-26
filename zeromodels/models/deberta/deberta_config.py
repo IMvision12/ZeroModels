@@ -5,7 +5,7 @@ class DebertaConfig(BaseConfig):
     r"""Configuration for the DeBERTa encoder ([`DebertaModel`]) and its task heads.
 
     DeBERTa adds disentangled content/position attention and an enhanced mask decoder
-    to a BERT-style encoder. One `kf_config.json` (declaring the canonical
+    to a BERT-style encoder. One `zm_config.json` (declaring the canonical
     [`DebertaModel`]) sits on each variant's repo. Fields mirror the model constructor
     and serialize flat.
 

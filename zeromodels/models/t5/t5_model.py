@@ -18,7 +18,7 @@ from .t5_layers import (
 )
 
 # All T5 classes (backbone + generative head + encoder + task heads) share the variant's
-# weights repo, whose kf_config.json declares the canonical T5Model. The single hosted
+# weights repo, whose zm_config.json declares the canonical T5Model. The single hosted
 # checkpoint is the full encoder-decoder; each class loads its own subset by leaf suffix.
 T5_HUB_SIBLINGS = frozenset(
     {

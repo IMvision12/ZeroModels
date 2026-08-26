@@ -21,7 +21,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.deit import DeiTImageClassify
 
 # Architecture presets, moved here from deit_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 DEIT_MODEL_CONFIG = {
     "deit_tiny_patch16_224": {
@@ -175,7 +175,7 @@ DEIT_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 DEIT_VARIANTS = {
     "deit_tiny_patch16_224_fb_in1k": {
         "model": "deit_tiny_patch16_224",

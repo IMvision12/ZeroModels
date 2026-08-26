@@ -8,7 +8,7 @@ from zeromodels.models.granite_speech.granite_speech_model import (
 from .granite_speech_plus_config import GraniteSpeechPlusConfig
 
 # GraniteSpeechPlus has its own weights repos (separate from GraniteSpeech). The
-# backbone + generate head both load from the variant's repo, whose kf_config.json
+# backbone + generate head both load from the variant's repo, whose zm_config.json
 # declares the canonical GraniteSpeechPlusConditionalGenerate.
 GRANITE_SPEECH_PLUS_HUB_SIBLINGS = frozenset(
     {"GraniteSpeechPlusModel", "GraniteSpeechPlusConditionalGenerate"}

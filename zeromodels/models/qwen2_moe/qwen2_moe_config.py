@@ -8,7 +8,7 @@ class Qwen2MoeConfig(BaseConfig):
     positions) and replaces the dense MLP on the sparse layers with a softmax
     router over `num_experts` fused-einsum experts (top-`num_experts_per_tok`)
     plus an always-on shared expert. `Qwen1.5-MoE-A2.7B` and `Qwen2-57B-A14B` use
-    this class. One `kf_config.json` sits on each variant's repo, and fields
+    this class. One `zm_config.json` sits on each variant's repo, and fields
     mirror the model constructor and serialize flat.
 
     Args:

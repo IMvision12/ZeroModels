@@ -61,7 +61,7 @@ class GraniteSpeechAudioFeatures(layers.Layer):
 
 
 # GraniteSpeechModel (backbone) and GraniteSpeechConditionalGenerate (+ LM head + .generate)
-# share the variant's weights repo, whose kf_config.json declares the canonical
+# share the variant's weights repo, whose zm_config.json declares the canonical
 # GraniteSpeechConditionalGenerate. GraniteSpeechPlus has its own repos + sibling set.
 GRANITE_SPEECH_HUB_SIBLINGS = frozenset(
     {"GraniteSpeechModel", "GraniteSpeechConditionalGenerate"}

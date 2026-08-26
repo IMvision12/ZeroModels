@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
@@ -63,7 +63,7 @@ SAMProcessor(target_length=1024, image_mean=None, image_std=None, data_format=No
 Resizes the long edge to `target_length`, pads to a square, normalizes, and rescales
 any prompt coordinates by the same factor. Load it with
 `SAMProcessor.from_weights("zeromodels/sam_vit_<size>")`, which reads the repo's
-`kf_preprocessor.json`.
+`zm_preprocessor.json`.
 
 **Call** `processor(image, input_points=None, input_labels=None, input_boxes=None)`.
 **Returns** a `dict`:
@@ -244,9 +244,7 @@ from zeromodels.models.sam import (
 )
 
 # enable_boxes adds input_boxes and has_boxes_input to the graph
-model = SAMPromptableSegment.from_weights(
-    "zeromodels/sam_vit_base", enable_boxes=True
-)
+model = SAMPromptableSegment.from_weights("zeromodels/sam_vit_base", enable_boxes=True)
 processor = SAMProcessor.from_weights("zeromodels/sam_vit_base")
 
 image = Image.open("assets/data/coco_cats.jpg").convert("RGB")
@@ -427,9 +425,7 @@ model = SAMPromptableSegment.from_weights("hf:facebook/sam-vit-base")
 model = SAMPromptableSegment.from_weights("hf:<user>/sam-finetuned-on-my-data")
 
 # Architecture only, randomly initialized
-model = SAMPromptableSegment.from_weights(
-    "zeromodels/sam_vit_base", load_weights=False
-)
+model = SAMPromptableSegment.from_weights("zeromodels/sam_vit_base", load_weights=False)
 
 # Box prompts work through the hf: route too
 model = SAMPromptableSegment.from_weights("hf:facebook/sam-vit-base", enable_boxes=True)

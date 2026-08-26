@@ -1524,7 +1524,7 @@ class RFDETRDetect(BaseModel):
 
     BASE_MODEL_CONFIG = None
     # Weights load by Hub repo id, e.g. from_weights("zeromodels/rfdetr-nano"),
-    # via kf_config.json on the repo (no url table in the package).
+    # via zm_config.json on the repo (no url table in the package).
     config_class = RFDetrConfig
     BASE_WEIGHT_CONFIG = None
     HF_MODEL_TYPE = "rf_detr"

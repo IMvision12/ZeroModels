@@ -91,7 +91,7 @@ DEPTH_ANYTHING_V1_VARIANTS: List[Tuple[str, str]] = [
 
 # Per-variant recipes (relocated from depth_anything_v1_config.py). Models load
 # from the Hub by repo id; these build the arch for conversion + drive the
-# kf_config backfill.
+# zm_config backfill.
 DEPTH_ANYTHING_V1_RECIPES = {
     "depth_anything_small": {
         "backbone_dim": 384,

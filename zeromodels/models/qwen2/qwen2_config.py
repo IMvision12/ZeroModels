@@ -6,7 +6,7 @@ class Qwen2Config(BaseConfig):
 
     Qwen2 is Alibaba's decoder-only transformer: grouped-query attention with a
     bias on the q/k/v projections, SwiGLU MLPs, RMSNorm, and 1D rotary positions.
-    One `kf_config.json` sits on each variant's repo, and fields mirror the model
+    One `zm_config.json` sits on each variant's repo, and fields mirror the model
     constructor and serialize flat.
 
     Args:

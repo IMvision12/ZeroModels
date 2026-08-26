@@ -120,7 +120,7 @@ DINO_RESNET_CONVERSION_CONFIG: List[Tuple[str, str]] = [
 ]
 
 # Per-variant recipes (relocated from dino_config.py). Models load from the Hub
-# by repo id; these build the arch for conversion + drive the kf_config backfill.
+# by repo id; these build the arch for conversion + drive the zm_config backfill.
 DINO_VIT_RECIPES = {
     "dino-vits16": {"patch_size": 16, "embed_dim": 384, "depth": 12, "num_heads": 6},
     "dino-vits8": {"patch_size": 8, "embed_dim": 384, "depth": 12, "num_heads": 6},

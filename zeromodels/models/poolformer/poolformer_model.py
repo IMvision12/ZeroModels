@@ -9,7 +9,7 @@ from zeromodels.utils.image_util import normalize_image_for_classify_models
 from .poolformer_config import PoolFormerConfig
 
 # The backbone (PoolFormerModel) and classifier (PoolFormerImageClassify) share the
-# variant's repo, whose kf_config.json declares PoolFormerImageClassify.
+# variant's repo, whose zm_config.json declares PoolFormerImageClassify.
 POOLFORMER_HUB_SIBLINGS = frozenset({"PoolFormerModel", "PoolFormerImageClassify"})
 
 
@@ -280,7 +280,7 @@ class PoolFormerModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # Backbone shares the variant's repo with PoolFormerImageClassify (which the
-        # kf_config declares); build from kf_config, then copy the backbone weights.
+        # zm_config declares); build from zm_config, then copy the backbone weights.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = PoolFormerImageClassify.from_weights(

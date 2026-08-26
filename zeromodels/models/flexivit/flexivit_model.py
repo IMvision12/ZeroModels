@@ -7,7 +7,7 @@ from zeromodels.models.vit.vit_model import ViTImageClassify, ViTModel
 from .flexivit_config import FlexiViTConfig
 
 # The backbone (FlexiViTModel) and classifier (FlexiViTImageClassify) share the
-# variant's weights repo, whose kf_config.json declares FlexiViTImageClassify.
+# variant's weights repo, whose zm_config.json declares FlexiViTImageClassify.
 FLEXIVIT_HUB_SIBLINGS = frozenset({"FlexiViTModel", "FlexiViTImageClassify"})
 
 
@@ -63,7 +63,7 @@ class FlexiViTModel(ViTModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # Backbone shares the variant's repo with FlexiViTImageClassify (which the
-        # kf_config declares); build from kf_config, then copy the backbone weights.
+        # zm_config declares); build from zm_config, then copy the backbone weights.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = FlexiViTImageClassify.from_weights(

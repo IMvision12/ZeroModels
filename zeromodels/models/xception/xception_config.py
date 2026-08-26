@@ -6,7 +6,7 @@ class XceptionConfig(BaseConfig):
 
     Xception replaces Inception modules with depthwise-separable convolutions and
     residual connections; the timm `41`/`65`/`71` presets differ in depth, with an
-    optional pre-activation variant. One `kf_config.json` (declaring the canonical
+    optional pre-activation variant. One `zm_config.json` (declaring the canonical
     [`XceptionImageClassify`]) sits on each variant's repo, and both the backbone and
     classifier load from it. Fields mirror the model constructor and serialize flat.
 

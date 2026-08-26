@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>, stored
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>, stored
 in <b>bfloat16</b>). Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>,
 or convert an original checkpoint on the fly with
 <code>from_weights("hf:zai-org/GLM-4-9B-0414")</code>. See

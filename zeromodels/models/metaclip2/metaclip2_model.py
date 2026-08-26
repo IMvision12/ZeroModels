@@ -15,7 +15,7 @@ from .metaclip2_config import MetaClip2Config
 from .metaclip2_tokenizer import METACLIP2_EOS_TOKEN_ID
 
 # The full MetaClip2Model plus its task heads (vision / text / zero-shot /
-# classify) all load from one repo per variant, whose kf_config.json declares the
+# classify) all load from one repo per variant, whose zm_config.json declares the
 # canonical MetaClip2ZeroShotClassify. Listing them as siblings lets any head load
 # that repo.
 METACLIP2_HUB_SIBLINGS = frozenset(
@@ -310,7 +310,7 @@ class MetaClip2VisionModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full MetaClip2Model;
-        # build it from the repo's kf_config, then copy the matching weights across.
+        # build it from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = MetaClip2Model.from_weights(repo_id, skip_mismatch=skip_mismatch)
@@ -476,7 +476,7 @@ class MetaClip2TextModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full MetaClip2Model;
-        # build it from the repo's kf_config, then copy the matching weights across.
+        # build it from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = MetaClip2Model.from_weights(repo_id, skip_mismatch=skip_mismatch)
@@ -948,7 +948,7 @@ class MetaClip2ImageClassify(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # This head shares the variant's weights repo with the full MetaClip2Model;
-        # build it from the repo's kf_config, then copy the matching weights across.
+        # build it from the repo's zm_config, then copy the matching weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = MetaClip2Model.from_weights(repo_id, skip_mismatch=skip_mismatch)

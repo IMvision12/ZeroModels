@@ -7,7 +7,7 @@ class Sam3Config(BaseConfig):
     A ViT image encoder + FPN neck feeding a DETR-style encoder-decoder and a mask
     decoder, with a CLIP-style text branch for concept prompts. There is a single
     released variant; the defaults describe it. Fields serialize flat to a repo's
-    `kf_config.json`.
+    `zm_config.json`.
 
     Args:
         vit_hidden_size (`int`, *optional*, defaults to 1024):

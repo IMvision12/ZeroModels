@@ -14,7 +14,7 @@ from zeromodels.models.resnet.resnet_model import (
 from .resnext_config import ResNeXtConfig
 
 # The backbone (ResNeXtModel) and classifier (ResNeXtImageClassify) share the
-# variant's weights repo, whose kf_config.json declares ResNeXtImageClassify.
+# variant's weights repo, whose zm_config.json declares ResNeXtImageClassify.
 RESNEXT_HUB_SIBLINGS = frozenset({"ResNeXtModel", "ResNeXtImageClassify"})
 
 
@@ -162,7 +162,7 @@ class ResNeXtModel(ResNetModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # Backbone shares the variant's repo with ResNeXtImageClassify (which the
-        # kf_config declares); build from kf_config, then copy the backbone weights.
+        # zm_config declares); build from zm_config, then copy the backbone weights.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:
             src = ResNeXtImageClassify.from_weights(

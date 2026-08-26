@@ -4140,18 +4140,18 @@ def import_model_class(config):
 
 
 def instantiate_model(config):
-    """Build a registry model, applying a KfQuantizer when the entry is quantized.
+    """Build a registry model, applying a ZmQuantizer when the entry is quantized.
 
     Models are quantization-agnostic, so a natively-quantized variant (e.g. the
     mxfp4 GPT-OSS entry) is produced by running its ``quantization_config`` through
-    a :class:`KfQuantizer` after construction, the same way ``from_weights`` does.
+    a :class:`ZmQuantizer` after construction, the same way ``from_weights`` does.
     """
     model = import_model_class(config)(**config["init_kwargs"])
     quantization_config = config.get("quantization_config")
     if quantization_config:
-        from zeromodels.quantization import get_kf_quantizer
+        from zeromodels.quantization import get_zm_quantizer
 
-        get_kf_quantizer(quantization_config).preprocess_model(model)
+        get_zm_quantizer(quantization_config).preprocess_model(model)
     return model
 
 

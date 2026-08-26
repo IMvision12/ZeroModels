@@ -173,7 +173,7 @@ DINOV2_VARIANTS: List[Tuple[str, str]] = [
 ]
 
 # Per-variant recipes (relocated from dino_v2_config.py). Models load from the Hub
-# by repo id; these build the arch for conversion + drive the kf_config backfill.
+# by repo id; these build the arch for conversion + drive the zm_config backfill.
 DINOV2_RECIPES = {
     "dinov2-small": {
         "patch_size": 14,

@@ -10,7 +10,7 @@ from zeromodels.models.resnet.convert_resnet_timm_to_keras import (
 from zeromodels.models.senet import SENetImageClassify
 
 # Architecture presets, moved here from senet_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 SENET_MODEL_CONFIG = {
     "seresnet50": {
@@ -45,7 +45,7 @@ SENET_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 SENET_VARIANTS = {
     "seresnet50_a1_in1k": {"model": "seresnet50", "timm_id": "seresnet50.a1_in1k"},
     "seresnext50_32x4d_racm_in1k": {

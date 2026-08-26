@@ -36,7 +36,7 @@ _load_from_checkpoint_source`):
       same module unless ``module`` says otherwise; ``build_kwargs`` build it as the full
       reference (e.g. ``{"add_pooler": True}``).
     * multimodal families (VLMs): the hosted file is the full ``*ConditionalGenerate``
-      (declared in its ``kf_config.json``); a text head copies its backbone out by full
+      (declared in its ``zm_config.json``); a text head copies its backbone out by full
       post-root path (``match="path"``), dropping the vision / audio towers. ``module`` is
       the full class's import path; the source fires only when a repo declares that class.
 
@@ -154,7 +154,7 @@ class WeightLoadingMixin:
     weights, regardless of source:
 
     1. **Hub repo (self-describing)**: an ``"org/repo"`` id whose repo carries a
-       ``kf_config.json``. The model is rebuilt from that flat config (via
+       ``zm_config.json``. The model is rebuilt from that flat config (via
        ``config_class``) and its weights are loaded from the same repo. Works for
        the official weights and for community fine-tunes of the same architecture.
     2. **Hub (``hf:`` conversion)**: an ``"hf:org/repo"`` id pulls the original
@@ -193,15 +193,15 @@ class WeightLoadingMixin:
     BASE_WEIGHT_CONFIG = None
     HF_MODEL_TYPE = None
     # Typed BaseConfig subclass for this model (set by models that ship one).
-    # When present, a repo's flat kf_config.json is parsed through it, the model
+    # When present, a repo's flat zm_config.json is parsed through it, the model
     # accepts a config object (``Model(config)``), and exposes ``self.config``.
     config_class = None
     # Default generation settings (e.g. Whisper's suppress_tokens) for models with
-    # a ``generate(...)`` method. Written into a repo's kf_config.json under
+    # a ``generate(...)`` method. Written into a repo's zm_config.json under
     # ``generate_args`` and re-attached to the model on repo-id load.
     generate_args = None
     # Default ``load_dtype`` for :meth:`from_weights` when the caller passes none,
-    # and the ``dtype`` recorded into a repo's kf_config.json. Defaults to float32
+    # and the ``dtype`` recorded into a repo's zm_config.json. Defaults to float32
     # (the historical convention for the hosted vision / encoder / ASR weights);
     # models whose hosted weights are bf16 (gemma*, gpt-oss, qwen*, locateanything)
     # override to ``"bfloat16"`` so they load at native ~2 bytes/param instead of an
@@ -261,7 +261,7 @@ class WeightLoadingMixin:
                 load and left at their default initialization. Useful for
                 fine-tuning: pass ``num_classes=N, skip_mismatch=True`` to
                 swap in a new classifier head while loading the rest of the
-                backbone. Applied on both the repo-id ``kf_config.json`` load
+                backbone. Applied on both the repo-id ``zm_config.json`` load
                 path and the ``hf:`` / variant converter transfer path
                 (mismatched targets left at init).
             attn_implementation: ``"sdpa"`` (portable manual math, the default)
@@ -277,7 +277,7 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                 quantizes via :func:`zeromodels.quantization.quantize_model`.
             load_dtype: ``None`` resolves, highest priority first, to the repo's
                 recorded ``weight_dtype`` (from a zeromodels Hub repo's
-                ``kf_config.json`` -- the checkpoint's real precision), then to
+                ``zm_config.json`` -- the checkpoint's real precision), then to
                 ``cls.default_load_dtype`` (fp32 for most models, bf16 for families
                 that ship bf16 weights such as GPT-OSS) for the ``hf:`` / variant
                 paths and repos predating ``weight_dtype``. Or pass a dtype string
@@ -319,7 +319,7 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
         # over any library-side default):
         #   1. an explicit ``load_dtype=`` from the caller,
         #   2. the ``weight_dtype`` a zeromodels Hub repo records in its
-        #      kf_config.json -- the checkpoint's actual dtype, so a repo saved in a
+        #      zm_config.json -- the checkpoint's actual dtype, so a repo saved in a
         #      precision other than its family default (a bf16 fine-tune of an fp32
         #      family, say) still loads natively instead of being cast,
         #   3. ``cls.default_load_dtype``, the family's native precision, for the
@@ -364,7 +364,7 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                 )
             elif "/" in identifier:
                 # A bare Hub repo id ("zeromodels/detr-resnet-50"): rebuild from
-                # the repo's own kf_config.json and load its weights, no variant
+                # the repo's own zm_config.json and load its weights, no variant
                 # hardcoded in the package. Quantization / caching still run in the
                 # post-build steps below, exactly as for the variant path.
                 model = cls.from_hub_repo(
@@ -556,7 +556,7 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
 
     @classmethod
     def _accepts_hub_class(cls, declared):
-        """Whether a repo whose ``kf_config.json`` declares model_class
+        """Whether a repo whose ``zm_config.json`` declares model_class
         ``declared`` may be loaded by this class.
 
         Default: only the exact same class (strict). A family whose several task
@@ -568,10 +568,10 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         return declared in getattr(cls, "HUB_REPO_SIBLINGS", frozenset())
 
     @classmethod
-    def _config_from_kf_spec(cls, spec, variant):
-        """Constructor kwargs from a parsed ``kf_config.json`` (or the legacy
+    def _config_from_zm_spec(cls, spec, variant):
+        """Constructor kwargs from a parsed ``zm_config.json`` (or the legacy
         BASE_MODEL_CONFIG fallback). No model_class guard, no weight loading."""
-        from zeromodels.conversion.kf_config import KF_METADATA_KEYS, retuple
+        from zeromodels.conversion.zm_config import ZM_METADATA_KEYS, retuple
 
         if spec is not None and isinstance(spec.get("config"), dict):
             # legacy nested format: constructor kwargs under a "config" *dict* key.
@@ -580,7 +580,7 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
             return retuple(spec["config"])
         if spec is not None:
             # flat format: hyperparameters at the top level (transformers style).
-            fields = {k: v for k, v in spec.items() if k not in KF_METADATA_KEYS}
+            fields = {k: v for k, v in spec.items() if k not in ZM_METADATA_KEYS}
             if cls.config_class is not None:
                 return cls.config_class.from_dict(fields).constructor_kwargs()
             fields.pop("model_type", None)
@@ -588,14 +588,14 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         if cls.BASE_MODEL_CONFIG and variant in cls.BASE_MODEL_CONFIG:
             return dict(cls.BASE_MODEL_CONFIG[variant])
         raise ValueError(
-            f"Cannot load variant '{variant}': the repo has no kf_config.json and "
+            f"Cannot load variant '{variant}': the repo has no zm_config.json and "
             f"'{variant}' is not a known variant of {cls.__name__}. Pass a repo "
-            f"that carries kf_config.json."
+            f"that carries zm_config.json."
         )
 
     @staticmethod
     def _apply_generate_args(model, spec):
-        """Attach a repo's kf_config ``generate_args`` to the built model, so its
+        """Attach a repo's zm_config ``generate_args`` to the built model, so its
         ``generate(...)`` picks up the repo's default generation settings. Merged
         over the class default, so a repo that overrides only some keys keeps the
         rest."""
@@ -606,7 +606,7 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
 
     @staticmethod
     def _apply_quantization_config(model, quantization_config):
-        """Run the matching :class:`KfQuantizer` so a natively-quantized repo (e.g.
+        """Run the matching :class:`ZmQuantizer` so a natively-quantized repo (e.g.
         an mxfp4 GPT-OSS checkpoint) swaps in its packed layers *before* the weights
         load, and stamps ``model._quantization_config`` for save round-trips. The
         model stays quantization-agnostic; this is the sole thing that packs it.
@@ -616,17 +616,17 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         the caller must use the returned value. No-op (returns ``model`` unchanged)
         when the repo carries no ``quantization_config`` block."""
         if quantization_config:
-            from zeromodels.quantization import get_kf_quantizer
+            from zeromodels.quantization import get_zm_quantizer
 
-            model = get_kf_quantizer(quantization_config).preprocess_model(model)
+            model = get_zm_quantizer(quantization_config).preprocess_model(model)
         return model
 
     @staticmethod
     def hub_repo_weight_dtype(identifier):
         """The dtype a Hub repo's weights are stored in, or ``None``.
 
-        Reads ``weight_dtype`` from the repo's ``kf_config.json`` (written by
-        :func:`~zeromodels.conversion.kf_config.write_kf_config`) so
+        Reads ``weight_dtype`` from the repo's ``zm_config.json`` (written by
+        :func:`~zeromodels.conversion.zm_config.write_zm_config`) so
         :meth:`from_weights` can build at the checkpoint's real precision. Returns
         ``None`` for anything that is not a bare ``org/repo`` id (a bare variant or
         an ``hf:`` id, whose precision comes from the class default), for repos
@@ -635,25 +635,25 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         """
         if identifier.startswith(_HF_PREFIX) or "/" not in identifier:
             return None
-        from zeromodels.conversion.kf_config import load_kf_config
+        from zeromodels.conversion.zm_config import load_zm_config
 
         try:
-            spec = load_kf_config(identifier.rstrip("/"))
+            spec = load_zm_config(identifier.rstrip("/"))
         except Exception:
             return None
         return (spec or {}).get("weight_dtype")
 
     @classmethod
     def build_from_hub_repo(cls, repo_id, **kwargs):
-        """Build (unloaded) from a repo's ``kf_config.json``, bypassing the
+        """Build (unloaded) from a repo's ``zm_config.json``, bypassing the
         model_class guard. For task heads that share a family's weights repo and
         load by copying from the full model rather than reading the h5 directly."""
-        from zeromodels.conversion.kf_config import load_kf_config
+        from zeromodels.conversion.zm_config import load_zm_config
 
         repo_id = repo_id.rstrip("/")
         variant = repo_id.rsplit("/", 1)[-1]
-        spec = load_kf_config(repo_id)
-        config = cls._config_from_kf_spec(spec, variant)
+        spec = load_zm_config(repo_id)
+        config = cls._config_from_zm_spec(spec, variant)
         config.update(kwargs)
         model = cls(**config)
         cls._apply_generate_args(model, spec)
@@ -687,7 +687,7 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         """The :class:`CheckpointSource` to apply for this load, or ``None``.
 
         ``match`` selects the family so the dispatch keeps its ordering: a ``"path"`` (VLM)
-        source is resolved BEFORE the sibling guard and fires only when the repo's kf_config
+        source is resolved BEFORE the sibling guard and fires only when the repo's zm_config
         declares the full source class (and it is not this class); a ``"suffix"`` (encoder)
         source is resolved AFTER the guard and is unconditional.
         """
@@ -758,9 +758,9 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
 
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
-        """Build + load a model from a Hub repo id carrying ``kf_config.json``.
+        """Build + load a model from a Hub repo id carrying ``zm_config.json``.
 
-        The repo describes itself: ``kf_config.json`` names the class and the
+        The repo describes itself: ``zm_config.json`` names the class and the
         constructor kwargs, and the weights live in the same repo
         (``model.weights.h5`` / sharded ``model.weights.json``). This is the
         loading path for ``from_weights("org/repo")``: nothing about the variant
@@ -768,18 +768,18 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         architecture load the same way as the official weights.
 
         Falls back to ``BASE_MODEL_CONFIG[variant]`` (variant = repo basename)
-        when the repo carries no ``kf_config.json`` yet, so a not-yet-backfilled
+        when the repo carries no ``zm_config.json`` yet, so a not-yet-backfilled
         official repo still loads.
         """
-        from zeromodels.conversion.kf_config import load_kf_config
+        from zeromodels.conversion.zm_config import load_zm_config
 
         repo_id = repo_id.rstrip("/")
         variant = repo_id.rsplit("/", 1)[-1]
-        spec = load_kf_config(repo_id)
+        spec = load_zm_config(repo_id)
         declared = spec.get("model_class") if spec is not None else None
         if spec is not None:
             # A head can load its backbone out of a fuller (e.g. multimodal) sibling
-            # checkpoint whose kf_config declares that full class: build it and copy this
+            # checkpoint whose zm_config declares that full class: build it and copy this
             # head's weights out, dropping the rest (a text head reading a VLM checkpoint).
             # Checked before the sibling guard, since the head does not "accept" that class.
             cs = cls._checkpoint_source_for(declared, "path")
@@ -797,7 +797,7 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
                 and not cls._accepts_hub_class(declared)
             ):
                 raise ValueError(
-                    f"'{repo_id}' kf_config.json declares model_class "
+                    f"'{repo_id}' zm_config.json declares model_class "
                     f"'{declared}', but {cls.__name__}.from_weights() was called. "
                     f"Load it with {declared}.from_weights('{repo_id}')."
                 )
@@ -815,7 +815,7 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
                 **kwargs,
             )
 
-        config = cls._config_from_kf_spec(spec, variant)
+        config = cls._config_from_zm_spec(spec, variant)
         config.update(kwargs)
         model = cls(**config)
         cls._apply_generate_args(model, spec)
@@ -1013,32 +1013,32 @@ class PreprocessorMixin(keras.layers.Layer):
 
     @classmethod
     def from_hub_repo(cls, repo_id, **kwargs):
-        """Build the preprocessor from a repo's ``kf_preprocessor.json``.
+        """Build the preprocessor from a repo's ``zm_preprocessor.json``.
 
         Mirrors the model's :meth:`WeightLoadingMixin.from_hub_repo`, so a
         processor loads with the same repo id as its model
         (``DETRImageProcessor.from_weights("zeromodels/detr-resnet-50")``).
-        Transformers-style: a repo that carries no ``kf_preprocessor.json`` raises,
+        Transformers-style: a repo that carries no ``zm_preprocessor.json`` raises,
         rather than silently returning generic defaults; build the defaults
         explicitly with ``cls()`` if that is what you want.
         """
-        from zeromodels.conversion.kf_config import (
-            KF_METADATA_KEYS,
-            load_kf_preprocessor,
+        from zeromodels.conversion.zm_config import (
+            ZM_METADATA_KEYS,
+            load_zm_preprocessor,
         )
 
-        spec = load_kf_preprocessor(repo_id.rstrip("/"))
+        spec = load_zm_preprocessor(repo_id.rstrip("/"))
         if spec is None:
             raise OSError(
                 f"{repo_id} does not appear to have a file named "
-                f"kf_preprocessor.json. Build {cls.__name__} with default settings "
-                f"via {cls.__name__}() instead, or add a kf_preprocessor.json to "
+                f"zm_preprocessor.json. Build {cls.__name__} with default settings "
+                f"via {cls.__name__}() instead, or add a zm_preprocessor.json to "
                 f"the repo."
             )
         if "config" in spec:
             config = dict(spec["config"])  # legacy nested format
         else:
-            config = {k: v for k, v in spec.items() if k not in KF_METADATA_KEYS}
+            config = {k: v for k, v in spec.items() if k not in ZM_METADATA_KEYS}
         config.update(kwargs)
         return cls(**config)
 

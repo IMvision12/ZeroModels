@@ -52,7 +52,7 @@ class MaskFormerImageProcessor(BaseImageProcessor):
 
         The COCO checkpoints build at 384 and the ADE ones at 512. The
         per-variant resolution is no longer kept in the package: it travels in
-        the repo's ``kf_preprocessor.json`` and is applied when loading via
+        the repo's ``zm_preprocessor.json`` and is applied when loading via
         ``from_weights("zeromodels/<variant>")``. Direct construction without
         an explicit ``target_size`` falls back to 512.
         """

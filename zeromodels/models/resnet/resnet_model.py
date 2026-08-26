@@ -11,7 +11,7 @@ from zeromodels.utils.image_util import normalize_image_for_classify_models
 from .resnet_config import ResNetConfig
 
 # The ResNet backbone (ResNetModel) and classifier (ResNetImageClassify) share the
-# variant's weights repo, whose kf_config.json declares the canonical
+# variant's weights repo, whose zm_config.json declares the canonical
 # ResNetImageClassify. Per-variant arch for the timm ``hf:`` path.
 RESNET_HUB_SIBLINGS = frozenset({"ResNetModel", "ResNetImageClassify"})
 
@@ -380,7 +380,7 @@ class ResNetModel(BaseModel):
     @classmethod
     def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
         # The backbone shares the variant's weights repo with ResNetImageClassify
-        # (which the kf_config declares); build it from the repo's kf_config, then
+        # (which the zm_config declares); build it from the repo's zm_config, then
         # copy the matching backbone weights across.
         model = cls.build_from_hub_repo(repo_id, **kwargs)
         if load_weights:

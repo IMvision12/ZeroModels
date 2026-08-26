@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>kf_config.json</code> + <code>model.weights.h5</code>).
+(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>).
 Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
@@ -80,7 +80,7 @@ Upstream Google safetensors also load directly via the `hf:` prefix, e.g.
 ## API
 
 Configs are typed: `Gemma4Config` (composite) over `Gemma4TextConfig`,
-`Gemma4VisionConfig`, and `Gemma4AudioConfig`; each repo's `kf_config.json` parses
+`Gemma4VisionConfig`, and `Gemma4AudioConfig`; each repo's `zm_config.json` parses
 through them.
 
 ### `Gemma4Model`

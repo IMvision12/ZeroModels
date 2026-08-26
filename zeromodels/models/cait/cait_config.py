@@ -6,7 +6,7 @@ class CaiTConfig(BaseConfig):
 
     CaiT (Class-Attention in Image Transformers) deepens ViT with LayerScale and
     separates patch self-attention from a small stack of class-attention layers that
-    update only the class token. One `kf_config.json` (declaring the canonical
+    update only the class token. One `zm_config.json` (declaring the canonical
     [`CaiTImageClassify`]) sits on each variant's repo, and both the backbone and
     classifier load from it. Fields mirror the model constructor and serialize flat.
 

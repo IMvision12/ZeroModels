@@ -5,7 +5,7 @@ class InceptionV4Config(BaseConfig):
     r"""Configuration for [`InceptionV4Model`] / [`InceptionV4ImageClassify`].
 
     Inception V4 is a deeper, more uniform Inception network built from stem, Inception-
-    A/B/C and reduction blocks. One `kf_config.json` (declaring the canonical
+    A/B/C and reduction blocks. One `zm_config.json` (declaring the canonical
     [`InceptionV4ImageClassify`]) sits on each variant's repo, and both the backbone and
     classifier load from it. Fields mirror the model constructor and serialize flat.
 

@@ -20,7 +20,7 @@ from zeromodels.conversion.weight_transfer_util import (
 from zeromodels.models.efficientnetv2 import EfficientNetV2ImageClassify
 
 # Architecture presets, moved here from efficientnetv2_config.py: the package config no
-# longer carries arch (models load by Hub repo id / kf_config). Only this converter
+# longer carries arch (models load by Hub repo id / zm_config). Only this converter
 # builds an untrained model to transfer timm weights into.
 EFFICIENTNETV2_MODEL_CONFIG = {
     "efficientnetv2_s": {
@@ -134,7 +134,7 @@ EFFICIENTNETV2_MODEL_CONFIG = {
 }
 
 # Hosted variants -> (model arch key, timm id). Weights load by Hub repo id
-# (kf_config.json); the github release urls have been removed.
+# (zm_config.json); the github release urls have been removed.
 EFFICIENTNETV2_VARIANTS = {
     "tf_efficientnetv2_s_in1k": {
         "model": "efficientnetv2_s",

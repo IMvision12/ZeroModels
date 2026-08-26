@@ -14,14 +14,14 @@ class RFDETRImageProcessor(BaseImageProcessor):
 
     Every variant trains at its own resolution, so prefer
     ``RFDETRImageProcessor.from_weights("zeromodels/<variant>")``, which reads
-    the right size from the repo's ``kf_preprocessor.json``. Constructing the
+    the right size from the repo's ``zm_preprocessor.json``. Constructing the
     class bare (or with just ``variant=``) gives rfdetr-base's 560, so pass
     ``size`` explicitly if you build it directly for a non-base variant.
 
     Args:
         variant: Release variant label, kept for reference. Size is NOT derived
             from it (per-variant resolution lives in the repo's
-            ``kf_preprocessor.json``); pass ``size`` for a specific resolution.
+            ``zm_preprocessor.json``); pass ``size`` for a specific resolution.
         size: Target size as ``{"height": H, "width": W}``. Defaults to
             ``{"height": 560, "width": 560}`` (rfdetr-base) when not given. Each
             variant's own resolution:
@@ -80,7 +80,7 @@ class RFDETRImageProcessor(BaseImageProcessor):
         """Default square target size (rfdetr-base's 560).
 
         The per-variant resolution is no longer kept in the package: it travels
-        with the weights in the repo's ``kf_preprocessor.json`` and is applied
+        with the weights in the repo's ``zm_preprocessor.json`` and is applied
         when loading via ``from_weights("zeromodels/<variant>")``. Direct
         construction without an explicit ``size`` falls back to 560.
         """
