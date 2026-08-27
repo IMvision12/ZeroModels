@@ -33,7 +33,7 @@ def test_config_roundtrip(model_name):
         f"{model_name}: from_config produced wrong type: {type(revived).__name__}"
     )
 
-    input_data = create_test_input(config)
+    input_data = create_test_input(config, model=model)
     output = revived(input_data)
     assert output is not None, f"{model_name}: revived model produced None output"
 
@@ -189,6 +189,6 @@ def test_keras_serialization_roundtrip(model_name):
         f"{type(revived).__name__}"
     )
 
-    input_data = create_test_input(config)
+    input_data = create_test_input(config, model=model)
     output = revived(input_data)
     assert output is not None, f"{model_name}: revived model produced None output"

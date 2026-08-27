@@ -3152,6 +3152,14 @@ MODEL_TEST_CONFIGS = {
             "vision_num_heads": 2,
             "image_size": 32,
             "patch_size": 16,
+            # 2x2 patch grid (32/16); keep tokens_per_side=sqrt(mm)=2 so the
+            # projector's 4x4-pool kernel (patches_per_image // tokens_per_side) is 1
+            # instead of 0 (256 -> 16 would divide the 2-patch grid to zero).
+            "mm_tokens_per_image": 4,
+            # < vocab_size (128) so the build-time dummy forward can embed it, and
+            # outside the text input's arange ids (0..5) so the text-only test forward
+            # doesn't accidentally trip the image-merge.
+            "image_token_id": 120,
         },
         "input_factory": "qwen_text_input",
         "expected_output_shape": {"logits": (2, 6, 128)},
@@ -3177,6 +3185,12 @@ MODEL_TEST_CONFIGS = {
             "image_size": 32,
             "patch_size": 16,
             "spatial_merge_size": 2,
+            # < vocab_size (128) for the build-time dummy embed, and == the multimodal
+            # test input's image-placeholder id so the merge counts stay consistent.
+            "image_token_id": 4,
+            # Vision tower's output projection must match the text embed_dim (64) so the
+            # image features merge into the decoder hidden states (real default 4096).
+            "vision_out_dim": 64,
         },
         "input_factory": "qwen_text_input",
         "expected_output_shape": {"logits": (2, 6, 128)},
@@ -3210,6 +3224,12 @@ MODEL_TEST_CONFIGS = {
             "image_size": 32,
             "patch_size": 16,
             "spatial_merge_size": 2,
+            # < vocab_size (128) for the build-time dummy embed, and == the multimodal
+            # test input's image-placeholder id so the merge counts stay consistent.
+            "image_token_id": 4,
+            # Vision tower's output projection must match the text embed_dim (64) so the
+            # image features merge into the decoder hidden states (real default 4096).
+            "vision_out_dim": 64,
         },
         "input_factory": "qwen_text_input",
         "expected_output_shape": {"logits": (2, 6, 128)},
@@ -3413,7 +3433,10 @@ MODEL_TEST_CONFIGS = {
             "vision_mlp_dim": 64,
             "vision_num_layers": 2,
             "vision_num_heads": 2,
-            "image_size": 32,
+            # >= 2*patch_size*spatial_merge_size (64): the vision tower's build-time
+            # dummy forward feeds a 2-merge-tile image, and the 2D-rope table is sized
+            # image_size // patch_size, so a smaller image_size indexes it out of range.
+            "image_size": 64,
             "patch_size": 16,
             "spatial_merge_size": 2,
         },
@@ -4155,8 +4178,42 @@ def instantiate_model(config):
     return model
 
 
-def create_test_input(config, batch_size=2):
+# Generative VLMs became functional models (#390): text-only factories no longer
+# satisfy their expanded (image + video + mask + position) input signatures, so flag
+# them for the model-driven multimodal builder in create_test_input.
+_MULTIMODAL_VLM_NAMES = {
+    "Qwen2VLModel",
+    "Qwen2_5VLModel",
+    "Qwen3VLModel",
+    "Qwen3_5MoeModel",
+    "Qwen3VLMoeModel",
+    "Qwen2VLConditionalGenerate",
+    "Qwen2_5VLConditionalGenerate",
+    "Qwen3VLConditionalGenerate",
+    "Qwen3_5MoeConditionalGenerate",
+    "Qwen3VLMoeConditionalGenerate",
+    "DeepseekVLConditionalGenerate",
+    "DeepseekVLHybridConditionalGenerate",
+    "InternVLConditionalGenerate",
+    "InternVLConditionalGenerate_qwen3",
+    "InternVLConditionalGenerate_qwen3_moe",
+    "JanusConditionalGenerate",
+    "KimiK25ConditionalGenerate",
+    "LocateAnythingConditionalGenerate",
+    "MiniMaxM3VLConditionalGenerate",
+    "Gemma3ConditionalGenerate",
+    "Glm4vConditionalGenerate",
+    "Glm4vMoeConditionalGenerate",
+    "Mistral3ConditionalGenerate",
+}
+for _name in _MULTIMODAL_VLM_NAMES:
+    MODEL_TEST_CONFIGS[_name]["multimodal_vlm"] = True
+
+
+def create_test_input(config, batch_size=2, model=None):
     from tests.fixtures import dummy_inputs
+    if config.get("multimodal_vlm") and model is not None:
+        return dummy_inputs.multimodal_vlm_input(model, batch_size=batch_size)
 
     if "input_factory" in config:
         factory_fn = getattr(dummy_inputs, config["input_factory"])
