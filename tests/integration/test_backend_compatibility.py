@@ -32,7 +32,7 @@ def test_model_forward_pass(model_name):
     _skip_if_incompatible(model_name)
     config = MODEL_TEST_CONFIGS[model_name]
     model = instantiate_model(config)
-    input_data = create_test_input(config)
+    input_data = create_test_input(config, model=model)
     output = model(input_data)
 
     expected = config["expected_output_shape"]
@@ -73,7 +73,7 @@ def test_model_no_nans(model_name):
     _skip_if_incompatible(model_name)
     config = MODEL_TEST_CONFIGS[model_name]
     model = instantiate_model(config)
-    input_data = create_test_input(config)
+    input_data = create_test_input(config, model=model)
     output = model(input_data)
 
     if isinstance(output, dict):

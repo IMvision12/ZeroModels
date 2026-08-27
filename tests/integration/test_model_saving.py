@@ -9,10 +9,6 @@ from tests.base.model_test_registry import (
 )
 
 MODEL_IDS = list(MODEL_TEST_CONFIGS.keys())
-
-# Models whose registry input builds only part of the model: the h5 roundtrip
-# needs every sublayer built, and DeepseekVLHybrid's high-res SAM tower only
-# builds when image inputs are passed (the registry entry is text-only).
 SKIP_SAVING = {
     "DeepseekVLHybridConditionalGenerate",
 }
@@ -58,7 +54,7 @@ def test_save_weights_h5_roundtrip(model_name, tmp_path):
         pytest.skip(f"{model_name} is subclassed; load_weights needs a built model")
     config = MODEL_TEST_CONFIGS[model_name]
     model = instantiate_model(config)
-    input_data = create_test_input(config)
+    input_data = create_test_input(config, model=model)
 
     original_output = model(input_data)
 

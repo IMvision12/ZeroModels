@@ -243,3 +243,93 @@ def oneformer_input(batch_size=2, image_size=224, task_seq_len=7):
         "pixel_values": ops.ones((batch_size, image_size, image_size, 3)),
         "task_inputs": ops.ones((batch_size, task_seq_len)),
     }
+
+
+def multimodal_vlm_input(model, batch_size=2, seq_len=6, vocab_size=128):
+    """Full, self-consistent batch for the functional generative VLMs.
+
+    After the subclassed -> functional migration, every VLM input (text ids,
+    attention mask, position ids, image/video pixels and their grids) is a
+    required ``keras.Input``, and the pixel patch count has to match the grid.
+    Rather than hand-writing one factory per family, build the batch straight
+    from the built ``model.inputs`` so it adapts to each signature (Qwen-VL grids,
+    MoonViT patches, raw-image towers) and to the active data format. keras orders
+    dict inputs alphabetically, so ``pixel_values`` / ``image_grid_thw`` are always
+    populated before the ``*_videos`` / ``video_grid_thw`` entries that mirror them.
+    """
+    specs = [(i.name.split(":")[0], tuple(i.shape), str(i.dtype)) for i in model.inputs]
+    has_grid = any(("grid" in n or "hws" in n) for n, _, _ in specs)
+    grid = (1, 4, 4)
+    t, gh, gw = grid
+    merge = 2
+    n_patches = t * gh * gw
+    n_merged = t * (gh // merge) * (gw // merge)
+    # Towers with fully dynamic (variable-resolution) image inputs need a concrete
+    # spatial size >= a few patches; the model's image_size is the natural choice.
+    image_size_attr = getattr(model, "image_size", None)
+    spatial_default = image_size_attr if isinstance(image_size_attr, int) else 64
+    # "Prepatched" towers take pixel_values as a flat patch sequence ((N, patch_dim)
+    # or, for MoonViT, (N, C, p, p) alongside a grid); the image-placeholder token
+    # count in input_ids must equal the merged-patch count.
+    prepatched = any(
+        n == "pixel_values"
+        and ((len(sh) == 2 and sh[1] and sh[1] > 200) or (has_grid and len(sh) == 4))
+        for n, sh, _ in specs
+    )
+    if prepatched:
+        seq_len = n_merged + 2
+        ids = np.zeros((batch_size, seq_len), dtype="int32")
+        ids[:, 0] = 10
+        ids[:, 1 : 1 + n_merged] = 4  # image-placeholder token id
+        ids[:, -1] = 11
+    else:
+        ids = np.tile(np.arange(seq_len, dtype="int32") % vocab_size, (batch_size, 1))
+
+    feed = {}
+    for n, sh, dt in specs:
+        if n == "input_ids":
+            feed[n] = ops.convert_to_tensor(ids)
+        elif "mask" in n:
+            feed[n] = ops.ones((batch_size, ids.shape[1]), dtype="int32")
+        elif n == "position_ids":
+            shape = [batch_size if d is None else d for d in sh]
+            shape[-1] = ids.shape[1]
+            feed[n] = ops.convert_to_tensor(np.zeros(shape, dtype="int32"))
+        elif "video" in n and "pixel" in n:
+            feed[n] = feed["pixel_values"]  # mirror the image; an empty video breaks the ViT
+        elif n == "video_grid_thw":
+            feed[n] = feed["image_grid_thw"]
+        elif "grid_thw" in n:
+            feed[n] = ops.convert_to_tensor(np.tile(np.array(grid, "int32"), (batch_size, 1)))
+        elif "hws" in n:
+            feed[n] = ops.convert_to_tensor(np.tile(np.array([gh, gw], "int32"), (batch_size, 1)))
+        elif n == "image_sizes":
+            # Pixtral-style variable resolution: the true (H, W) of each image,
+            # which must equal the fed pixel_values' spatial dims (non-batch, non-3).
+            pv = next((s for nm, s, _ in specs if nm == "pixel_values"), None)
+            hw = (
+                [(spatial_default if d is None else d) for d in pv[1:] if d != 3][:2]
+                if pv
+                else [spatial_default, spatial_default]
+            )
+            feed[n] = ops.convert_to_tensor(np.tile(np.array(hw, "int32"), (batch_size, 1)))
+        elif "pixel" in n:
+            if len(sh) == 2:
+                feed[n] = ops.ones((batch_size * n_patches, sh[1]))
+            elif has_grid and len(sh) == 4:
+                feed[n] = ops.ones([batch_size * n_patches, *sh[1:]])
+            else:
+                # Raw image: batch -> batch_size, dynamic spatial dims -> the model's
+                # image_size (a fixed channel dim, e.g. 3, is kept as declared).
+                shape = [
+                    batch_size if i == 0 else (spatial_default if d is None else d)
+                    for i, d in enumerate(sh)
+                ]
+                feed[n] = ops.ones(shape)
+        elif dt.startswith("int"):
+            feed[n] = ops.convert_to_tensor(
+                np.zeros([batch_size if d is None else d for d in sh], dtype="int32")
+            )
+        else:
+            feed[n] = ops.ones([batch_size if d is None else d for d in sh])
+    return feed

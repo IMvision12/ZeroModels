@@ -96,7 +96,7 @@ def test_channels_last(model_name):
         config = MODEL_TEST_CONFIGS[model_name]
         model_cls = import_model_class(config)
         model = model_cls(**config["init_kwargs"])
-        input_data = create_test_input(config)
+        input_data = create_test_input(config, model=model)
         output = model(input_data)
 
         if isinstance(output, dict):
@@ -141,8 +141,11 @@ def test_channels_first(model_name):
             config["init_kwargs"], "channels_first"
         )
         model = model_cls(**adapted_kwargs)
-        input_data = create_test_input(config)
-        input_data = _transpose_input(input_data, "channels_first")
+        if config.get("multimodal_vlm"):
+            input_data = create_test_input(config, model=model)
+        else:
+            input_data = create_test_input(config)
+            input_data = _transpose_input(input_data, "channels_first")
         output = model(input_data)
 
         if isinstance(output, dict):
