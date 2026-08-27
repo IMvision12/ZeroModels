@@ -1,7 +1,6 @@
 import math
 
 import keras
-import numpy as np
 from keras import ops
 
 from zeromodels.base import BaseAudioFeatureExtractor
@@ -9,7 +8,7 @@ from zeromodels.base import BaseAudioFeatureExtractor
 
 @keras.saving.register_keras_serializable(package="zeromodels")
 class GraniteSpeech5FeatureExtractor(BaseAudioFeatureExtractor):
-    """Log-mel(+delta) feature extractor for Granite Speech 5.0 (pure Keras 3).
+    """Log-mel(+delta) feature extractor for Granite Speech 5.0 (pure Keras 3 ops).
 
     Reproduces HF ``GraniteSpeech5FeatureExtractor``:
 
@@ -49,56 +48,64 @@ class GraniteSpeech5FeatureExtractor(BaseAudioFeatureExtractor):
         self.logmel_floor_db = logmel_floor_db
         self.frame_stacking = frame_stacking
         self.mel_filters = self.build_mel_filters()
+        self.window = self.build_window()
 
     def build_mel_filters(self):
-        f_min, f_max = 0.0, self.sampling_rate / 2.0
+        """HTK mel filterbank ``(n_fft // 2 + 1, num_mel_bins)`` as a Keras tensor."""
+        f_max = self.sampling_rate / 2.0
         n_freqs = self.n_fft // 2 + 1
-        all_freqs = np.linspace(0, f_max, n_freqs)
-        m_min = 2595.0 * np.log10(1.0 + f_min / 700.0)
-        m_max = 2595.0 * np.log10(1.0 + f_max / 700.0)
-        m_pts = np.linspace(m_min, m_max, self.num_mel_bins + 2)
-        f_pts = 700.0 * (10.0 ** (m_pts / 2595.0) - 1.0)
-        f_diff = np.diff(f_pts)
+        all_freqs = ops.linspace(0.0, f_max, n_freqs)
+        m_max = 2595.0 * ops.log10(1.0 + f_max / 700.0)
+        m_pts = ops.linspace(0.0, m_max, self.num_mel_bins + 2)
+        f_pts = 700.0 * (ops.power(10.0, m_pts / 2595.0) - 1.0)
+        f_diff = f_pts[1:] - f_pts[:-1]
         slopes = f_pts[None, :] - all_freqs[:, None]
         down = -slopes[:, :-2] / f_diff[:-1][None, :]
         up = slopes[:, 2:] / f_diff[1:][None, :]
-        fb = np.maximum(0.0, np.minimum(down, up))
-        return fb.astype("float32")
+        return ops.maximum(0.0, ops.minimum(down, up))
+
+    def build_window(self):
+        """Periodic Hann window (``win_length``) zero-padded into ``n_fft``."""
+        n = ops.arange(self.win_length, dtype="float32")
+        hann = 0.5 - 0.5 * ops.cos(2.0 * math.pi * n / self.win_length)
+        pad = (self.n_fft - self.win_length) // 2
+        return ops.pad(hann, [[pad, self.n_fft - self.win_length - pad]])
 
     def normalize_waves(self, audios):
-        if isinstance(audios, np.ndarray):
-            waves = [audios] if audios.ndim == 1 else list(audios)
-        elif isinstance(audios, (list, tuple)):
-            waves = [np.asarray(w, dtype=np.float32).squeeze() for w in audios]
+        """Parse any accepted input into a padded ``(batch, samples)`` tensor + the
+        per-clip sample counts."""
+        if isinstance(audios, (list, tuple)):
+            clips = [audios] if not hasattr(audios[0], "__len__") else list(audios)
+        elif len(ops.shape(ops.convert_to_tensor(audios))) > 1:
+            clips = list(audios)
         else:
-            waves = [np.asarray(audios, dtype=np.float32).squeeze()]
-        lengths = [int(np.asarray(w).reshape(-1).shape[0]) for w in waves]
+            clips = [audios]
+
+        waves = [
+            ops.reshape(ops.cast(ops.convert_to_tensor(c), "float32"), (-1,))
+            for c in clips
+        ]
+        lengths = [int(ops.shape(w)[0]) for w in waves]
         max_len = max(lengths)
-        out = np.zeros((len(waves), max_len), dtype=np.float32)
-        for i, w in enumerate(waves):
-            w = np.asarray(w, dtype=np.float32).reshape(-1)
-            out[i, : len(w)] = w
-        return out, lengths
+        batch = ops.stack(
+            [ops.pad(w, [[0, max_len - length]]) for w, length in zip(waves, lengths)],
+            axis=0,
+        )
+        return batch, lengths
 
     def log_mel(self, batch, num_frames):
-        pad = (self.n_fft - self.win_length) // 2
-        hann = ops.convert_to_tensor(
-            np.hanning(self.win_length + 1)[:-1].astype("float32")
-        )
-        window = ops.pad(hann, [[pad, self.n_fft - self.win_length - pad]])
         real, imag = ops.stft(
             batch,
             sequence_length=self.n_fft,
             sequence_stride=self.hop_length,
             fft_length=self.n_fft,
-            window=window,
+            window=self.window,
             center=True,
         )
         power = real * real + imag * imag
-        mel = ops.matmul(power, ops.convert_to_tensor(self.mel_filters))
+        mel = ops.matmul(power, self.mel_filters)
         mel = mel[:, :num_frames, :]  # match HF: slice before the log/floor
-        inv_log10 = 1.0 / math.log(10.0)
-        logmel = ops.log(ops.maximum(mel, 1e-10)) * inv_log10
+        logmel = ops.log10(ops.maximum(mel, 1e-10))
         mx = ops.max(logmel, axis=(1, 2), keepdims=True)
         logmel = ops.maximum(logmel, mx - self.logmel_floor_db)
         return logmel / 4.0 + 1.0
@@ -111,7 +118,7 @@ class GraniteSpeech5FeatureExtractor(BaseAudioFeatureExtractor):
         first = ops.repeat(logmel[:, :1], n, axis=1)
         last = ops.repeat(logmel[:, -1:], n, axis=1)
         padded = ops.concatenate([first, logmel, last], axis=1)
-        length = int(logmel.shape[1])
+        length = int(ops.shape(logmel)[1])
         delta = None
         for k in range(-n, n + 1):
             if k == 0:
@@ -126,25 +133,22 @@ class GraniteSpeech5FeatureExtractor(BaseAudioFeatureExtractor):
                 f"GraniteSpeech5FeatureExtractor expects {self.sampling_rate} Hz "
                 f"input; got {sampling_rate} Hz."
             )
-        batch_np, lengths = self.normalize_waves(raw_speech)
+        batch, lengths = self.normalize_waves(raw_speech)
         # right-pad the waveform so the trailing frame-stacking group is filled
-        mel_frames = batch_np.shape[1] // self.hop_length
+        num_samples = int(ops.shape(batch)[1])
+        mel_frames = num_samples // self.hop_length
         num_frames = self.frame_stacking * math.ceil(mel_frames / self.frame_stacking)
         num_samples_needed = (num_frames - 1) * self.hop_length + 1
-        if batch_np.shape[1] < num_samples_needed:
-            batch_np = np.pad(
-                batch_np, ((0, 0), (0, num_samples_needed - batch_np.shape[1]))
-            )
+        if num_samples < num_samples_needed:
+            batch = ops.pad(batch, [[0, 0], [0, num_samples_needed - num_samples]])
 
-        batch = ops.convert_to_tensor(batch_np, dtype="float32")
         logmel = self.log_mel(batch, num_frames)
         deltas = self.compute_deltas(logmel)
         features = ops.concatenate([logmel, deltas], axis=-1)
-        b = int(features.shape[0])
         features = ops.reshape(
             features,
             (
-                b,
+                int(ops.shape(features)[0]),
                 num_frames // self.frame_stacking,
                 self.frame_stacking * 2 * self.num_mel_bins,
             ),
@@ -155,10 +159,10 @@ class GraniteSpeech5FeatureExtractor(BaseAudioFeatureExtractor):
             for length in lengths
         ]
         max_enc = num_frames // self.frame_stacking
-        mask = np.arange(max_enc)[None, :] < np.array(enc_counts)[:, None]
+        mask = ops.arange(max_enc)[None, :] < ops.convert_to_tensor(enc_counts)[:, None]
         return {
             "input_features": features,
-            "attention_mask": ops.convert_to_tensor(mask.astype("int32")),
+            "attention_mask": ops.cast(mask, "int32"),
         }
 
     def get_config(self):

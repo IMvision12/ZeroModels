@@ -197,7 +197,12 @@ class GraniteSpeech5ConvModule(layers.Layer):
 
         self.pointwise_lin1 = layers.Dense(self.inner_dim * 2, name="pointwise_lin1")
         self.pointwise_lin2 = layers.Dense(hidden_size, name="pointwise_lin2")
-        self.norm = layers.BatchNormalization(axis=-1, epsilon=1e-5, name="norm")
+        # Kept in float32 even when the model is built at bf16 (matching HF's
+        # `_keep_in_fp32_modules_strict = ["conv.norm"]`): BatchNorm's running stats
+        # lose too much precision in bf16.
+        self.norm = layers.BatchNormalization(
+            axis=-1, epsilon=1e-5, dtype="float32", name="norm"
+        )
 
     def build(self, input_shape):
         self.pointwise_lin1.build(input_shape)
