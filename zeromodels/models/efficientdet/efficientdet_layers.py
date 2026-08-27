@@ -1,6 +1,7 @@
 import math
 
 import keras
+import numpy as np
 from keras import layers, ops
 
 from .efficientdet_config import bifpn_nodes
@@ -347,3 +348,282 @@ class PredictionHead(layers.Layer):
 def class_predict_bias():
     """Focal-loss prior bias for the class predictor: ``-log((1 - 0.01) / 0.01)``."""
     return -math.log((1 - 0.01) / 0.01)
+
+
+def feat_sizes(image_size, max_level):
+    """Per-level (height, width) of the feature pyramid, ceil-halving from the
+    input size (index 0 = input). Matches Google's ``utils.get_feat_sizes``."""
+    if isinstance(image_size, int):
+        h = w = image_size
+    else:
+        h, w = image_size
+    sizes = [(h, w)]
+    for _ in range(1, max_level + 1):
+        h, w = (h - 1) // 2 + 1, (w - 1) // 2 + 1
+        sizes.append((h, w))
+    return sizes
+
+
+def generate_anchor_boxes(
+    min_level, max_level, num_scales, aspect_ratios, anchor_scale, image_size
+):
+    """Multiscale anchor boxes as ``(N, 4)`` in ``[ymin, xmin, ymax, xmax]`` pixel
+    coordinates, ordered position-major then (octave, aspect)-minor per level, then
+    concatenated over levels. A direct port of Google AutoML ``anchors.Anchors``."""
+    if isinstance(image_size, int):
+        image_h = image_w = image_size
+    else:
+        image_h, image_w = image_size
+    sizes = feat_sizes(image_size, max_level)
+    if isinstance(anchor_scale, (list, tuple)):
+        anchor_scales = list(anchor_scale)
+    else:
+        anchor_scales = [anchor_scale] * (max_level - min_level + 1)
+
+    boxes_all = []
+    for level in range(min_level, max_level + 1):
+        stride_h = sizes[0][0] / float(sizes[level][0])
+        stride_w = sizes[0][1] / float(sizes[level][1])
+        boxes_level = []
+        for scale_octave in range(num_scales):
+            for aspect in aspect_ratios:
+                base_x = anchor_scales[level - min_level] * stride_w * (
+                    2 ** (scale_octave / float(num_scales))
+                )
+                base_y = anchor_scales[level - min_level] * stride_h * (
+                    2 ** (scale_octave / float(num_scales))
+                )
+                aspect_x = math.sqrt(aspect)
+                aspect_y = 1.0 / aspect_x
+                half_x = base_x * aspect_x / 2.0
+                half_y = base_y * aspect_y / 2.0
+                x = np.arange(stride_w / 2, image_w, stride_w)
+                y = np.arange(stride_h / 2, image_h, stride_h)
+                xv, yv = np.meshgrid(x, y)
+                xv, yv = xv.reshape(-1), yv.reshape(-1)
+                boxes = np.vstack(
+                    (yv - half_y, xv - half_x, yv + half_y, xv + half_x)
+                )
+                boxes = np.swapaxes(boxes, 0, 1)
+                boxes_level.append(np.expand_dims(boxes, axis=1))
+        boxes_level = np.concatenate(boxes_level, axis=1)
+        boxes_all.append(boxes_level.reshape([-1, 4]))
+    return np.vstack(boxes_all).astype("float32")
+
+
+def decode_box_outputs(pred_boxes, anchor_boxes):
+    """Invert the anchor box regression: ``(ty, tx, th, tw)`` relative to anchors ->
+    absolute ``[ymin, xmin, ymax, xmax]``. ``anchor_boxes`` are ``[ymin, xmin, ymax,
+    xmax]``. Matches Google AutoML ``anchors.decode_box_outputs``."""
+    ycenter_a = (anchor_boxes[..., 0] + anchor_boxes[..., 2]) / 2
+    xcenter_a = (anchor_boxes[..., 1] + anchor_boxes[..., 3]) / 2
+    ha = anchor_boxes[..., 2] - anchor_boxes[..., 0]
+    wa = anchor_boxes[..., 3] - anchor_boxes[..., 1]
+    ty, tx, th, tw = (
+        pred_boxes[..., 0],
+        pred_boxes[..., 1],
+        pred_boxes[..., 2],
+        pred_boxes[..., 3],
+    )
+    w = ops.exp(tw) * wa
+    h = ops.exp(th) * ha
+    ycenter = ty * ha + ycenter_a
+    xcenter = tx * wa + xcenter_a
+    return ops.stack(
+        [
+            ycenter - h / 2.0,
+            xcenter - w / 2.0,
+            ycenter + h / 2.0,
+            xcenter + w / 2.0,
+        ],
+        axis=-1,
+    )
+
+
+@keras.saving.register_keras_serializable(package="zeromodels")
+class DecodeBoxes(layers.Layer):
+    """Turn raw per-anchor box regressions ``(B, N, 4)`` into absolute
+    ``[ymin, xmin, ymax, xmax]`` boxes using pre-generated anchors held as a
+    non-trainable constant."""
+
+    def __init__(
+        self,
+        min_level,
+        max_level,
+        num_scales,
+        aspect_ratios,
+        anchor_scale,
+        image_size,
+        name="decode_boxes",
+        **kwargs,
+    ):
+        super().__init__(name=name, **kwargs)
+        self.min_level = min_level
+        self.max_level = max_level
+        self.num_scales = num_scales
+        self.aspect_ratios = tuple(aspect_ratios)
+        self.anchor_scale = anchor_scale
+        self.image_size = image_size
+        self.anchors_np = generate_anchor_boxes(
+            min_level, max_level, num_scales, aspect_ratios, anchor_scale, image_size
+        )
+
+    def build(self, input_shape):
+        self.anchors = self.add_weight(
+            name="anchors",
+            shape=self.anchors_np.shape,
+            initializer=keras.initializers.Constant(self.anchors_np),
+            trainable=False,
+        )
+        self.built = True
+
+    def call(self, box_outputs):
+        return decode_box_outputs(box_outputs, self.anchors)
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "min_level": self.min_level,
+                "max_level": self.max_level,
+                "num_scales": self.num_scales,
+                "aspect_ratios": self.aspect_ratios,
+                "anchor_scale": self.anchor_scale,
+                "image_size": self.image_size,
+            }
+        )
+        return config
+
+
+def iou_against(box, boxes):
+    """IoU of one ``[ymin, xmin, ymax, xmax]`` box against an array of boxes."""
+    ymin = np.maximum(box[0], boxes[:, 0])
+    xmin = np.maximum(box[1], boxes[:, 1])
+    ymax = np.minimum(box[2], boxes[:, 2])
+    xmax = np.minimum(box[3], boxes[:, 3])
+    inter = np.maximum(0.0, ymax - ymin) * np.maximum(0.0, xmax - xmin)
+    area = (box[2] - box[0]) * (box[3] - box[1])
+    areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
+    return inter / (area + areas - inter + 1e-8)
+
+
+def greedy_nms(boxes, scores, iou_threshold, max_output):
+    """Greedy hard NMS. Returns kept indices (highest score first)."""
+    order = scores.argsort()[::-1]
+    keep = []
+    while order.size > 0 and len(keep) < max_output:
+        i = order[0]
+        keep.append(i)
+        if order.size == 1:
+            break
+        rest = order[1:]
+        overlap = iou_against(boxes[i], boxes[rest])
+        order = rest[overlap <= iou_threshold]
+    return keep
+
+
+@keras.saving.register_keras_serializable(package="zeromodels")
+class EfficientDetNMS(layers.Layer):
+    """Hard non-max suppression over decoded detections.
+
+    Given decoded boxes ``(B, N, 4)`` in ``[ymin, xmin, ymax, xmax]`` and per-class
+    sigmoid scores ``(B, N, num_classes)``, returns a padded ``(B, max_detections, 6)``
+    tensor of ``[ymin, xmin, ymax, xmax, score, class_id]`` (rows past the detection
+    count are zero).
+
+    With ``class_agnostic=True`` (the default, matching Google AutoML's
+    ``postprocess_global``) each anchor keeps only its single highest-scoring class
+    and one NMS runs across all classes together, so a single object cannot yield two
+    boxes under different labels (e.g. a dog also reported as a cat). With
+    ``class_agnostic=False`` NMS runs independently per class
+    (``postprocess_per_class``). Runs eagerly (detection post-processing), applied
+    outside the symbolic graph."""
+
+    def __init__(
+        self,
+        iou_threshold=0.5,
+        score_threshold=0.05,
+        max_detections=100,
+        pre_nms_top_k=5000,
+        class_agnostic=True,
+        name="nms",
+        **kwargs,
+    ):
+        super().__init__(name=name, **kwargs)
+        self.iou_threshold = iou_threshold
+        self.score_threshold = score_threshold
+        self.max_detections = max_detections
+        self.pre_nms_top_k = pre_nms_top_k
+        self.class_agnostic = class_agnostic
+
+    def top_k_prefilter(self, boxes, scores):
+        """Keep the ``pre_nms_top_k`` anchors with the highest best-class score."""
+        best = scores.max(axis=-1)
+        if best.shape[0] > self.pre_nms_top_k:
+            top = np.argpartition(-best, self.pre_nms_top_k)[: self.pre_nms_top_k]
+            return boxes[top], scores[top]
+        return boxes, scores
+
+    def detections_global(self, boxes, scores):
+        """Class-agnostic: one best class per anchor, then a single NMS."""
+        class_ids = scores.argmax(axis=-1)
+        class_scores = scores.max(axis=-1)
+        mask = class_scores > self.score_threshold
+        if not mask.any():
+            return []
+        bx, sc, cl = boxes[mask], class_scores[mask], class_ids[mask]
+        keep = greedy_nms(bx, sc, self.iou_threshold, self.max_detections)
+        return [
+            (bx[k][0], bx[k][1], bx[k][2], bx[k][3], sc[k], float(cl[k])) for k in keep
+        ]
+
+    def detections_per_class(self, boxes, scores):
+        """Independent NMS per class."""
+        dets = []
+        for c in range(scores.shape[-1]):
+            cls_scores = scores[:, c]
+            mask = cls_scores > self.score_threshold
+            if not mask.any():
+                continue
+            bx, sc = boxes[mask], cls_scores[mask]
+            keep = greedy_nms(bx, sc, self.iou_threshold, self.max_detections)
+            dets.extend(
+                (bx[k][0], bx[k][1], bx[k][2], bx[k][3], sc[k], float(c)) for k in keep
+            )
+        return dets
+
+    def call(self, boxes, scores):
+        boxes = ops.convert_to_numpy(ops.convert_to_tensor(boxes))
+        scores = ops.convert_to_numpy(ops.convert_to_tensor(scores))
+        batch = boxes.shape[0]
+        out = np.zeros((batch, self.max_detections, 6), dtype="float32")
+        for b in range(batch):
+            bx, sc = self.top_k_prefilter(boxes[b], scores[b])
+            if self.class_agnostic:
+                dets = self.detections_global(bx, sc)
+            else:
+                dets = self.detections_per_class(bx, sc)
+            if dets:
+                dets.sort(key=lambda d: d[4], reverse=True)
+                dets = dets[: self.max_detections]
+                out[b, : len(dets)] = np.array(dets, dtype="float32")
+        return ops.convert_to_tensor(out)
+
+    def compute_output_shape(self, boxes_shape, scores_shape):
+        return (boxes_shape[0], self.max_detections, 6)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "iou_threshold": self.iou_threshold,
+                "score_threshold": self.score_threshold,
+                "max_detections": self.max_detections,
+                "pre_nms_top_k": self.pre_nms_top_k,
+                "class_agnostic": self.class_agnostic,
+            }
+        )
+        return config

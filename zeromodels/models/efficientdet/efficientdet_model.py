@@ -8,6 +8,7 @@ from zeromodels.models.efficientnet.efficientnet_model import (
 
 from .efficientdet_config import EfficientDetConfig
 from .efficientdet_layers import (
+    DecodeBoxes,
     EfficientDetResample,
     FPNCells,
     PredictionHead,
@@ -172,6 +173,120 @@ class EfficientDetModel(BaseModel):
         super().__init__(
             inputs=image,
             outputs={"class_outputs": class_outputs, "box_outputs": box_outputs},
+            name=name,
+            **kwargs,
+        )
+        for attr in CONFIG_ATTRS:
+            setattr(self, attr, locals()[attr])
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({k: getattr(self, k) for k in CONFIG_ATTRS})
+        config["name"] = self.name
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
+
+@keras.saving.register_keras_serializable(package="zeromodels")
+class EfficientDetDetect(BaseModel):
+    """EfficientDet object detector: :class:`EfficientDetModel` + anchor decoding.
+
+    Wraps the backbone/BiFPN/heads model and turns its raw per-level outputs into
+    decoded detections. The functional graph flattens and concatenates the per-level
+    class and box outputs, applies sigmoid to the class logits, and decodes the box
+    regressions against pre-generated anchors, exposing
+    ``{"boxes": (B, N, 4), "scores": (B, N, num_classes)}`` (boxes are
+    ``[ymin, xmin, ymax, xmax]`` in ``image_size`` pixel coordinates). Non-max
+    suppression and rescaling to the original image are applied afterwards by
+    :meth:`EfficientDetImageProcessor.post_process_object_detection`.
+
+    References:
+    - [EfficientDet: Scalable and Efficient Object Detection](https://arxiv.org/abs/1911.09070)
+
+    Args:
+        See :class:`EfficientDetConfig`. Defaults describe EfficientDet-D0.
+        name: String, model name. Defaults to `"EfficientDetDetect"`.
+
+    Returns:
+        A Keras `Model` instance.
+    """
+
+    BASE_WEIGHT_CONFIG = None
+    HF_MODEL_TYPE = "efficientdet"
+    config_class = EfficientDetConfig
+
+    def __init__(
+        self,
+        backbone_name="efficientnet_b0",
+        image_size=512,
+        num_classes=90,
+        min_level=3,
+        max_level=7,
+        num_scales=3,
+        aspect_ratios=(1.0, 2.0, 0.5),
+        anchor_scale=4.0,
+        fpn_num_filters=64,
+        fpn_cell_repeats=3,
+        box_class_repeats=3,
+        act_type="swish",
+        separable_conv=True,
+        apply_bn_for_resampling=True,
+        conv_after_downsample=False,
+        conv_bn_act_pattern=False,
+        fpn_weight_method="fastattn",
+        survival_prob=None,
+        name="EfficientDetDetect",
+        **kwargs,
+    ):
+        for k in ("model", "hf_id", "url", "num_classes_"):
+            kwargs.pop(k, None)
+
+        base = EfficientDetModel(
+            backbone_name=backbone_name,
+            image_size=image_size,
+            num_classes=num_classes,
+            min_level=min_level,
+            max_level=max_level,
+            num_scales=num_scales,
+            aspect_ratios=aspect_ratios,
+            anchor_scale=anchor_scale,
+            fpn_num_filters=fpn_num_filters,
+            fpn_cell_repeats=fpn_cell_repeats,
+            box_class_repeats=box_class_repeats,
+            act_type=act_type,
+            separable_conv=separable_conv,
+            apply_bn_for_resampling=apply_bn_for_resampling,
+            conv_after_downsample=conv_after_downsample,
+            conv_bn_act_pattern=conv_bn_act_pattern,
+            fpn_weight_method=fpn_weight_method,
+            survival_prob=survival_prob,
+            name=f"{name}_model",
+        )
+        class_outputs = base.output["class_outputs"]
+        box_outputs = base.output["box_outputs"]
+
+        cls_flat = layers.Concatenate(axis=1, name="class_concat")(
+            [layers.Reshape((-1, num_classes))(c) for c in class_outputs]
+        )
+        box_flat = layers.Concatenate(axis=1, name="box_concat")(
+            [layers.Reshape((-1, 4))(b) for b in box_outputs]
+        )
+        scores = layers.Activation("sigmoid", name="scores")(cls_flat)
+        boxes = DecodeBoxes(
+            min_level,
+            max_level,
+            num_scales,
+            aspect_ratios,
+            anchor_scale,
+            image_size,
+        )(box_flat)
+
+        super().__init__(
+            inputs=base.input,
+            outputs={"boxes": boxes, "scores": scores},
             name=name,
             **kwargs,
         )
