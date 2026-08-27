@@ -4,8 +4,6 @@ from zeromodels.models.granite_speech.convert_granite_speech_hf_to_keras import 
 
 from .granite_speech_plus_model import GraniteSpeechPlusConditionalGenerate
 
-# Per-variant recipe (relocated from granite_speech_plus_config.py), as overrides of
-# the GraniteSpeechConfig defaults. The Plus variant adds cat_hidden_layers.
 GRANITE_SPEECH_PLUS_RECIPES = {
     "granite_speech_4_1_2b_plus": {
         "vocab_size": 100353,
