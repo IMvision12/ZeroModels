@@ -4,6 +4,7 @@ import keras
 import numpy as np
 from keras import ops
 from tokenizers import Tokenizer
+from tokenizers.pre_tokenizers import Metaspace
 
 from zeromodels.base import BaseTokenizer
 
@@ -40,6 +41,7 @@ class Tipsv2Tokenizer(BaseTokenizer):
         self.pad_token = pad_token
 
         tok = Tokenizer.from_file(tokenizer_file)
+        tok.pre_tokenizer = Metaspace(replacement="▁", prepend_scheme="never")
         self.unk_token_id = tok.token_to_id(unk_token)
         self.pad_token_id = tok.token_to_id(pad_token)
         tok.enable_truncation(max_length=max_seq_len)
