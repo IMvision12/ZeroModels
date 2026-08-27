@@ -30,6 +30,8 @@ SKIP_DATA_FORMAT = {
     "GraniteSpeechConditionalGenerate",
     "GraniteSpeechPlusModel",
     "GraniteSpeechPlusConditionalGenerate",
+    "GraniteSpeech5Model",
+    "GraniteSpeech5CTC",
     # DPT reassemble reshapes tokens to a channels-last grid -> channels_last only.
     "Tipsv2DptDensePredict",
     "Tipsv2DptDepthEstimation",

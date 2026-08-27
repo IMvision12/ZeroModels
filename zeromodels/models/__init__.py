@@ -47,6 +47,7 @@ from zeromodels.models import (
     gpt2,
     gpt_oss,
     granite_speech,
+    granite_speech5,
     granite_speech_plus,
     grounding_dino,
     inception_next,

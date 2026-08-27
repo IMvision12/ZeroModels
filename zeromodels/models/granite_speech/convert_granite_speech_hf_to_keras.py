@@ -80,18 +80,21 @@ def transfer_granite_speech_weights(keras_model, hf_state_dict):
 
         if name not in hf_state_dict:
             raise WeightMappingError(weight.path, name)
-        torch_weight = np.asarray(hf_state_dict[name])
+        torch_weight = hf_state_dict[name]
 
+        # transfer_weights handles the standard Dense / LayerNorm / BatchNorm
+        # conversions; only these three need manual shaping (np.asarray for the
+        # transposes, as the source may be a torch tensor).
         if weight.path.endswith("rel_pos_emb") or weight.path.endswith("query"):
             weight.assign(torch_weight)
             continue
         if "depth_kernel" in weight.path:
-            weight.assign(torch_weight[:, 0, :].T)
+            weight.assign(np.asarray(torch_weight)[:, 0, :].T)
             continue
         if (
             "conv/up_conv" in weight.path or "conv/down_conv" in weight.path
         ) and weight.path.endswith("kernel"):
-            weight.assign(torch_weight[:, :, 0].T)
+            weight.assign(np.asarray(torch_weight)[:, :, 0].T)
             continue
 
         transfer_weights(weight.path, weight, torch_weight)
