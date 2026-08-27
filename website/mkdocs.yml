@@ -191,6 +191,7 @@ nav:
       - Audio models:
           - Granite Speech: granite_speech.md
           - Granite Speech Plus: granite_speech_plus.md
+          - Granite Speech 5: granite_speech5.md
           - Moonshine: moonshine.md
           - Speech2Text: speech2text.md
           - Whisper: whisper.md
