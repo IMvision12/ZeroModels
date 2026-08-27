@@ -128,6 +128,8 @@ EFFICIENTDET_RECIPES = {
         "fpn_num_filters": 384,
         "fpn_cell_repeats": 8,
         "box_class_repeats": 5,
+        # D6/D7 fuse BiFPN inputs with an unweighted sum (no per-edge weights).
+        "fpn_weight_method": "sum",
     },
     "efficientdet_d7": {
         "backbone_name": "efficientnet_b6",
@@ -136,6 +138,7 @@ EFFICIENTDET_RECIPES = {
         "fpn_cell_repeats": 8,
         "box_class_repeats": 5,
         "anchor_scale": 5.0,
+        "fpn_weight_method": "sum",
     },
 }
 

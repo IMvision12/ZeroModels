@@ -1,10 +1,11 @@
 import keras
 from keras import layers
 
-from zeromodels.base import BaseModel
+from zeromodels.base import BaseModel, CheckpointSource
 from zeromodels.models.efficientnet.efficientnet_model import (
     efficientnet_backbone_feature,
 )
+from zeromodels.utils.image_util import get_data_format
 
 from .efficientdet_config import EfficientDetConfig
 from .efficientdet_layers import (
@@ -12,6 +13,7 @@ from .efficientdet_layers import (
     EfficientDetResample,
     FPNCells,
     PredictionHead,
+    channel_axis,
     class_predict_bias,
 )
 
@@ -100,6 +102,7 @@ class EfficientDetModel(BaseModel):
         for k in ("model", "hf_id", "url", "num_classes_"):
             kwargs.pop(k, None)
 
+        data_format = get_data_format()
         num_anchors = num_scales * len(aspect_ratios)
         width, depth, dropout = BACKBONE_COEFFS[backbone_name]
         level_sizes = [
@@ -107,7 +110,12 @@ class EfficientDetModel(BaseModel):
             for level in range(min_level, max_level + 1)
         ]
 
-        image = layers.Input(shape=(image_size, image_size, 3), name="images")
+        input_shape = (
+            (3, image_size, image_size)
+            if data_format == "channels_first"
+            else (image_size, image_size, 3)
+        )
+        image = layers.Input(shape=input_shape, name="images")
 
         # Backbone P3/P4/P5 (strides 8/16/32 -> stages[2:5]).
         stages = efficientnet_backbone_feature(
@@ -115,8 +123,8 @@ class EfficientDetModel(BaseModel):
             width_coefficient=width,
             depth_coefficient=depth,
             dropout_rate=dropout,
-            data_format="channels_last",
-            channels_axis=-1,
+            data_format=data_format,
+            channels_axis=channel_axis(data_format),
             return_stages=True,
         )
         feats = [stages[2], stages[3], stages[4]]
@@ -129,6 +137,7 @@ class EfficientDetModel(BaseModel):
                     fpn_num_filters,
                     apply_bn=apply_bn_for_resampling,
                     conv_after_downsample=conv_after_downsample,
+                    data_format=data_format,
                     name=f"resample_p{level}",
                 )(feats[-1], target_height=th, target_width=tw)
             )
@@ -143,6 +152,7 @@ class EfficientDetModel(BaseModel):
             apply_bn_for_resampling,
             conv_after_downsample,
             conv_bn_act_pattern,
+            data_format=data_format,
             name="fpn_cells",
         )(feats, level_sizes=level_sizes)
 
@@ -156,6 +166,7 @@ class EfficientDetModel(BaseModel):
             "class",
             min_level=min_level,
             predict_bias_init=class_predict_bias(),
+            data_format=data_format,
             name="class_net",
         )(fpn_feats)
         box_outputs = PredictionHead(
@@ -167,6 +178,7 @@ class EfficientDetModel(BaseModel):
             "box",
             min_level=min_level,
             predict_bias_init=0.0,
+            data_format=data_format,
             name="box_net",
         )(fpn_feats)
 
@@ -217,6 +229,11 @@ class EfficientDetDetect(BaseModel):
     BASE_WEIGHT_CONFIG = None
     HF_MODEL_TYPE = "efficientdet"
     config_class = EfficientDetConfig
+    # EfficientDetDetect shares its weights with EfficientDetModel (identical backbone,
+    # BiFPN and heads; decoding adds no weights). Hosted repos declare the canonical
+    # EfficientDetModel, and this class loads that same file by copying weights out.
+    HUB_REPO_SIBLINGS = frozenset({"EfficientDetModel"})
+    CHECKPOINT_SOURCE = CheckpointSource("EfficientDetModel")
 
     def __init__(
         self,
@@ -268,12 +285,22 @@ class EfficientDetDetect(BaseModel):
         class_outputs = base.output["class_outputs"]
         box_outputs = base.output["box_outputs"]
 
-        cls_flat = layers.Concatenate(axis=1, name="class_concat")(
-            [layers.Reshape((-1, num_classes))(c) for c in class_outputs]
-        )
-        box_flat = layers.Concatenate(axis=1, name="box_concat")(
-            [layers.Reshape((-1, 4))(b) for b in box_outputs]
-        )
+        # Flatten each level's head output to (B, H*W*anchors, last). Under
+        # channels_first the head output is (B, anchors*last, H, W); transpose it to
+        # channels_last first so the anchor ordering (position-major) matches the
+        # anchor grid regardless of data format -> identical outputs either way.
+        data_format = get_data_format()
+
+        def flatten_levels(tensors, last, name):
+            flats = []
+            for tensor in tensors:
+                if data_format == "channels_first":
+                    tensor = layers.Permute((2, 3, 1))(tensor)
+                flats.append(layers.Reshape((-1, last))(tensor))
+            return layers.Concatenate(axis=1, name=name)(flats)
+
+        cls_flat = flatten_levels(class_outputs, num_classes, "class_concat")
+        box_flat = flatten_levels(box_outputs, 4, "box_concat")
         scores = layers.Activation("sigmoid", name="scores")(cls_flat)
         boxes = DecodeBoxes(
             min_level,

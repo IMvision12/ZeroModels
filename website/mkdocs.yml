@@ -176,6 +176,7 @@ nav:
           - DINO: dino.md
           - DINOv2: dinov2.md
           - DINOv3: dinov3.md
+          - EfficientDet: efficientdet.md
           - EoMT: eomt.md
           - Mask2Former: mask2former.md
           - MaskFormer: maskformer.md

@@ -4,7 +4,20 @@ import keras
 import numpy as np
 from keras import layers, ops
 
+from zeromodels.utils.image_util import get_data_format
+
 from .efficientdet_config import bifpn_nodes
+
+
+def channel_axis(data_format):
+    return 1 if data_format == "channels_first" else -1
+
+
+def spatial_dims(shape, data_format):
+    """(height, width) of a 4D feature-map shape under ``data_format``."""
+    if data_format == "channels_first":
+        return int(shape[2]), int(shape[3])
+    return int(shape[1]), int(shape[2])
 
 
 def act(x, act_type="swish"):
@@ -15,13 +28,14 @@ def act(x, act_type="swish"):
     return layers.Activation(act_type)(x)
 
 
-def sep_conv(filters, kernel_size=3, use_bias=True, name=None):
+def sep_conv(filters, kernel_size=3, use_bias=True, data_format=None, name=None):
     return layers.SeparableConv2D(
         filters,
         kernel_size=kernel_size,
         padding="same",
         depth_multiplier=1,
         use_bias=use_bias,
+        data_format=data_format,
         name=name,
     )
 
@@ -38,23 +52,31 @@ class EfficientDetResample(layers.Layer):
         target_channels,
         apply_bn=True,
         conv_after_downsample=False,
+        data_format=None,
         name=None,
     ):
         super().__init__(name=name)
         self.target_channels = target_channels
         self.apply_bn = apply_bn
         self.conv_after_downsample = conv_after_downsample
+        self.data_format = get_data_format(data_format)
         self.conv2d = None
         self.bn = None
 
     def build(self, input_shape):
-        in_channels = input_shape[-1]
+        in_channels = input_shape[channel_axis(self.data_format)]
         if in_channels != self.target_channels:
             self.conv2d = layers.Conv2D(
-                self.target_channels, 1, padding="same", name="conv2d"
+                self.target_channels,
+                1,
+                padding="same",
+                data_format=self.data_format,
+                name="conv2d",
             )
             if self.apply_bn:
-                self.bn = layers.BatchNormalization(name="bn")
+                self.bn = layers.BatchNormalization(
+                    axis=channel_axis(self.data_format), name="bn"
+                )
         self.built = True
 
     def apply_1x1(self, feat, training):
@@ -65,7 +87,7 @@ class EfficientDetResample(layers.Layer):
         return feat
 
     def call(self, feat, target_height, target_width, training=False):
-        height, width = int(feat.shape[1]), int(feat.shape[2])
+        height, width = spatial_dims(feat.shape, self.data_format)
         if height > target_height and width > target_width:
             if not self.conv_after_downsample:
                 feat = self.apply_1x1(feat, training)
@@ -75,6 +97,7 @@ class EfficientDetResample(layers.Layer):
                 pool_size=(h_stride + 1, w_stride + 1),
                 strides=(h_stride, w_stride),
                 padding="same",
+                data_format=self.data_format,
             )(feat)
             if self.conv_after_downsample:
                 feat = self.apply_1x1(feat, training)
@@ -82,7 +105,10 @@ class EfficientDetResample(layers.Layer):
             feat = self.apply_1x1(feat, training)
             if height < target_height or width < target_width:
                 feat = ops.image.resize(
-                    feat, (target_height, target_width), interpolation="nearest"
+                    feat,
+                    (target_height, target_width),
+                    interpolation="nearest",
+                    data_format=self.data_format,
                 )
         return feat
 
@@ -93,6 +119,7 @@ class EfficientDetResample(layers.Layer):
                 "target_channels": self.target_channels,
                 "apply_bn": self.apply_bn,
                 "conv_after_downsample": self.conv_after_downsample,
+                "data_format": self.data_format,
             }
         )
         return config
@@ -115,6 +142,7 @@ class FNode(layers.Layer):
         apply_bn_for_resampling,
         conv_after_downsample,
         conv_bn_act_pattern,
+        data_format=None,
         name=None,
     ):
         super().__init__(name=name)
@@ -126,19 +154,27 @@ class FNode(layers.Layer):
         self.apply_bn_for_resampling = apply_bn_for_resampling
         self.conv_after_downsample = conv_after_downsample
         self.conv_bn_act_pattern = conv_bn_act_pattern
+        self.data_format = get_data_format(data_format)
         self.resamples = [
             EfficientDetResample(
                 fpn_num_filters,
                 apply_bn=apply_bn_for_resampling,
                 conv_after_downsample=conv_after_downsample,
+                data_format=self.data_format,
                 name=f"resample_{i}_{off}",
             )
             for i, off in enumerate(self.inputs_offsets)
         ]
         self.conv = sep_conv(
-            fpn_num_filters, 3, use_bias=not conv_bn_act_pattern, name="conv"
+            fpn_num_filters,
+            3,
+            use_bias=not conv_bn_act_pattern,
+            data_format=self.data_format,
+            name="conv",
         )
-        self.bn = layers.BatchNormalization(name="bn")
+        self.bn = layers.BatchNormalization(
+            axis=channel_axis(self.data_format), name="bn"
+        )
 
     def build(self, input_shape):
         self.edge_weights = None
@@ -199,6 +235,7 @@ class FNode(layers.Layer):
                 "apply_bn_for_resampling": self.apply_bn_for_resampling,
                 "conv_after_downsample": self.conv_after_downsample,
                 "conv_bn_act_pattern": self.conv_bn_act_pattern,
+                "data_format": self.data_format,
             }
         )
         return config
@@ -222,6 +259,7 @@ class FPNCells(layers.Layer):
         apply_bn_for_resampling,
         conv_after_downsample,
         conv_bn_act_pattern,
+        data_format=None,
         name="fpn_cells",
     ):
         super().__init__(name=name)
@@ -231,6 +269,7 @@ class FPNCells(layers.Layer):
         self.fpn_cell_repeats = fpn_cell_repeats
         self.weight_method = weight_method
         self.act_type = act_type
+        self.data_format = get_data_format(data_format)
         self.nodes_cfg = bifpn_nodes(min_level, max_level)
         self.cells = []
         for rep in range(fpn_cell_repeats):
@@ -244,6 +283,7 @@ class FPNCells(layers.Layer):
                     apply_bn_for_resampling,
                     conv_after_downsample,
                     conv_bn_act_pattern,
+                    data_format=self.data_format,
                     name=f"cell_{rep}_fnode{i}",
                 )
                 for i, cfg in enumerate(self.nodes_cfg)
@@ -284,6 +324,7 @@ class PredictionHead(layers.Layer):
         head_name,
         min_level=3,
         predict_bias_init=0.0,
+        data_format=None,
         name=None,
     ):
         super().__init__(name=name)
@@ -295,15 +336,25 @@ class PredictionHead(layers.Layer):
         self.head_name = head_name
         self.min_level = min_level
         self.predict_bias_init = predict_bias_init
+        self.data_format = get_data_format(data_format)
         self.convs = [
-            sep_conv(num_filters, 3, use_bias=True, name=f"{head_name}-{i}")
+            sep_conv(
+                num_filters,
+                3,
+                use_bias=True,
+                data_format=self.data_format,
+                name=f"{head_name}-{i}",
+            )
             for i in range(repeats)
         ]
         # one BatchNorm per (repeat, level); conv weights are shared across levels.
         # BN names carry the absolute pyramid level (min_level + lvl), like Google's.
         self.bns = [
             [
-                layers.BatchNormalization(name=f"{head_name}-{i}-bn-{min_level + lvl}")
+                layers.BatchNormalization(
+                    axis=channel_axis(self.data_format),
+                    name=f"{head_name}-{i}-bn-{min_level + lvl}",
+                )
                 for lvl in range(num_levels)
             ]
             for i in range(repeats)
@@ -314,6 +365,7 @@ class PredictionHead(layers.Layer):
             padding="same",
             depth_multiplier=1,
             bias_initializer=keras.initializers.Constant(predict_bias_init),
+            data_format=self.data_format,
             name=f"{head_name}-predict",
         )
 
@@ -340,6 +392,7 @@ class PredictionHead(layers.Layer):
                 "head_name": self.head_name,
                 "min_level": self.min_level,
                 "predict_bias_init": self.predict_bias_init,
+                "data_format": self.data_format,
             }
         )
         return config
@@ -469,16 +522,14 @@ class DecodeBoxes(layers.Layer):
         )
 
     def build(self, input_shape):
-        self.anchors = self.add_weight(
-            name="anchors",
-            shape=self.anchors_np.shape,
-            initializer=keras.initializers.Constant(self.anchors_np),
-            trainable=False,
-        )
         self.built = True
 
     def call(self, box_outputs):
-        return decode_box_outputs(box_outputs, self.anchors)
+        # Anchors are a fixed function of the config, so they are baked into the graph
+        # as a constant rather than stored as a weight. This keeps EfficientDetDetect's
+        # weight set identical to EfficientDetModel's, so both load one hosted file.
+        anchors = ops.convert_to_tensor(self.anchors_np, dtype=box_outputs.dtype)
+        return decode_box_outputs(box_outputs, anchors)
 
     def compute_output_shape(self, input_shape):
         return input_shape

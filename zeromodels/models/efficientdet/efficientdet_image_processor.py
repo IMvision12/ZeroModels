@@ -6,7 +6,7 @@ from keras import ops
 from PIL import Image
 
 from zeromodels.base import BaseImageProcessor
-from zeromodels.utils.image_util import load_image
+from zeromodels.utils.image_util import get_data_format, load_image
 from zeromodels.utils.labels_util import COCO_91_CLASSES
 
 from .efficientdet_layers import EfficientDetNMS
@@ -66,9 +66,17 @@ class EfficientDetImageProcessor(BaseImageProcessor):
         new_h = int(orig_h * scale)
         new_w = int(orig_w * scale)
 
+        # Preprocess entirely in channels_last (NHWC), then transpose at the end, so
+        # the base resize/normalize helpers are not misled by a channels_first global.
         t = ops.convert_to_tensor(arr, dtype="float32")
         t = ops.expand_dims(t, axis=0)
-        t = self.resize(t, (new_h, new_w), interpolation=self.resample, antialias=True)
+        t = self.resize(
+            t,
+            (new_h, new_w),
+            interpolation=self.resample,
+            antialias=True,
+            data_format="channels_last",
+        )
         t = self.rescale_and_normalize(
             t,
             do_rescale=True,
@@ -76,11 +84,14 @@ class EfficientDetImageProcessor(BaseImageProcessor):
             do_normalize=True,
             mean=self.image_mean,
             std=self.image_std,
+            data_format="channels_last",
         )
         pad_h = self.image_size - new_h
         pad_w = self.image_size - new_w
         t = ops.pad(t, [(0, 0), (0, pad_h), (0, pad_w), (0, 0)], constant_values=0.0)
-        if self.data_format == "channels_first":
+        # data_format=None follows keras.config.image_data_format(), so the output
+        # layout matches a model built under the same global setting.
+        if get_data_format(self.data_format) == "channels_first":
             t = ops.transpose(t, (0, 3, 1, 2))
         return t, scale, (orig_h, orig_w)
 
@@ -147,7 +158,12 @@ class EfficientDetImageProcessor(BaseImageProcessor):
             class_agnostic=class_agnostic,
         )
         detections = ops.convert_to_numpy(nms(outputs["boxes"], outputs["scores"]))
-        names = label_names if label_names is not None else COCO_91_CLASSES
+        # COCO ids are 1-based (index 0 is "N/A"), so the default list is offset by 1;
+        # custom label_names are indexed directly by the 0-based class id.
+        if label_names is None:
+            names, offset = COCO_91_CLASSES, 1
+        else:
+            names, offset = label_names, 0
 
         results = []
         for i in range(detections.shape[0]):
@@ -171,7 +187,8 @@ class EfficientDetImageProcessor(BaseImageProcessor):
                 xmax = np.clip(xmax, 0, orig_w)
             boxes_xyxy = np.stack([xmin, ymin, xmax, ymax], axis=-1)
             mapped = [
-                names[c + 1] if (c + 1) < len(names) else f"class_{c}" for c in labels
+                names[c + offset] if (c + offset) < len(names) else f"class_{c}"
+                for c in labels
             ]
             results.append(
                 {
