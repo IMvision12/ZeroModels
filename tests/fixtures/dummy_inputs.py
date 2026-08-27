@@ -309,13 +309,19 @@ def multimodal_vlm_input(model, batch_size=2, seq_len=6, vocab_size=128):
             shape[-1] = ids.shape[1]
             feed[n] = ops.convert_to_tensor(np.zeros(shape, dtype="int32"))
         elif "video" in n and "pixel" in n:
-            feed[n] = feed["pixel_values"]  # mirror the image; an empty video breaks the ViT
+            feed[n] = feed[
+                "pixel_values"
+            ]  # mirror the image; an empty video breaks the ViT
         elif n == "video_grid_thw":
             feed[n] = feed["image_grid_thw"]
         elif "grid_thw" in n:
-            feed[n] = ops.convert_to_tensor(np.tile(np.array(grid, "int32"), (batch_size, 1)))
+            feed[n] = ops.convert_to_tensor(
+                np.tile(np.array(grid, "int32"), (batch_size, 1))
+            )
         elif "hws" in n:
-            feed[n] = ops.convert_to_tensor(np.tile(np.array([gh, gw], "int32"), (batch_size, 1)))
+            feed[n] = ops.convert_to_tensor(
+                np.tile(np.array([gh, gw], "int32"), (batch_size, 1))
+            )
         elif n == "image_sizes":
             # Pixtral-style variable resolution: the true (H, W) of each image,
             # which must equal the fed pixel_values' spatial dims (non-batch, non-3).
@@ -325,7 +331,9 @@ def multimodal_vlm_input(model, batch_size=2, seq_len=6, vocab_size=128):
                 if pv
                 else [spatial_default, spatial_default]
             )
-            feed[n] = ops.convert_to_tensor(np.tile(np.array(hw, "int32"), (batch_size, 1)))
+            feed[n] = ops.convert_to_tensor(
+                np.tile(np.array(hw, "int32"), (batch_size, 1))
+            )
         elif "pixel" in n:
             if len(sh) == 2:
                 feed[n] = ops.ones((batch_size * n_patches, sh[1]))

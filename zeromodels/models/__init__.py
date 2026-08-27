@@ -23,6 +23,7 @@ from zeromodels.models import (
     dino,
     dino_v2,
     dino_v3,
+    efficientdet,
     efficientformer,
     efficientnet,
     efficientnet_lite,

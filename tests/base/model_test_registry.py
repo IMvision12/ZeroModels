@@ -717,6 +717,21 @@ MODEL_TEST_CONFIGS = {
             "pred_boxes": (2, 10, 4),
         },
     },
+    "EfficientDetDetect": {
+        "module": "zeromodels.models.efficientdet",
+        "model_cls": "EfficientDetDetect",
+        "model_type": "object_detection",
+        "init_kwargs": {
+            "backbone_name": "efficientnet_b0",
+            "image_size": 256,
+            "num_classes": 20,
+        },
+        "input_shape": (2, 256, 256, 3),
+        "expected_output_shape": {
+            "boxes": (2, 12276, 4),
+            "scores": (2, 12276, 20),
+        },
+    },
     "RTDETRV2Detect": {
         "module": "zeromodels.models.rt_detr_v2",
         "model_cls": "RTDETRV2Detect",
@@ -4256,6 +4271,7 @@ for _name in _MULTIMODAL_VLM_NAMES:
 
 def create_test_input(config, batch_size=2, model=None):
     from tests.fixtures import dummy_inputs
+
     if config.get("multimodal_vlm") and model is not None:
         return dummy_inputs.multimodal_vlm_input(model, batch_size=batch_size)
 
