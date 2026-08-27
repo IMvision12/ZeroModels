@@ -4271,6 +4271,7 @@ for _name in _MULTIMODAL_VLM_NAMES:
 
 def create_test_input(config, batch_size=2, model=None):
     from tests.fixtures import dummy_inputs
+
     if config.get("multimodal_vlm") and model is not None:
         return dummy_inputs.multimodal_vlm_input(model, batch_size=batch_size)
 

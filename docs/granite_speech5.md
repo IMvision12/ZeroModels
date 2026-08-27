@@ -22,12 +22,24 @@ repeats and dropping the blank token, turns the per-frame argmax into text.
 ### GraniteSpeech5CTC
 
 ```python
-GraniteSpeech5CTC(vocab_size=16384, hidden_size=1024, intermediate_size=4096,
-                  num_hidden_layers=16, num_attention_heads=8, head_dim=128,
-                  num_mel_bins=80, hidden_act="silu", max_position_embeddings=512,
-                  context_size=128, conv_kernel_size=7, conv_expansion_factor=2,
-                  subsample_layers=(0, 1), attention_bias=True, pad_token_id=0,
-                  name="GraniteSpeech5CTC")
+GraniteSpeech5CTC(
+    vocab_size=16384,
+    hidden_size=1024,
+    intermediate_size=4096,
+    num_hidden_layers=16,
+    num_attention_heads=8,
+    head_dim=128,
+    num_mel_bins=80,
+    hidden_act="silu",
+    max_position_embeddings=512,
+    context_size=128,
+    conv_kernel_size=7,
+    conv_expansion_factor=2,
+    subsample_layers=(0, 1),
+    attention_bias=True,
+    pad_token_id=0,
+    name="GraniteSpeech5CTC",
+)
 ```
 
 The conformer encoder plus the CTC head (tied to the encoder's mid-layer self-conditioning
@@ -61,7 +73,7 @@ blank, and render text.
 ### GraniteSpeech5Model
 
 ```python
-GraniteSpeech5Model(...)   # same encoder arguments as GraniteSpeech5CTC
+GraniteSpeech5Model(...)  # same encoder arguments as GraniteSpeech5CTC
 ```
 
 The conformer encoder backbone alone. Returns `last_hidden_state`
@@ -73,9 +85,16 @@ CTC projection, for feature extraction or a custom head.
 ### GraniteSpeech5FeatureExtractor
 
 ```python
-GraniteSpeech5FeatureExtractor(sampling_rate=16000, n_fft=512, win_length=400,
-                               hop_length=160, num_mel_bins=80, delta_win_length=3,
-                               logmel_floor_db=8.0, frame_stacking=2)
+GraniteSpeech5FeatureExtractor(
+    sampling_rate=16000,
+    n_fft=512,
+    win_length=400,
+    hop_length=160,
+    num_mel_bins=80,
+    delta_win_length=3,
+    logmel_floor_db=8.0,
+    frame_stacking=2,
+)
 ```
 
 Pure-Keras log-mel(+delta) feature extractor. Computes a `torchaudio`-style mel
@@ -114,6 +133,7 @@ returns `input_features` + `attention_mask` (and padded CTC `labels` when `text`
 
 ```python
 import os
+
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 import soundfile as sf
@@ -125,9 +145,11 @@ from zeromodels.models.granite_speech5 import (
 
 model = GraniteSpeech5CTC.from_weights("zeromodels/granite-speech-5.0-470m-turboctc")
 features = GraniteSpeech5FeatureExtractor()
-tokenizer = GraniteSpeech5Tokenizer.from_weights("zeromodels/granite-speech-5.0-470m-turboctc")
+tokenizer = GraniteSpeech5Tokenizer.from_weights(
+    "zeromodels/granite-speech-5.0-470m-turboctc"
+)
 
-audio, sr = sf.read("speech.wav", dtype="float32")   # 16 kHz mono
+audio, sr = sf.read("speech.wav", dtype="float32")  # 16 kHz mono
 inputs = features(audio, sampling_rate=sr)
 predicted_ids = model.generate(inputs)
 print(tokenizer.batch_decode(predicted_ids))
@@ -138,7 +160,9 @@ Or drive it end to end through the processor:
 ```python
 from zeromodels.models.granite_speech5 import GraniteSpeech5Processor
 
-processor = GraniteSpeech5Processor.from_weights("zeromodels/granite-speech-5.0-470m-turboctc")
+processor = GraniteSpeech5Processor.from_weights(
+    "zeromodels/granite-speech-5.0-470m-turboctc"
+)
 inputs = processor(audio=audio, sampling_rate=sr)
 predicted_ids = model.generate(inputs)
 print(processor.batch_decode(predicted_ids))
@@ -156,6 +180,10 @@ print(processor.batch_decode(predicted_ids))
 Upstream and community safetensors load on the fly with the `hf:` prefix (no re-hosting):
 
 ```python
-model = GraniteSpeech5CTC.from_weights("hf:ibm-granite/granite-speech-5.0-470m-turboctc")
-tokenizer = GraniteSpeech5Tokenizer.from_hf("ibm-granite/granite-speech-5.0-470m-turboctc")
+model = GraniteSpeech5CTC.from_weights(
+    "hf:ibm-granite/granite-speech-5.0-470m-turboctc"
+)
+tokenizer = GraniteSpeech5Tokenizer.from_hf(
+    "ibm-granite/granite-speech-5.0-470m-turboctc"
+)
 ```

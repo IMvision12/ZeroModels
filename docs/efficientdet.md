@@ -181,7 +181,10 @@ sum (`fpn_weight_method="sum"`) instead of the fast-attention weighting D0–D5 
 
 ```python
 from PIL import Image
-from zeromodels.models.efficientdet import EfficientDetDetect, EfficientDetImageProcessor
+from zeromodels.models.efficientdet import (
+    EfficientDetDetect,
+    EfficientDetImageProcessor,
+)
 
 model = EfficientDetDetect.from_weights("zeromodels/efficientdet_d0")
 processor = EfficientDetImageProcessor.from_weights("zeromodels/efficientdet_d0")
@@ -232,7 +235,10 @@ Pass a list of images and one `target_sizes` entry per image:
 
 ```python
 from PIL import Image
-from zeromodels.models.efficientdet import EfficientDetDetect, EfficientDetImageProcessor
+from zeromodels.models.efficientdet import (
+    EfficientDetDetect,
+    EfficientDetImageProcessor,
+)
 
 model = EfficientDetDetect.from_weights("zeromodels/efficientdet_d0")
 processor = EfficientDetImageProcessor.from_weights("zeromodels/efficientdet_d0")

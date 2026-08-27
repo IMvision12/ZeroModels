@@ -1,7 +1,6 @@
 import math
 
 import keras
-import numpy as np
 from keras import layers, ops
 
 from zeromodels.utils.image_util import get_data_format
@@ -452,10 +451,6 @@ def generate_anchor_boxes(
     """Multiscale anchor boxes as ``(N, 4)`` in ``[ymin, xmin, ymax, xmax]`` pixel
     coordinates, ordered position-major then (octave, aspect)-minor per level, then
     concatenated over levels. A direct port of Google AutoML ``anchors.Anchors``."""
-    if isinstance(image_size, int):
-        image_h = image_w = image_size
-    else:
-        image_h, image_w = image_size
     sizes = feat_sizes(image_size, max_level)
     if isinstance(anchor_scale, (list, tuple)):
         anchor_scales = list(anchor_scale)
@@ -464,33 +459,30 @@ def generate_anchor_boxes(
 
     boxes_all = []
     for level in range(min_level, max_level + 1):
-        stride_h = sizes[0][0] / float(sizes[level][0])
-        stride_w = sizes[0][1] / float(sizes[level][1])
+        feat_h, feat_w = sizes[level]
+        stride_h = sizes[0][0] / float(feat_h)
+        stride_w = sizes[0][1] / float(feat_w)
+        cx = (ops.arange(feat_w, dtype="float32") + 0.5) * stride_w
+        cy = (ops.arange(feat_h, dtype="float32") + 0.5) * stride_h
+        xv, yv = ops.meshgrid(cx, cy, indexing="xy")
+        xv, yv = ops.reshape(xv, (-1,)), ops.reshape(yv, (-1,))
         boxes_level = []
         for scale_octave in range(num_scales):
             for aspect in aspect_ratios:
-                base_x = anchor_scales[level - min_level] * stride_w * (
-                    2 ** (scale_octave / float(num_scales))
-                )
-                base_y = anchor_scales[level - min_level] * stride_h * (
-                    2 ** (scale_octave / float(num_scales))
-                )
+                octave = 2 ** (scale_octave / float(num_scales))
+                base_x = anchor_scales[level - min_level] * stride_w * octave
+                base_y = anchor_scales[level - min_level] * stride_h * octave
                 aspect_x = math.sqrt(aspect)
                 aspect_y = 1.0 / aspect_x
                 half_x = base_x * aspect_x / 2.0
                 half_y = base_y * aspect_y / 2.0
-                x = np.arange(stride_w / 2, image_w, stride_w)
-                y = np.arange(stride_h / 2, image_h, stride_h)
-                xv, yv = np.meshgrid(x, y)
-                xv, yv = xv.reshape(-1), yv.reshape(-1)
-                boxes = np.vstack(
-                    (yv - half_y, xv - half_x, yv + half_y, xv + half_x)
+                boxes = ops.stack(
+                    [yv - half_y, xv - half_x, yv + half_y, xv + half_x], axis=-1
                 )
-                boxes = np.swapaxes(boxes, 0, 1)
-                boxes_level.append(np.expand_dims(boxes, axis=1))
-        boxes_level = np.concatenate(boxes_level, axis=1)
-        boxes_all.append(boxes_level.reshape([-1, 4]))
-    return np.vstack(boxes_all).astype("float32")
+                boxes_level.append(ops.expand_dims(boxes, axis=1))
+        boxes_level = ops.concatenate(boxes_level, axis=1)
+        boxes_all.append(ops.reshape(boxes_level, (-1, 4)))
+    return ops.cast(ops.concatenate(boxes_all, axis=0), "float32")
 
 
 def decode_box_outputs(pred_boxes, anchor_boxes):
@@ -546,7 +538,7 @@ class DecodeBoxes(layers.Layer):
         self.aspect_ratios = tuple(aspect_ratios)
         self.anchor_scale = anchor_scale
         self.image_size = image_size
-        self.anchors_np = generate_anchor_boxes(
+        self.anchors = generate_anchor_boxes(
             min_level, max_level, num_scales, aspect_ratios, anchor_scale, image_size
         )
 
@@ -557,8 +549,9 @@ class DecodeBoxes(layers.Layer):
         # Anchors are a fixed function of the config, so they are baked into the graph
         # as a constant rather than stored as a weight. This keeps EfficientDetDetect's
         # weight set identical to EfficientDetModel's, so both load one hosted file.
-        anchors = ops.convert_to_tensor(self.anchors_np, dtype=box_outputs.dtype)
-        return decode_box_outputs(box_outputs, anchors)
+        return decode_box_outputs(
+            box_outputs, ops.cast(self.anchors, box_outputs.dtype)
+        )
 
     def compute_output_shape(self, input_shape):
         return input_shape
@@ -580,28 +573,37 @@ class DecodeBoxes(layers.Layer):
 
 def iou_against(box, boxes):
     """IoU of one ``[ymin, xmin, ymax, xmax]`` box against an array of boxes."""
-    ymin = np.maximum(box[0], boxes[:, 0])
-    xmin = np.maximum(box[1], boxes[:, 1])
-    ymax = np.minimum(box[2], boxes[:, 2])
-    xmax = np.minimum(box[3], boxes[:, 3])
-    inter = np.maximum(0.0, ymax - ymin) * np.maximum(0.0, xmax - xmin)
+    ymin = ops.maximum(box[0], boxes[:, 0])
+    xmin = ops.maximum(box[1], boxes[:, 1])
+    ymax = ops.minimum(box[2], boxes[:, 2])
+    xmax = ops.minimum(box[3], boxes[:, 3])
+    inter = ops.maximum(0.0, ymax - ymin) * ops.maximum(0.0, xmax - xmin)
     area = (box[2] - box[0]) * (box[3] - box[1])
     areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
     return inter / (area + areas - inter + 1e-8)
 
 
-def greedy_nms(boxes, scores, iou_threshold, max_output):
-    """Greedy hard NMS. Returns kept indices (highest score first)."""
-    order = scores.argsort()[::-1]
+def greedy_nms(boxes, scores, iou_threshold, score_threshold, max_output):
+    """Greedy hard NMS. Walks boxes in descending score order, keeps one and suppresses
+    everything it overlaps by more than ``iou_threshold``, and stops once the score drops
+    to ``score_threshold`` (scores are sorted, so nothing later can clear it). Returns the
+    kept indices, highest score first."""
+    order = ops.argsort(-scores)
+    total = int(order.shape[0])
+    suppressed = ops.zeros((total,), dtype="bool")
     keep = []
-    while order.size > 0 and len(keep) < max_output:
-        i = order[0]
-        keep.append(i)
-        if order.size == 1:
+    for rank in range(total):
+        idx = int(order[rank])
+        if float(scores[idx]) <= score_threshold:
             break
-        rest = order[1:]
-        overlap = iou_against(boxes[i], boxes[rest])
-        order = rest[overlap <= iou_threshold]
+        if bool(suppressed[idx]):
+            continue
+        keep.append(idx)
+        if len(keep) >= max_output:
+            break
+        suppressed = ops.logical_or(
+            suppressed, iou_against(boxes[idx], boxes) > iou_threshold
+        )
     return keep
 
 
@@ -641,56 +643,86 @@ class EfficientDetNMS(layers.Layer):
 
     def top_k_prefilter(self, boxes, scores):
         """Keep the ``pre_nms_top_k`` anchors with the highest best-class score."""
-        best = scores.max(axis=-1)
-        if best.shape[0] > self.pre_nms_top_k:
-            top = np.argpartition(-best, self.pre_nms_top_k)[: self.pre_nms_top_k]
-            return boxes[top], scores[top]
+        best = ops.max(scores, axis=-1)
+        if int(best.shape[0]) > self.pre_nms_top_k:
+            top = ops.top_k(best, self.pre_nms_top_k)[1]
+            return ops.take(boxes, top, axis=0), ops.take(scores, top, axis=0)
         return boxes, scores
 
     def detections_global(self, boxes, scores):
         """Class-agnostic: one best class per anchor, then a single NMS."""
-        class_ids = scores.argmax(axis=-1)
-        class_scores = scores.max(axis=-1)
-        mask = class_scores > self.score_threshold
-        if not mask.any():
-            return []
-        bx, sc, cl = boxes[mask], class_scores[mask], class_ids[mask]
-        keep = greedy_nms(bx, sc, self.iou_threshold, self.max_detections)
+        class_ids = ops.argmax(scores, axis=-1)
+        class_scores = ops.max(scores, axis=-1)
+        keep = greedy_nms(
+            boxes,
+            class_scores,
+            self.iou_threshold,
+            self.score_threshold,
+            self.max_detections,
+        )
         return [
-            (bx[k][0], bx[k][1], bx[k][2], bx[k][3], sc[k], float(cl[k])) for k in keep
+            (
+                boxes[k][0],
+                boxes[k][1],
+                boxes[k][2],
+                boxes[k][3],
+                class_scores[k],
+                ops.cast(class_ids[k], "float32"),
+            )
+            for k in keep
         ]
 
     def detections_per_class(self, boxes, scores):
         """Independent NMS per class."""
         dets = []
-        for c in range(scores.shape[-1]):
+        for c in range(int(scores.shape[-1])):
             cls_scores = scores[:, c]
-            mask = cls_scores > self.score_threshold
-            if not mask.any():
-                continue
-            bx, sc = boxes[mask], cls_scores[mask]
-            keep = greedy_nms(bx, sc, self.iou_threshold, self.max_detections)
+            keep = greedy_nms(
+                boxes,
+                cls_scores,
+                self.iou_threshold,
+                self.score_threshold,
+                self.max_detections,
+            )
             dets.extend(
-                (bx[k][0], bx[k][1], bx[k][2], bx[k][3], sc[k], float(c)) for k in keep
+                (
+                    boxes[k][0],
+                    boxes[k][1],
+                    boxes[k][2],
+                    boxes[k][3],
+                    cls_scores[k],
+                    float(c),
+                )
+                for k in keep
             )
         return dets
 
+    def pad_detections(self, dets):
+        """Sort by score and pad the detection tuples to ``(max_detections, 6)``."""
+        if not dets:
+            return ops.zeros((self.max_detections, 6), dtype="float32")
+        dets = sorted(dets, key=lambda d: float(d[4]), reverse=True)
+        dets = dets[: self.max_detections]
+        rows = ops.stack(
+            [ops.stack([ops.cast(v, "float32") for v in d]) for d in dets], axis=0
+        )
+        pad = self.max_detections - int(rows.shape[0])
+        if pad > 0:
+            rows = ops.concatenate([rows, ops.zeros((pad, 6), dtype="float32")], axis=0)
+        return rows
+
     def call(self, boxes, scores):
-        boxes = ops.convert_to_numpy(ops.convert_to_tensor(boxes))
-        scores = ops.convert_to_numpy(ops.convert_to_tensor(scores))
-        batch = boxes.shape[0]
-        out = np.zeros((batch, self.max_detections, 6), dtype="float32")
-        for b in range(batch):
+        boxes = ops.convert_to_tensor(boxes)
+        scores = ops.convert_to_tensor(scores)
+        results = []
+        for b in range(int(boxes.shape[0])):
             bx, sc = self.top_k_prefilter(boxes[b], scores[b])
             if self.class_agnostic:
                 dets = self.detections_global(bx, sc)
             else:
                 dets = self.detections_per_class(bx, sc)
-            if dets:
-                dets.sort(key=lambda d: d[4], reverse=True)
-                dets = dets[: self.max_detections]
-                out[b, : len(dets)] = np.array(dets, dtype="float32")
-        return ops.convert_to_tensor(out)
+            results.append(self.pad_detections(dets))
+        return ops.stack(results, axis=0)
 
     def compute_output_shape(self, boxes_shape, scores_shape):
         return (boxes_shape[0], self.max_detections, 6)

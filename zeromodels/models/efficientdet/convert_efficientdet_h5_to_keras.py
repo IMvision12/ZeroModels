@@ -105,11 +105,7 @@ def map_backbone_block(path, bb_prefix, block_n, has_expand):
     elif sub == "batchnorm_2":  # depthwise BN
         tgt = "tpu_batch_normalization_1" if has_expand else "tpu_batch_normalization"
     elif sub == "batchnorm_3":  # project BN
-        tgt = (
-            "tpu_batch_normalization_2"
-            if has_expand
-            else "tpu_batch_normalization_1"
-        )
+        tgt = "tpu_batch_normalization_2" if has_expand else "tpu_batch_normalization_1"
     else:
         raise ValueError(f"unmapped block sublayer {sub!r} in {path}")
     return f"{bb_prefix}/blocks_{block_n}/{tgt}/{var}"
@@ -161,9 +157,7 @@ def transfer_efficientdet_weights(keras_model, h5_path, backbone=None):
     transferred = 0
     with h5py.File(h5_path, "r") as f:
         for w in keras_model.weights:
-            key = keras_path_to_h5(
-                w.path, bb_prefix, order, expand_flags, num_levels
-            )
+            key = keras_path_to_h5(w.path, bb_prefix, order, expand_flags, num_levels)
             if key is None:
                 continue
             dataset = key + ":0"

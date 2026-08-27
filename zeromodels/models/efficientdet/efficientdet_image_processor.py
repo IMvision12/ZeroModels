@@ -157,21 +157,20 @@ class EfficientDetImageProcessor(BaseImageProcessor):
             max_detections=max_detections,
             class_agnostic=class_agnostic,
         )
-        detections = ops.convert_to_numpy(nms(outputs["boxes"], outputs["scores"]))
-        # COCO ids are 1-based (index 0 is "N/A"), so the default list is offset by 1;
-        # custom label_names are indexed directly by the 0-based class id.
+        detections = nms(outputs["boxes"], outputs["scores"])
         if label_names is None:
             names, offset = COCO_91_CLASSES, 1
         else:
             names, offset = label_names, 0
 
         results = []
-        for i in range(detections.shape[0]):
+        for i in range(int(detections.shape[0])):
             det = detections[i]
-            det = det[det[:, 4] > 0.0]
+            num_valid = int(ops.sum(ops.cast(det[:, 4] > 0.0, "int32")))
+            det = det[:num_valid]
             ymin, xmin, ymax, xmax = det[:, 0], det[:, 1], det[:, 2], det[:, 3]
             scores = det[:, 4]
-            labels = det[:, 5].astype("int32")
+            labels = ops.cast(det[:, 5], "int32")
             if target_sizes is not None:
                 orig_h, orig_w = target_sizes[i]
                 scale = self.image_size / float(max(orig_h, orig_w))
@@ -181,21 +180,21 @@ class EfficientDetImageProcessor(BaseImageProcessor):
                     ymax / scale,
                     xmax / scale,
                 )
-                ymin = np.clip(ymin, 0, orig_h)
-                ymax = np.clip(ymax, 0, orig_h)
-                xmin = np.clip(xmin, 0, orig_w)
-                xmax = np.clip(xmax, 0, orig_w)
-            boxes_xyxy = np.stack([xmin, ymin, xmax, ymax], axis=-1)
+                ymin = ops.clip(ymin, 0, orig_h)
+                ymax = ops.clip(ymax, 0, orig_h)
+                xmin = ops.clip(xmin, 0, orig_w)
+                xmax = ops.clip(xmax, 0, orig_w)
+            boxes_xyxy = ops.stack([xmin, ymin, xmax, ymax], axis=-1)
             mapped = [
                 names[c + offset] if (c + offset) < len(names) else f"class_{c}"
-                for c in labels
+                for c in (int(x) for x in labels)
             ]
             results.append(
                 {
-                    "scores": scores,
-                    "labels": labels,
+                    "scores": ops.convert_to_numpy(scores),
+                    "labels": ops.convert_to_numpy(labels),
                     "label_names": mapped,
-                    "boxes": boxes_xyxy,
+                    "boxes": ops.convert_to_numpy(boxes_xyxy),
                 }
             )
         return results
