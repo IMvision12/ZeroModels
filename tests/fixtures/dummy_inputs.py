@@ -221,6 +221,19 @@ def granite_speech_input(
     }
 
 
+def granite_speech5_input(batch_size=2, frames=16, feat_dim=32):
+    """Stacked log-mel features + padding mask for the Granite Speech 5.0 CTC
+    conformer encoder (``feat_dim == num_mel_bins * 4``)."""
+    return {
+        "input_features": ops.convert_to_tensor(
+            np.full((batch_size, frames, feat_dim), 0.05, dtype="float32")
+        ),
+        "attention_mask": ops.convert_to_tensor(
+            np.ones((batch_size, frames), dtype="int32")
+        ),
+    }
+
+
 def grounding_dino_input(batch_size=2, image_size=224):
     """Image + grounding-text input for Grounding DINO: pixel values plus a short
     tokenized prompt whose special tokens ([CLS] . [SEP]) drive the block mask."""
