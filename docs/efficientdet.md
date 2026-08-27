@@ -44,8 +44,8 @@ EfficientDetDetect(
 
 The detector: EfficientNet backbone, weighted BiFPN, shared class/box heads, and in-graph
 anchor decoding. **This is the class for object detection.** Defaults describe
-EfficientDet-D0; `from_weights` fills these in from the variant config, and passing a recipe
-from `EFFICIENTDET_RECIPES` builds a larger variant by hand.
+EfficientDet-D0; `from_weights` fills these in from the hosted `zm_config.json` for each
+variant, so you rarely pass them by hand.
 
 **Parameters**
 
@@ -159,7 +159,7 @@ undoes the letterbox and clips boxes to each original image.
 ## Model Variants
 
 Every variant is trained on COCO's 90 categories and converted from Google AutoML's
-`coco2` release. `EFFICIENTDET_RECIPES[variant]` returns the constructor kwargs for each.
+`coco2` release. Load any of them with `from_weights("zeromodels/<variant id>")`.
 
 | Variant id        | Backbone        | Input | Params |
 |-------------------|-----------------|------:|-------:|

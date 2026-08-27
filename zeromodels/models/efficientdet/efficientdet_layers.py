@@ -6,8 +6,6 @@ from keras import layers, ops
 
 from zeromodels.utils.image_util import get_data_format
 
-from .efficientdet_config import bifpn_nodes
-
 
 def channel_axis(data_format):
     return 1 if data_format == "channels_first" else -1
@@ -239,6 +237,37 @@ class FNode(layers.Layer):
             }
         )
         return config
+
+
+def bifpn_nodes(min_level, max_level):
+    """Google's dynamic BiFPN node topology for ``min_level``..``max_level``.
+
+    Each node lists the offsets (into the growing feature list) it fuses; a
+    top-down path (P{max-1}'..P{min}') then a bottom-up path (P{min+1}''..P{max}'').
+    """
+    num_levels = max_level - min_level + 1
+    node_ids = {min_level + i: [i] for i in range(num_levels)}
+    counter = num_levels
+    nodes = []
+    for level in range(max_level - 1, min_level - 1, -1):  # top-down
+        nodes.append(
+            {
+                "feat_level": level,
+                "inputs_offsets": [node_ids[level][-1], node_ids[level + 1][-1]],
+            }
+        )
+        node_ids[level].append(counter)
+        counter += 1
+    for level in range(min_level + 1, max_level + 1):  # bottom-up
+        nodes.append(
+            {
+                "feat_level": level,
+                "inputs_offsets": node_ids[level] + [node_ids[level - 1][-1]],
+            }
+        )
+        node_ids[level].append(counter)
+        counter += 1
+    return nodes
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")

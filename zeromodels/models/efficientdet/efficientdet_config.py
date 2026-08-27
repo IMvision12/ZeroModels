@@ -7,8 +7,10 @@ class EfficientDetConfig(BaseConfig):
     EfficientDet = an EfficientNet backbone -> a weighted bidirectional feature
     pyramid (BiFPN, repeated ``fpn_cell_repeats`` times) -> shared class + box
     prediction heads run over pyramid levels ``min_level``..``max_level``. Defaults
-    describe **EfficientDet-D0**; the D1-D7 variants override a handful of fields
-    (see :data:`EFFICIENTDET_RECIPES`).
+    describe **EfficientDet-D0**; the D1-D7 variants override a handful of fields.
+    Pretrained variants load their architecture from the hosted ``zm_config.json`` via
+    ``from_weights``; the per-variant overrides used only when converting Google's
+    config-less ``.h5`` live in ``convert_efficientdet_h5_to_keras.EFFICIENTDET_RECIPES``.
 
     Args:
         backbone_name (`str`, *optional*, defaults to `"efficientnet_b0"`):
@@ -51,9 +53,9 @@ class EfficientDetConfig(BaseConfig):
     Example:
 
     ```python
-    >>> from zeromodels.models.efficientdet import EfficientDetConfig, EFFICIENTDET_RECIPES
+    >>> from zeromodels.models.efficientdet import EfficientDetConfig
 
-    >>> config = EfficientDetConfig(**EFFICIENTDET_RECIPES["efficientdet_d2"])
+    >>> config = EfficientDetConfig(backbone_name="efficientnet_b2", image_size=768)
     ```"""
 
     model_type = "efficientdet"
@@ -76,99 +78,3 @@ class EfficientDetConfig(BaseConfig):
     conv_bn_act_pattern: bool = False
     fpn_weight_method: str = "fastattn"
     survival_prob: float = None
-
-
-# Per-variant overrides of the D0 defaults (Google's efficientdet-d0..d7 recipes).
-EFFICIENTDET_RECIPES = {
-    "efficientdet_d0": {
-        "backbone_name": "efficientnet_b0",
-        "image_size": 512,
-        "fpn_num_filters": 64,
-        "fpn_cell_repeats": 3,
-        "box_class_repeats": 3,
-    },
-    "efficientdet_d1": {
-        "backbone_name": "efficientnet_b1",
-        "image_size": 640,
-        "fpn_num_filters": 88,
-        "fpn_cell_repeats": 4,
-        "box_class_repeats": 3,
-    },
-    "efficientdet_d2": {
-        "backbone_name": "efficientnet_b2",
-        "image_size": 768,
-        "fpn_num_filters": 112,
-        "fpn_cell_repeats": 5,
-        "box_class_repeats": 3,
-    },
-    "efficientdet_d3": {
-        "backbone_name": "efficientnet_b3",
-        "image_size": 896,
-        "fpn_num_filters": 160,
-        "fpn_cell_repeats": 6,
-        "box_class_repeats": 4,
-    },
-    "efficientdet_d4": {
-        "backbone_name": "efficientnet_b4",
-        "image_size": 1024,
-        "fpn_num_filters": 224,
-        "fpn_cell_repeats": 7,
-        "box_class_repeats": 4,
-    },
-    "efficientdet_d5": {
-        "backbone_name": "efficientnet_b5",
-        "image_size": 1280,
-        "fpn_num_filters": 288,
-        "fpn_cell_repeats": 7,
-        "box_class_repeats": 4,
-    },
-    "efficientdet_d6": {
-        "backbone_name": "efficientnet_b6",
-        "image_size": 1280,
-        "fpn_num_filters": 384,
-        "fpn_cell_repeats": 8,
-        "box_class_repeats": 5,
-        # D6/D7 fuse BiFPN inputs with an unweighted sum (no per-edge weights).
-        "fpn_weight_method": "sum",
-    },
-    "efficientdet_d7": {
-        "backbone_name": "efficientnet_b6",
-        "image_size": 1536,
-        "fpn_num_filters": 384,
-        "fpn_cell_repeats": 8,
-        "box_class_repeats": 5,
-        "anchor_scale": 5.0,
-        "fpn_weight_method": "sum",
-    },
-}
-
-
-def bifpn_nodes(min_level, max_level):
-    """Google's dynamic BiFPN node topology for ``min_level``..``max_level``.
-
-    Each node lists the offsets (into the growing feature list) it fuses; a
-    top-down path (P{max-1}'..P{min}') then a bottom-up path (P{min+1}''..P{max}'').
-    """
-    num_levels = max_level - min_level + 1
-    node_ids = {min_level + i: [i] for i in range(num_levels)}
-    counter = num_levels
-    nodes = []
-    for level in range(max_level - 1, min_level - 1, -1):  # top-down
-        nodes.append(
-            {
-                "feat_level": level,
-                "inputs_offsets": [node_ids[level][-1], node_ids[level + 1][-1]],
-            }
-        )
-        node_ids[level].append(counter)
-        counter += 1
-    for level in range(min_level + 1, max_level + 1):  # bottom-up
-        nodes.append(
-            {
-                "feat_level": level,
-                "inputs_offsets": node_ids[level] + [node_ids[level - 1][-1]],
-            }
-        )
-        node_ids[level].append(counter)
-        counter += 1
-    return nodes

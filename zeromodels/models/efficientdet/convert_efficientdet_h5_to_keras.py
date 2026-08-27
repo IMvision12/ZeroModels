@@ -6,24 +6,74 @@ from keras import ops
 
 BACKBONE_PREFIX = "efficientnet-{bb}/efficientnet-{bb}"
 
-EFFICIENTDET_VARIANTS = {
-    "efficientdet_d0": "efficientnet-b0",
-    "efficientdet_d1": "efficientnet-b1",
-    "efficientdet_d2": "efficientnet-b2",
-    "efficientdet_d3": "efficientnet-b3",
-    "efficientdet_d4": "efficientnet-b4",
-    "efficientdet_d5": "efficientnet-b5",
-    "efficientdet_d6": "efficientnet-b6",
-    "efficientdet_d7": "efficientnet-b6",
+EFFICIENTDET_RECIPES = {
+    "efficientdet_d0": {
+        "backbone_name": "efficientnet_b0",
+        "image_size": 512,
+        "fpn_num_filters": 64,
+        "fpn_cell_repeats": 3,
+        "box_class_repeats": 3,
+    },
+    "efficientdet_d1": {
+        "backbone_name": "efficientnet_b1",
+        "image_size": 640,
+        "fpn_num_filters": 88,
+        "fpn_cell_repeats": 4,
+        "box_class_repeats": 3,
+    },
+    "efficientdet_d2": {
+        "backbone_name": "efficientnet_b2",
+        "image_size": 768,
+        "fpn_num_filters": 112,
+        "fpn_cell_repeats": 5,
+        "box_class_repeats": 3,
+    },
+    "efficientdet_d3": {
+        "backbone_name": "efficientnet_b3",
+        "image_size": 896,
+        "fpn_num_filters": 160,
+        "fpn_cell_repeats": 6,
+        "box_class_repeats": 4,
+    },
+    "efficientdet_d4": {
+        "backbone_name": "efficientnet_b4",
+        "image_size": 1024,
+        "fpn_num_filters": 224,
+        "fpn_cell_repeats": 7,
+        "box_class_repeats": 4,
+    },
+    "efficientdet_d5": {
+        "backbone_name": "efficientnet_b5",
+        "image_size": 1280,
+        "fpn_num_filters": 288,
+        "fpn_cell_repeats": 7,
+        "box_class_repeats": 4,
+    },
+    "efficientdet_d6": {
+        "backbone_name": "efficientnet_b6",
+        "image_size": 1280,
+        "fpn_num_filters": 384,
+        "fpn_cell_repeats": 8,
+        "box_class_repeats": 5,
+        "fpn_weight_method": "sum",
+    },
+    "efficientdet_d7": {
+        "backbone_name": "efficientnet_b6",
+        "image_size": 1536,
+        "fpn_num_filters": 384,
+        "fpn_cell_repeats": 8,
+        "box_class_repeats": 5,
+        "anchor_scale": 5.0,
+        "fpn_weight_method": "sum",
+    },
 }
 
-# Official Google AutoML Keras checkpoints (COCO).
 EFFICIENTDET_H5_URLS = {
     name: (
         "https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/"
         f"coco2/{name.replace('_', '-')}.h5"
     )
-    for name in EFFICIENTDET_VARIANTS
+    for name in EFFICIENTDET_RECIPES
 }
 
 
@@ -66,9 +116,6 @@ def map_backbone_block(path, bb_prefix, block_n, has_expand):
 
 
 def keras_path_to_h5(path, bb_prefix, order, expand_flags, num_levels):
-    """Map a zeromodels EfficientDet weight path to the Google ``.h5`` dataset name
-    (without the trailing ``:0``). Returns ``None`` for weights not present in the
-    checkpoint (e.g. the anchor constant)."""
     seg0 = path.split("/")[0]
     if seg0 == "decode_boxes":  # anchor constant, not in the checkpoint
         return None
@@ -100,13 +147,9 @@ def keras_path_to_h5(path, bb_prefix, order, expand_flags, num_levels):
     raise ValueError(f"unmapped path {path!r}")
 
 
-def transfer_efficientdet_weights(keras_model, h5_path, backbone="efficientnet-b0"):
-    """Load a Google AutoML EfficientDet ``.h5`` checkpoint into a zeromodels
-    ``EfficientDetModel`` or ``EfficientDetDetect``.
-
-    Both sides are Keras saves, so values copy verbatim (no transposes). The anchor
-    constant on ``EfficientDetDetect`` is skipped. Returns the number of tensors
-    transferred and raises if any expected weight is missing from the checkpoint."""
+def transfer_efficientdet_weights(keras_model, h5_path, backbone=None):
+    if backbone is None:
+        backbone = keras_model.backbone_name.replace("_", "-")
     paths = [w.path for w in keras_model.weights]
     order = block_order(paths)
     expand_flags = {
