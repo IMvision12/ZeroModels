@@ -68,7 +68,9 @@ model.generate(inputs)
 Greedy CTC decoding: per-frame `argmax` of the logits, with padded output frames set to the
 blank id. Returns integer ids `(B, frames // 4)`; pass them to
 `GraniteSpeech5Tokenizer.batch_decode` (or the processor) to collapse repeats, drop the
-blank, and render text.
+blank, and render text. The same ids carry word timing, so
+`processor.batch_decode(ids, return_timestamps=True)` gives word-level timestamps (see
+[Word Timestamps](#word-timestamps)).
 
 ### GraniteSpeech5Model
 
@@ -121,7 +123,9 @@ GraniteSpeech5Processor.from_weights("zeromodels/granite-speech-5.0-470m-turboct
 
 Composes the feature extractor and the tokenizer. `call(audio, text=None, sampling_rate=16000)`
 returns `input_features` + `attention_mask` (and padded CTC `labels` when `text` is given);
-`batch_decode(ids)` CTC-decodes the model's greedy output.
+`batch_decode(ids)` CTC-decodes the model's greedy output, and
+`batch_decode(ids, return_timestamps=True)` adds word-level timestamps (see
+[Word Timestamps](#word-timestamps)).
 
 ## Model Variants
 
@@ -167,6 +171,37 @@ inputs = processor(audio=audio, sampling_rate=sr)
 predicted_ids = model.generate(inputs)
 print(processor.batch_decode(predicted_ids))
 ```
+
+## Word Timestamps
+
+Because CTC emits one token per frame, each word can be placed in time from the frames it is
+decoded at, no extra model output needed. Pass `return_timestamps=True` to `batch_decode`:
+it returns one dict per clip, `{"text", "chunks": [{"text", "timestamp": (start, end)}, ...]}`,
+the same shape Whisper uses.
+
+```python
+inputs = processor(audio=audio, sampling_rate=sr)
+result = processor.batch_decode(model.generate(inputs), return_timestamps=True)[0]
+
+print(result["text"])
+for chunk in result["chunks"]:
+    print(chunk["timestamp"], chunk["text"])
+```
+
+```
+as for etchings they are of 2 kinds british and foreign
+(0.0, 0.08) as
+(0.64, 0.72) for
+(0.88, 1.2) etchings
+(1.52, 1.6) they
+...
+```
+
+Each CTC output frame covers `processor.frame_seconds` of audio (0.08 s for the released
+model: a 10 ms mel hop, stacked in pairs, then reduced 4x by the encoder's two subsampling
+blocks). CTC alignment is spiky, so a timestamp marks roughly where a word lands rather than
+a precise start and end. If you build the encoder with a different subsampling depth, set
+`GraniteSpeech5Processor(encoder_downsample=...)` so the seconds stay correct.
 
 ## Audio Format
 

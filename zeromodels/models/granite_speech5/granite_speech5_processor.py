@@ -21,10 +21,26 @@ class GraniteSpeech5Processor(BaseProcessor):
     TOKENIZER_CLS = GraniteSpeech5Tokenizer
     FEATURE_EXTRACTOR_CLS = GraniteSpeech5FeatureExtractor
 
-    def __init__(self, tokenizer=None, feature_extractor=None, **kwargs):
+    def __init__(
+        self, tokenizer=None, feature_extractor=None, encoder_downsample=4, **kwargs
+    ):
         super().__init__(**kwargs)
         self.feature_extractor = feature_extractor or self.FEATURE_EXTRACTOR_CLS()
         self.tokenizer = tokenizer or self.TOKENIZER_CLS()
+        # Total time reduction the CTC encoder applies (2 subsampling blocks -> 4), used
+        # to convert a CTC frame index to seconds for timestamp decoding.
+        self.encoder_downsample = encoder_downsample
+
+    @property
+    def frame_seconds(self) -> float:
+        """Audio duration one CTC output frame covers (feature hop x frame stacking x
+        the encoder's time reduction)."""
+        fe = self.feature_extractor
+        return (
+            (fe.hop_length / fe.sampling_rate)
+            * fe.frame_stacking
+            * self.encoder_downsample
+        )
 
     def call(self, audio=None, text=None, sampling_rate=16000):
         if audio is None:
@@ -45,10 +61,21 @@ class GraniteSpeech5Processor(BaseProcessor):
             out["labels"] = ops.convert_to_tensor(labels)
         return out
 
-    def batch_decode(self, token_ids, skip_special_tokens=True):
-        return self.tokenizer.batch_decode(
-            token_ids, skip_special_tokens=skip_special_tokens
-        )
+    def batch_decode(self, token_ids, skip_special_tokens=True, return_timestamps=False):
+        if not return_timestamps:
+            return self.tokenizer.batch_decode(
+                token_ids, skip_special_tokens=skip_special_tokens
+            )
+        # Word-level timestamps: one dict per clip, mirroring Whisper's shape.
+        token_ids = np.asarray(ops.convert_to_numpy(token_ids)).tolist()
+        fs = self.frame_seconds
+        return [
+            {
+                "text": self.tokenizer.decode(row, skip_special_tokens=skip_special_tokens),
+                "chunks": self.tokenizer.ctc_offsets(row, fs),
+            }
+            for row in token_ids
+        ]
 
     def decode(self, token_ids, skip_special_tokens=True):
         return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens)
