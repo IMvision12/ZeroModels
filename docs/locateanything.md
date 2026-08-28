@@ -44,7 +44,9 @@ ends, so you never hand-build a prompt or pick a parser.
 inputs = processor(images=image, task="detection", text="zebra")
 ids = model.generate(**inputs, max_new_tokens=192, tokenizer=processor.tokenizer)
 
-result = processor.post_process_generation(ids, task="detection", image_size=image.size, text="zebra")
+result = processor.post_process_generation(
+    ids, task="detection", image_size=image.size, text="zebra"
+)
 # {"task": "detection", "objects": [{"label": "zebra", "box": [x1, y1, x2, y2]}, ...]}   # box in pixels
 ```
 
@@ -83,7 +85,9 @@ def run(task, image, text="", **gen):
         **inputs, max_new_tokens=192, tokenizer=processor.tokenizer, **gen
     )
     # objects: {"label": str | None, "box": [x1, y1, x2, y2]} or {"label", "point": [x, y]}
-    return processor.post_process_generation(ids, task=task, text=text or None)["objects"]
+    return processor.post_process_generation(ids, task=task, text=text or None)[
+        "objects"
+    ]
 ```
 
 ## Detection

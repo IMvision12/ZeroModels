@@ -185,7 +185,9 @@ class LocateAnythingProcessor(BaseProcessor):
             raise ValueError(
                 "Provide `task` (with `text` / `images`) or a `conversation`."
             )
-        texts, extracted = self.render_conversations(conversation, add_generation_prompt)
+        texts, extracted = self.render_conversations(
+            conversation, add_generation_prompt
+        )
         if images is None:
             images = extracted
 

@@ -125,7 +125,9 @@ if __name__ == "__main__":
     import importlib.metadata as _meta
 
     _orig_version = _meta.version
-    _meta.version = lambda name: "0.23.0" if name == "tokenizers" else _orig_version(name)
+    _meta.version = lambda name: (
+        "0.23.0" if name == "tokenizers" else _orig_version(name)
+    )
     import transformers
 
     for variant, meta in PVT_VARIANTS.items():
