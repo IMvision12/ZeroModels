@@ -144,6 +144,7 @@ bit-exact.** A model reads `keras.config.image_data_format() `when it is **const
 
 ```python
 import keras
+
 keras.config.set_image_data_format("channels_first")
 model = PvtV2ImageClassify.from_weights("zeromodels/pvt-v2-b0")  # expects (B, 3, H, W)
 ```

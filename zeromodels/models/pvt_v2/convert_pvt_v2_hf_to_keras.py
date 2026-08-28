@@ -149,7 +149,9 @@ if __name__ == "__main__":
     import importlib.metadata as _meta
 
     _orig_version = _meta.version
-    _meta.version = lambda name: "0.23.0" if name == "tokenizers" else _orig_version(name)
+    _meta.version = lambda name: (
+        "0.23.0" if name == "tokenizers" else _orig_version(name)
+    )
     import transformers
 
     for variant, meta in PVT_V2_VARIANTS.items():
@@ -164,7 +166,9 @@ if __name__ == "__main__":
         )
         transfer_pvt_v2_weights(keras_model, state)
 
-        hf_model = transformers.PvtV2ForImageClassification.from_pretrained(hf_id).eval()
+        hf_model = transformers.PvtV2ForImageClassification.from_pretrained(
+            hf_id
+        ).eval()
         results = verify_cls_model_equivalence(
             model_a=hf_model,
             model_b=keras_model,
