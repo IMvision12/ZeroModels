@@ -28,50 +28,47 @@ width or height to get pixels.
 | `LocateAnythingModel` | backbone only (no LM head). |
 | `LocateAnythingVisionModel` | the MoonViT tower alone. |
 | `LocateAnythingProcessor` | image + text to model inputs. |
-| `LocateAnythingTokenizer` | Qwen2.5 BPE extended with the grounding tokens, plus `parse_*`. |
+| `LocateAnythingTokenizer` | Qwen2.5 BPE extended with the grounding tokens, plus `parse_grounding`. |
 | `LocateAnythingImageProcessor` | the native-resolution MoonViT patch preprocessor. |
 
 `from_weights("zeromodels/locateanything_3b")` loads any of them. The 3B decoder is large; load it in
 bf16 (`load_dtype="bfloat16"`) unless you have the memory for fp32.
 
-### Building an instruction
+### Running a task
+
+Pass `task` (and `text`) to the processor: it builds the instruction, and
+`post_process_generation` turns the answer into structured results. The task drives both
+ends, so you never hand-build a prompt or pick a parser.
 
 ```python
-from zeromodels.models.locateanything import locate_prompt
+inputs = processor(images=image, task="detection", text="zebra")
+ids = model.generate(**inputs, max_new_tokens=192, tokenizer=processor.tokenizer)
 
-locate_prompt("detection", "car")  # -> "Locate all the instances ...: car."
+result = processor.post_process_generation(ids, task="detection", image_size=image.size, text="zebra")
+# {"task": "detection", "objects": [{"label": "zebra", "box": [x1, y1, x2, y2]}, ...]}   # box in pixels
 ```
 
-`locate_prompt(task, text)` returns the verbatim instruction string for each task. The
-tasks are `detection`, `referring`, `phrase_grounding`, `pointing`, `layout`,
-`text_grounding`, and `ocr`; `text` fills the category or phrase (a list is joined with
-the model's `</c>` separator) and is ignored by `ocr`.
+- **task**: one of `detection`, `referring`, `phrase_grounding`, `pointing`, `layout`, `text_grounding`, `ocr`.
+- **text**: the category or phrase (a list is joined with `</c>`); ignored by `ocr`.
+- **post_process_generation** returns `{"task", "objects": [...]}`; each object is `{"label", "box": [x1, y1, x2, y2]}` or `{"label", "point": [x, y]}`. Pass `image_size=(width, height)` for pixels, or omit it to keep the `[0, 1000]` grid. `text` fills the `label` for tasks that name their target in the prompt (detection, pointing); a `<ref>`-labeled task (referring, OCR, layout, text grounding) keeps the model's own label.
 
-### Reading the answer
-
-The tokenizer turns the generated ids into structured results:
-
-- **parse_boxes(ids)** -> `[[x1, y1, x2, y2], ...]` in `[0, 1000]`. Use for detection.
-- **parse_points(ids)** -> `[[x, y], ...]` in `[0, 1000]`. Use for pointing.
-- **parse_grounding(ids)** -> `[{"label": str | None, "box"/"point": [...]}, ...]`, pairing each `<ref>` label with the box or point that follows. Use for referring, layout, text grounding, and OCR.
+Pass a `conversation=[...]` instead of `task` for a custom or multi-turn prompt.
 
 ## Shared Setup
 
-Every task below reuses one loaded model, processor, and a tiny helper that scales a
-`[0, 1000]` box to pixels for drawing:
+Every task below reuses one loaded model and processor, and the same `run` helper. It
+returns the parsed objects in the `[0, 1000]` grid (pass `image_size` to
+`post_process_generation` for pixels):
 
 ```python
 import os
 
 os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
-import keras
-import numpy as np
 from PIL import Image, ImageDraw
 from zeromodels.models.locateanything import (
     LocateAnythingConditionalGenerate,
     LocateAnythingProcessor,
-    locate_prompt,
 )
 
 model = LocateAnythingConditionalGenerate.from_weights(
@@ -81,65 +78,49 @@ processor = LocateAnythingProcessor.from_weights("zeromodels/locateanything_3b")
 
 
 def run(task, image, text="", **gen):
-    prompt = locate_prompt(task, text)
-    inputs = processor(
-        conversation=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text", "text": prompt},
-                ],
-            }
-        ]
-    )
-    out = model.generate(
+    inputs = processor(images=image, task=task, text=text)
+    ids = model.generate(
         **inputs, max_new_tokens=192, tokenizer=processor.tokenizer, **gen
     )
-    return np.asarray(keras.ops.convert_to_numpy(out))[0].tolist()  # generated ids
-
-
-def to_px(box, w, h):
-    return [box[0] / 1000 * w, box[1] / 1000 * h, box[2] / 1000 * w, box[3] / 1000 * h]
+    # objects: {"label": str | None, "box": [x1, y1, x2, y2]} or {"label", "point": [x, y]}
+    return processor.post_process_generation(ids, task=task, text=text or None)["objects"]
 ```
 
 ## Detection
 
 <img src="../assets/locate_detection_output.jpg" alt="LocateAnything detecting every zebra in a herd on the savanna" width="720">
 
-Give a category and get every instance of it. The answer is a flat list of boxes, so read
-it with `parse_boxes`.
+Give a category and get every instance of it. The answer is a flat list of boxes.
 
 ```python
 image = Image.open("assets/data/coco_herd_field.jpg").convert("RGB")
-ids = run("detection", image, "zebra")
+objects = run("detection", image, "zebra")
 
-boxes = processor.tokenizer.parse_boxes(ids)
-print(len(boxes), boxes[0])
+print(len(objects), objects[0])
 ```
 
 ```
-4 [205, 519, 333, 621]
+4 {'label': 'zebra', 'box': [205, 519, 333, 621]}
 ```
 
 Four zebras, each box in the `[0, 1000]` grid, and the wildebeest in the same frame are
 left out. Pass a list of categories to detect several at once,
-`locate_prompt("detection", ["zebra", "wildebeest"])`.
+`run("detection", image, ["zebra", "wildebeest"])`.
 
 ## Multi-Object Referring
 
 <img src="../assets/locate_referring_output.jpg" alt="LocateAnything referring: the seven children wearing caps in a group photo, each boxed" width="720">
 
-Referring returns every instance that matches a phrase, each paired with its label, so
-read it with `parse_grounding`. The phrase can describe the instances rather than name a
-category, which is what separates it from plain detection.
+Referring returns every instance that matches a phrase, each paired with its label. The
+phrase can describe the instances rather than name a category, which is what separates it
+from plain detection.
 
 ```python
 image = Image.open("assets/data/coco_children_pool.jpg").convert("RGB")
-ids = run("referring", image, "a child wearing a cap")
+objects = run("referring", image, "a child wearing a cap")
 
-for r in processor.tokenizer.parse_grounding(ids):
-    print(r["label"], r["box"])
+for obj in objects:
+    print(obj["label"], obj["box"])
 ```
 
 ```
@@ -160,19 +141,18 @@ rather than all of them.
 
 <img src="../assets/locate_pointing_output.jpg" alt="LocateAnything pointing at each wine glass on a laid table" width="720">
 
-Pointing returns coordinates instead of boxes, a `<box>` carrying two numbers rather than
-four, so read it with `parse_points`.
+Pointing returns coordinates instead of boxes: a `<box>` carrying two numbers rather than
+four, so each object has a `point` instead of a `box`.
 
 ```python
 image = Image.open("assets/data/coco_buffet.jpg").convert("RGB")
-ids = run("pointing", image, "a wine glass")
+objects = run("pointing", image, "a wine glass")
 
-points = processor.tokenizer.parse_points(ids)
-print(len(points), points[0])
+print(len(objects), objects[0])
 ```
 
 ```
-9 [38, 234]
+9 {'label': 'a wine glass', 'point': [38, 234]}
 ```
 
 Nine glasses, one point each, in the `[0, 1000]` grid, picked out of a crowded table
@@ -189,9 +169,9 @@ finds the first paragraph on the second page of *Attention Is All You Need*.
 
 ```python
 image = Image.open("assets/data/attention_paper_p2.jpg").convert("RGB")
-ids = run("layout", image, "the first paragraph")
+objects = run("layout", image, "the first paragraph")
 
-print(processor.tokenizer.parse_grounding(ids))
+print(objects)
 ```
 
 ```
@@ -211,9 +191,9 @@ the control.
 
 ```python
 image = Image.open("assets/data/coco_city_bus.jpg").convert("RGB")
-ids = run("text_grounding", image, "the Spokane Falls Blvd street sign")
+objects = run("text_grounding", image, "the Spokane Falls Blvd street sign")
 
-print(processor.tokenizer.parse_grounding(ids))
+print(objects)
 ```
 
 ```
@@ -232,10 +212,10 @@ argument.
 
 ```python
 image = Image.open("assets/data/coco_stop_sign.jpg").convert("RGB")
-ids = run("ocr", image)
+objects = run("ocr", image)
 
-for r in processor.tokenizer.parse_grounding(ids):
-    print(repr(r["label"]), r["box"])
+for obj in objects:
+    print(repr(obj["label"]), obj["box"])
 ```
 
 ```
@@ -251,23 +231,23 @@ piece of text the same way.
 The figures above overlay the parsed boxes and points on the original. The box variant:
 
 ```python
-def draw(image, results):
+def draw(image, objects):
     out = image.convert("RGB").copy()
     d, (w, h) = ImageDraw.Draw(out), out.size
-    for r in results:
-        if "point" in r:
-            x, y = r["point"][0] / 1000 * w, r["point"][1] / 1000 * h
+    for obj in objects:  # objects come back in the [0, 1000] grid
+        if "point" in obj:
+            x, y = obj["point"][0] / 1000 * w, obj["point"][1] / 1000 * h
             d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=(255, 59, 48))
         else:
-            d.rectangle(to_px(r["box"], w, h), outline=(255, 59, 48), width=3)
-            if r.get("label"):
-                d.text(
-                    (r["box"][0] / 1000 * w, r["box"][1] / 1000 * h - 12), r["label"]
-                )
+            x1, y1, x2, y2 = obj["box"]
+            box_px = [x1 / 1000 * w, y1 / 1000 * h, x2 / 1000 * w, y2 / 1000 * h]
+            d.rectangle(box_px, outline=(255, 59, 48), width=3)
+            if obj.get("label"):
+                d.text((box_px[0], box_px[1] - 12), obj["label"])
     return out
 
 
-draw(image, processor.tokenizer.parse_grounding(ids)).save("assets/locate_result.jpg")
+draw(image, run("detection", image, "zebra")).save("assets/locate_result.jpg")
 ```
 
 ## Decoding Modes
@@ -286,8 +266,7 @@ The `run` helper from the shared setup forwards any extra keyword to `generate`:
 
 ```python
 image = Image.open("assets/data/coco_herd_field.jpg").convert("RGB")
-ids = run("detection", image, "zebra", generation_mode="fast")
-boxes = processor.tokenizer.parse_boxes(ids)  # parse exactly as before
+objects = run("detection", image, "zebra", generation_mode="fast")
 ```
 
 The vision tower runs once and is cached across the decoding steps, so the per-box cost is
@@ -307,8 +286,8 @@ jobs = [
     ("pointing", "coco_buffet.jpg", "a wine glass"),
 ]
 for task, name, text in jobs:
-    ids = run(task, Image.open(f"assets/data/{name}").convert("RGB"), text)
-    print(name, processor.tokenizer.parse_grounding(ids))
+    objects = run(task, Image.open(f"assets/data/{name}").convert("RGB"), text)
+    print(name, objects)
 ```
 
 ```

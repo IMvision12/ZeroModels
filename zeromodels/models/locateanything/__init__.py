@@ -11,9 +11,7 @@ from zeromodels.models.locateanything.locateanything_model import (
     LocateAnythingModel,
 )
 from zeromodels.models.locateanything.locateanything_processor import (
-    TASK_PROMPTS,
     LocateAnythingProcessor,
-    locate_prompt,
 )
 from zeromodels.models.locateanything.locateanything_tokenizer import (
     LocateAnythingTokenizer,
@@ -29,8 +27,6 @@ __all__ = [
     "LocateAnythingTokenizer",
     "LocateAnythingImageProcessor",
     "LocateAnythingProcessor",
-    "locate_prompt",
-    "TASK_PROMPTS",
     "LocateAnythingConfig",
     "LocateAnythingTextConfig",
     "LocateAnythingVisionConfig",

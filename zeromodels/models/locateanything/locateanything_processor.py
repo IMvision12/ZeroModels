@@ -26,27 +26,6 @@ TASK_PROMPTS = {
 }
 
 
-def locate_prompt(task, text=""):
-    """Build a LocateAnything instruction for one of its grounding tasks.
-
-    The templates are the verbatim instruction strings used by the official
-    model-card worker (``LocateAnythingWorker``). ``task`` is one of:
-    ``detection`` (object detection / layout over a category list),
-    ``referring`` (multi-instance phrase grounding), ``phrase_grounding``
-    (a single instance), ``text_grounding`` and ``ocr`` (OCR: locate named text
-    / detect all text), ``layout`` (region / layout grounding), or ``pointing``.
-    ``text`` fills the category list or phrase and is ignored by ``ocr``; for
-    ``detection`` pass a list of categories (joined with the official ``</c>``
-    separator) or a pre-joined string. Put the returned string in the user
-    message alongside the image, then parse the answer with the tokenizer's
-    ``parse_boxes`` / ``parse_points`` / ``parse_grounding``."""
-    if task not in TASK_PROMPTS:
-        raise ValueError(f"Unknown task {task!r}; choose from {sorted(TASK_PROMPTS)}")
-    if not isinstance(text, str):
-        text = "</c>".join(text)
-    return TASK_PROMPTS[task].format(text=text)
-
-
 @keras.saving.register_keras_serializable(package="zeromodels")
 class LocateAnythingProcessor(BaseProcessor):
     """Image + text -> model inputs for LocateAnything-3B.
@@ -58,9 +37,13 @@ class LocateAnythingProcessor(BaseProcessor):
     ``<IMG_CONTEXT>`` x (``h*w // merge**2``) + ``</img>`` (so the count matches
     MoonViT's merged-token output), and tokenizes to padded
     ``{"input_ids", "attention_mask"}`` alongside ``pixel_values`` /
-    ``image_grid_hws``. Build per-task instructions with :func:`locate_prompt`,
-    and decode answers with ``parse_boxes`` / ``parse_points`` /
-    ``parse_grounding``.
+    ``image_grid_hws``.
+
+    Grounding is task-driven: ``processor(images=img, task="detection", text="zebra")``
+    builds the instruction internally, and :meth:`post_process_generation` turns the
+    generated ids into structured (optionally pixel-space) results, so the task drives
+    both ends (the Florence-2 pattern). Pass a ``conversation`` instead for a custom or
+    multi-turn prompt.
     """
 
     TOKENIZER_CLS = LocateAnythingTokenizer
@@ -161,26 +144,50 @@ class LocateAnythingProcessor(BaseProcessor):
                         images.append(self.load_image(item))
         return images or None
 
+    def build_task_conversation(self, task, text=None, images=None):
+        """One-shot conversation for a grounding task: the image(s) plus the task
+        instruction. ``task`` is one of :data:`TASK_PROMPTS`; ``text`` is the category
+        or phrase (a list is joined with the official ``</c>`` separator) and is
+        ignored by the ``ocr`` task."""
+        if task not in TASK_PROMPTS:
+            raise ValueError(
+                f"Unknown task {task!r}; choose from {sorted(TASK_PROMPTS)}"
+            )
+        if text is None:
+            text = ""
+        elif not isinstance(text, str):
+            text = "</c>".join(text)
+        prompt = TASK_PROMPTS[task].format(text=text)
+        if images is None:
+            image_items = []
+        elif isinstance(images, (list, tuple)):
+            image_items = list(images)
+        else:
+            image_items = [images]
+        content = [{"type": "image", "image": im} for im in image_items]
+        content.append({"type": "text", "text": prompt})
+        return [{"role": "user", "content": content}]
+
     def call(
         self,
-        conversation=None,
-        text=None,
         images=None,
-        messages=None,
+        task=None,
+        text=None,
+        conversation=None,
         add_generation_prompt=True,
     ):
-        if conversation is not None:
-            texts, extracted = self.render_conversations(
-                conversation, add_generation_prompt
+        if task is not None:
+            # Task-driven (Florence-2 style): build the conversation from the task +
+            # text + image(s); parse the answer with post_process_generation.
+            conversation = self.build_task_conversation(task, text, images)
+            images = None  # extracted from the conversation below
+        if conversation is None:
+            raise ValueError(
+                "Provide `task` (with `text` / `images`) or a `conversation`."
             )
-            if images is None:
-                images = extracted
-        elif messages is not None:
-            texts = [self.apply_chat_template(messages, add_generation_prompt)]
-        elif text is not None:
-            texts = [text] if isinstance(text, str) else list(text)
-        else:
-            raise ValueError("Provide a `conversation`, `messages`, or `text`.")
+        texts, extracted = self.render_conversations(conversation, add_generation_prompt)
+        if images is None:
+            images = extracted
 
         out = {}
         if images is not None:
@@ -204,14 +211,50 @@ class LocateAnythingProcessor(BaseProcessor):
         out["attention_mask"] = ops.convert_to_tensor(attention_mask)
         return out
 
-    def parse_boxes(self, ids):
-        return self.tokenizer.parse_boxes(ids)
+    def post_process_generation(self, generated, task=None, image_size=None, text=None):
+        """Parse a ``model.generate`` output into grounding results (Florence-2 style).
 
-    def parse_points(self, ids):
-        return self.tokenizer.parse_points(ids)
+        ``generated`` is the generated id sequence (one sequence or a batch). Parsing
+        is universal via the tokenizer's ``parse_grounding`` (the box / ref / coord
+        tokens are self-describing), so ``task`` only labels the result. With
+        ``image_size=(width, height)`` the ``[0, 1000]`` coordinates are rescaled to
+        pixels; without it they stay in the grid. When ``text`` is a single string it
+        fills the ``label`` of any object the model left unlabeled (detection /
+        pointing name their target in the prompt, not the answer).
 
-    def parse_grounding(self, ids):
-        return self.tokenizer.parse_grounding(ids)
+        Returns ``{"task": task, "objects": [...]}`` for one sequence, or a list of
+        those for a batch. Each object is ``{"label": str | None, "box":
+        [x1, y1, x2, y2]}`` or ``{"label": ..., "point": [x, y]}``.
+        """
+        try:
+            arr = np.asarray(ops.convert_to_numpy(generated))
+        except (TypeError, ValueError):
+            arr = np.asarray(generated)
+        sequences = [arr.tolist()] if arr.ndim == 1 else [row.tolist() for row in arr]
+
+        results = []
+        for seq in sequences:
+            objects = self.tokenizer.parse_grounding(seq)
+            if image_size is not None:
+                w, h = image_size
+                for obj in objects:
+                    if "box" in obj:
+                        x1, y1, x2, y2 = obj["box"]
+                        obj["box"] = [
+                            x1 / 1000 * w,
+                            y1 / 1000 * h,
+                            x2 / 1000 * w,
+                            y2 / 1000 * h,
+                        ]
+                    elif "point" in obj:
+                        x, y = obj["point"]
+                        obj["point"] = [x / 1000 * w, y / 1000 * h]
+            if isinstance(text, str):
+                for obj in objects:
+                    if obj.get("label") is None:
+                        obj["label"] = text
+            results.append({"task": task, "objects": objects})
+        return results[0] if len(results) == 1 else results
 
     def get_config(self):
         config = super().get_config()
