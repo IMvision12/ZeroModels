@@ -64,6 +64,7 @@ def apply_whisper_timestamp_rules(
             scores[k, :timestamp_begin] = neg
     return scores
 
+
 _ACTIVATION_ALIASES = {
     "gelu": lambda x: keras.activations.gelu(x, approximate=False),
     "gelu_new": lambda x: keras.activations.gelu(x, approximate=True),
@@ -743,7 +744,12 @@ class WhisperConditionalGenerate(WhisperModel, BaseSeq2SeqGeneration):
             return [list(row) for row in generated]
         return [
             self._parse_timestamp_segments(
-                generated[k], prompt_len, timestamp_begin, time_precision, processor, eos
+                generated[k],
+                prompt_len,
+                timestamp_begin,
+                time_precision,
+                processor,
+                eos,
             )
             for k in range(int(generated.shape[0]))
         ]

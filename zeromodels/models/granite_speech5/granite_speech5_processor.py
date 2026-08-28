@@ -61,7 +61,9 @@ class GraniteSpeech5Processor(BaseProcessor):
             out["labels"] = ops.convert_to_tensor(labels)
         return out
 
-    def batch_decode(self, token_ids, skip_special_tokens=True, return_timestamps=False):
+    def batch_decode(
+        self, token_ids, skip_special_tokens=True, return_timestamps=False
+    ):
         if not return_timestamps:
             return self.tokenizer.batch_decode(
                 token_ids, skip_special_tokens=skip_special_tokens
@@ -71,7 +73,9 @@ class GraniteSpeech5Processor(BaseProcessor):
         fs = self.frame_seconds
         return [
             {
-                "text": self.tokenizer.decode(row, skip_special_tokens=skip_special_tokens),
+                "text": self.tokenizer.decode(
+                    row, skip_special_tokens=skip_special_tokens
+                ),
                 "chunks": self.tokenizer.ctc_offsets(row, fs),
             }
             for row in token_ids
