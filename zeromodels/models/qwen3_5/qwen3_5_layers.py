@@ -184,9 +184,13 @@ class Qwen3_5Attention(layers.Layer):
         self.query.build(input_shape)
         self.key.build(input_shape)
         self.value.build(input_shape)
-        self.output_proj.build(tuple(input_shape[:-1]) + (self.num_heads * self.head_dim,))
+        self.output_proj.build(
+            tuple(input_shape[:-1]) + (self.num_heads * self.head_dim,)
+        )
         self.query_norm.build(tuple(input_shape[:-1]) + (self.num_heads, self.head_dim))
-        self.key_norm.build(tuple(input_shape[:-1]) + (self.num_kv_heads, self.head_dim))
+        self.key_norm.build(
+            tuple(input_shape[:-1]) + (self.num_kv_heads, self.head_dim)
+        )
         self.built = True
 
     def call(

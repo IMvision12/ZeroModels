@@ -122,7 +122,9 @@ class GemmaAttention(layers.Layer):
         self.query.build(input_shape)
         self.key.build(input_shape)
         self.value.build(input_shape)
-        self.output_proj.build(tuple(input_shape[:-1]) + (self.num_heads * self.head_dim,))
+        self.output_proj.build(
+            tuple(input_shape[:-1]) + (self.num_heads * self.head_dim,)
+        )
         self.built = True
 
     def call(
