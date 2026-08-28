@@ -61,6 +61,12 @@ class GemmaMLP(layers.Layer):
         self.up = layers.Dense(mlp_dim, use_bias=False, name="up")
         self.down = layers.Dense(embed_dim, use_bias=False, name="down")
 
+    def build(self, input_shape):
+        self.gate.build(input_shape)
+        self.up.build(input_shape)
+        self.down.build(tuple(input_shape[:-1]) + (self.mlp_dim,))
+        self.built = True
+
     def call(self, x):
         return self.down(ops.gelu(self.gate(x), approximate=True) * self.up(x))
 
@@ -111,6 +117,15 @@ class GemmaAttention(layers.Layer):
         self.key = layers.Dense(num_kv_heads * head_dim, use_bias=False, name="key")
         self.value = layers.Dense(num_kv_heads * head_dim, use_bias=False, name="value")
         self.output_proj = layers.Dense(embed_dim, use_bias=False, name="output_proj")
+
+    def build(self, input_shape):
+        self.query.build(input_shape)
+        self.key.build(input_shape)
+        self.value.build(input_shape)
+        self.output_proj.build(
+            tuple(input_shape[:-1]) + (self.num_heads * self.head_dim,)
+        )
+        self.built = True
 
     def call(
         self,
@@ -249,6 +264,15 @@ class GemmaDecoderLayer(layers.Layer):
         )
         self.mlp_norm = GemmaRMSNorm(eps=norm_eps, name="mlp_norm")
         self.mlp = GemmaMLP(embed_dim, mlp_dim, name="mlp")
+
+    def build(self, input_shape):
+        # Explicit child builds so Keras never auto-builds via a call() trace, which
+        # runs GemmaRMSNorm.call() on a symbolic placeholder and fails on TF.
+        self.attention_norm.build(input_shape)
+        self.attention.build(input_shape)
+        self.mlp_norm.build(input_shape)
+        self.mlp.build(input_shape)
+        self.built = True
 
     def call(
         self,

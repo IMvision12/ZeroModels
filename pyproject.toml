@@ -72,6 +72,14 @@ conversion = [
     "timm",
     "transformers",
 ]
+# Developer tooling: the pre-commit hooks (ruff lint + format, whitespace/EOF
+# fixers). Install with: pip install -e .[dev], then run: pre-commit install
+# Keep ruff pinned to the .pre-commit-config.yaml rev so a manual `ruff` run
+# matches what the hook enforces.
+dev = [
+    "pre-commit",
+    "ruff==0.16.1",
+]
 
 [project.scripts]
 zeromodels-test = "tests._test_runner:main"

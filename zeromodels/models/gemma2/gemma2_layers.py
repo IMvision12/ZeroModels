@@ -60,6 +60,12 @@ class Gemma2MLP(layers.Layer):
         self.up = layers.Dense(mlp_dim, use_bias=False, name="up")
         self.down = layers.Dense(embed_dim, use_bias=False, name="down")
 
+    def build(self, input_shape):
+        self.gate.build(input_shape)
+        self.up.build(input_shape)
+        self.down.build(tuple(input_shape[:-1]) + (self.mlp_dim,))
+        self.built = True
+
     def call(self, x):
         return self.down(ops.gelu(self.gate(x), approximate=True) * self.up(x))
 
@@ -118,6 +124,15 @@ class Gemma2Attention(layers.Layer):
         self.key = layers.Dense(num_kv_heads * head_dim, use_bias=False, name="key")
         self.value = layers.Dense(num_kv_heads * head_dim, use_bias=False, name="value")
         self.output_proj = layers.Dense(embed_dim, use_bias=False, name="output_proj")
+
+    def build(self, input_shape):
+        self.query.build(input_shape)
+        self.key.build(input_shape)
+        self.value.build(input_shape)
+        self.output_proj.build(
+            tuple(input_shape[:-1]) + (self.num_heads * self.head_dim,)
+        )
+        self.built = True
 
     def softcap(self, attn):
         if self.attn_logit_softcapping is None:
@@ -289,6 +304,19 @@ class Gemma2DecoderLayer(layers.Layer):
         self.post_feedforward_norm = Gemma2RMSNorm(
             eps=norm_eps, name="post_feedforward_norm"
         )
+
+    def build(self, input_shape):
+        # Build children explicitly so Keras never auto-builds by tracing call(), which
+        # runs Gemma2RMSNorm.call() on a symbolic placeholder and fails on the TF
+        # backend (a SparseTensor from square/mean). Norms build here; attention/mlp are
+        # marked built and lazy-build their own children on the (proper) functional call.
+        self.attention_norm.build(input_shape)
+        self.attention.build(input_shape)
+        self.post_attention_norm.build(input_shape)
+        self.pre_feedforward_norm.build(input_shape)
+        self.mlp.build(input_shape)
+        self.post_feedforward_norm.build(input_shape)
+        self.built = True
 
     def call(
         self,

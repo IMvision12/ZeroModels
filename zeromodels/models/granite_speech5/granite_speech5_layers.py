@@ -19,6 +19,10 @@ class DownsampleMask(layers.Layer):
         return ops.cast(ops.all(ops.cast(pairs, "bool"), axis=2), attention_mask.dtype)
 
     def compute_output_shape(self, input_shape):
+        # Some backends (TF) call this with input_shape=None during the symbolic
+        # pass; the halved mask is dynamic either way, so (None, None) is correct.
+        if input_shape is None:
+            return (None, None)
         batch, time = input_shape
         return (batch, None if time is None else time // 2)
 

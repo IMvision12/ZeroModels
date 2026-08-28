@@ -241,6 +241,15 @@ class Qwen2VLVisionModel(layers.Layer):
             llm_hidden_size, embed_dim, spatial_merge_size, name="merger"
         )
 
+    def build(self, input_shape):
+        # input_shape = (num_patches, patch_dim) packed patches.
+        embed_shape = (None, self.embed_dim)
+        self.patch_embed.build(input_shape)
+        for block in self.blocks:
+            block.build(embed_shape)
+        self.merger.build(embed_shape)
+        self.built = True
+
     def call(self, pixel_values, grid_thw):
         cos, sin = vision_rotary_cos_sin(
             grid_thw, self.head_dim, self.spatial_merge_size

@@ -699,6 +699,13 @@ class MiniMaxM3VLVisionAttention(layers.Layer):
         self.value = layers.Dense(embed_dim, name="value")
         self.output_proj = layers.Dense(embed_dim, name="output_proj")
 
+    def build(self, input_shape):
+        self.query.build(input_shape)
+        self.key.build(input_shape)
+        self.value.build(input_shape)
+        self.output_proj.build(input_shape)
+        self.built = True
+
     def call(self, hidden_states, cos, sin):
         b = ops.shape(hidden_states)[0]
         s = ops.shape(hidden_states)[1]
@@ -754,6 +761,14 @@ class MiniMaxM3VLVisionLayer(layers.Layer):
         )
         self.fc1 = layers.Dense(mlp_dim, name="fc1")
         self.fc2 = layers.Dense(embed_dim, name="fc2")
+
+    def build(self, input_shape):
+        self.layer_norm1.build(input_shape)
+        self.attention.build(input_shape)
+        self.layer_norm2.build(input_shape)
+        self.fc1.build(input_shape)
+        self.fc2.build(tuple(input_shape[:-1]) + (self.mlp_dim,))
+        self.built = True
 
     def call(self, hidden_states, cos, sin):
         hidden_states = hidden_states + self.attention(

@@ -65,6 +65,12 @@ class Glm5MoeMLP(layers.Layer):
         self.up = layers.Dense(mlp_dim, use_bias=False, name="up")
         self.down = layers.Dense(embed_dim, use_bias=False, name="down")
 
+    def build(self, input_shape):
+        self.gate.build(input_shape)
+        self.up.build(input_shape)
+        self.down.build(tuple(input_shape[:-1]) + (self.mlp_dim,))
+        self.built = True
+
     def call(self, x):
         return self.down(ops.silu(self.gate(x)) * self.up(x))
 
@@ -257,6 +263,14 @@ class Glm5MoeIndexer(layers.Layer):
         self.k_norm = layers.LayerNormalization(epsilon=1e-6, name="k_norm")
         self.weights_proj = layers.Dense(n_heads, use_bias=False, name="weights_proj")
 
+    def build(self, input_shape):
+        prefix = tuple(input_shape[:-1])
+        self.wq_b.build(prefix + (self.q_lora_rank,))
+        self.wk.build(input_shape)
+        self.k_norm.build(prefix + (self.head_dim,))
+        self.weights_proj.build(input_shape)
+        self.built = True
+
     def call(self, hidden_states, q_resid, cos, sin, attention_mask):
         b = ops.shape(hidden_states)[0]
         s = ops.shape(hidden_states)[1]
@@ -372,6 +386,18 @@ class Glm5MoeAttention(layers.Layer):
             q_lora_rank,
             name="indexer",
         )
+
+    def build(self, input_shape):
+        prefix = tuple(input_shape[:-1])
+        self.q_a_proj.build(input_shape)
+        self.q_a_norm.build(prefix + (self.q_lora_rank,))
+        self.q_b_proj.build(prefix + (self.q_lora_rank,))
+        self.kv_a_proj.build(input_shape)
+        self.kv_a_norm.build(prefix + (self.kv_lora_rank,))
+        self.kv_b_proj.build(prefix + (self.kv_lora_rank,))
+        self.o_proj.build(prefix + (self.num_heads * self.v_head_dim,))
+        self.indexer.build(input_shape)
+        self.built = True
 
     def project_qkv(self, hidden_states, cos, sin):
         b = ops.shape(hidden_states)[0]
@@ -557,6 +583,13 @@ class Glm5MoeDecoderLayer(layers.Layer):
             )
         else:
             self.mlp = Glm5MoeMLP(embed_dim, mlp_dim, name="mlp")
+
+    def build(self, input_shape):
+        self.attention_norm.build(input_shape)
+        self.attention.build(input_shape)
+        self.mlp_norm.build(input_shape)
+        self.mlp.build(input_shape)
+        self.built = True
 
     def call(self, hidden_states, cos, sin, attention_mask=None, use_cache=False):
         residual = hidden_states

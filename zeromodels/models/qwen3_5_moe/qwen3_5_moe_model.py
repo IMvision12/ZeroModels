@@ -300,6 +300,13 @@ class Qwen3_5MoeTextModel(layers.Layer):
         ]
         self.final_norm = Qwen3NextRMSNorm(eps=norm_eps, name="final_norm")
 
+    def build(self, input_shape):
+        self.token_embedding.build((input_shape[0], input_shape[1]))
+        for layer in self.decoder_layers:
+            layer.build(input_shape)
+        self.final_norm.build(input_shape)
+        self.built = True
+
     def call(
         self,
         inputs_embeds,

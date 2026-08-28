@@ -196,6 +196,15 @@ class MiniMaxAttention(layers.Layer):
         self.value = layers.Dense(num_kv_heads * head_dim, use_bias=False, name="value")
         self.output_proj = layers.Dense(embed_dim, use_bias=False, name="output_proj")
 
+    def build(self, input_shape):
+        self.query.build(input_shape)
+        self.key.build(input_shape)
+        self.value.build(input_shape)
+        self.output_proj.build(
+            tuple(input_shape[:-1]) + (self.num_heads * self.head_dim,)
+        )
+        self.built = True
+
     def project_qkv(self, hidden_states):
         b = ops.shape(hidden_states)[0]
         s = ops.shape(hidden_states)[1]
@@ -346,6 +355,14 @@ class MiniMaxLightningAttention(layers.Layer):
         # HF hardcodes this norm's eps at the MixtralRMSNorm default (1e-6),
         # independent of config.rms_norm_eps.
         self.norm = MiniMaxRMSNorm(eps=1e-6, name="norm")
+
+    def build(self, input_shape):
+        proj_shape = tuple(input_shape[:-1]) + (self.num_heads * self.head_dim,)
+        self.qkv.build(input_shape)
+        self.output_gate.build(input_shape)
+        self.norm.build(proj_shape)
+        self.output_proj.build(proj_shape)
+        self.built = True
 
     def split_qkv(self, hidden_states):
         b = ops.shape(hidden_states)[0]
@@ -515,6 +532,13 @@ class MiniMaxDecoderLayer(layers.Layer):
         self.mlp = MiniMaxMoE(
             num_experts, num_experts_per_tok, embed_dim, mlp_dim, name="mlp"
         )
+
+    def build(self, input_shape):
+        self.attention_norm.build(input_shape)
+        self.attention.build(input_shape)
+        self.mlp_norm.build(input_shape)
+        self.mlp.build(input_shape)
+        self.built = True
 
     def run_mlp(self, hidden_states):
         h = self.mlp_norm(hidden_states)

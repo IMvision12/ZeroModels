@@ -160,6 +160,15 @@ class Qwen2_5VLVisionModel(layers.Layer):
             name="merger",
         )
 
+    def build(self, input_shape):
+        # input_shape = (num_patches, patch_dim) packed patches.
+        embed_shape = (None, self.embed_dim)
+        self.patch_embed.build(input_shape)
+        for block in self.blocks:
+            block.build(embed_shape)
+        self.merger.build(embed_shape)
+        self.built = True
+
     def call(self, pixel_values, grid_thw):
         grid_rows = [
             tuple(int(v) for v in row)

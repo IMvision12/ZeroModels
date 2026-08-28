@@ -144,6 +144,11 @@ class GptOssMLP(layers.Layer):
         # load time for an mxfp4 checkpoint (the model stays quantization-agnostic).
         self.experts = GptOssExperts(num_experts, embed_dim, mlp_dim, name="experts")
 
+    def build(self, input_shape):
+        self.router.build(input_shape)
+        self.experts.build(input_shape)
+        self.built = True
+
     def call(self, hidden_states):
         b = ops.shape(hidden_states)[0]
         s = ops.shape(hidden_states)[1]
@@ -383,6 +388,13 @@ class GptOssDecoderLayer(layers.Layer):
             mlp_dim,
             name="mlp",
         )
+
+    def build(self, input_shape):
+        self.input_layernorm.build(input_shape)
+        self.self_attn.build(input_shape)
+        self.post_attention_layernorm.build(input_shape)
+        self.mlp.build(input_shape)
+        self.built = True
 
     def call(
         self,
