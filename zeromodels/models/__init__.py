@@ -87,6 +87,8 @@ from zeromodels.models import (
     owlvit,
     pit,
     poolformer,
+    pvt,
+    pvt_v2,
     qwen2,
     qwen2_5_vl,
     qwen2_moe,

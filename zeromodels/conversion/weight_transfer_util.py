@@ -204,7 +204,15 @@ def transform_conv_weights(
 
     elif any(
         substring in keras_name.lower()
-        for substring in ["conv", "conv2d", "pointwise", "downsample", "sr"]
+        for substring in [
+            "conv",
+            "conv2d",
+            "pointwise",
+            "downsample",
+            "sr",
+            "reduction",  # spatial_reduction / sequence_reduction (PVT SRA conv)
+            "proj",  # patch-embed proj / projection conv (only reached for 4D weights)
+        ]
     ):
         # Standard 2D convolution
         return np.transpose(torch_weight, [2, 3, 1, 0])
