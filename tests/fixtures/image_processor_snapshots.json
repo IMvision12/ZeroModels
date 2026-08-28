@@ -829,6 +829,140 @@
    }
   }
  },
+ "EfficientDetImageProcessor": {
+  "large_300x500": {
+   "original_sizes": {
+    "max": 500.0,
+    "mean": 400.0,
+    "min": 300.0,
+    "shape": [
+     1,
+     2
+    ],
+    "std": 100.0
+   },
+   "pixel_values": {
+    "max": 2.60677,
+    "mean": 0.13048,
+    "min": -2.08549,
+    "shape": [
+     1,
+     512,
+     512,
+     3
+    ],
+    "std": 0.67747
+   },
+   "scales": {
+    "max": 1.024,
+    "mean": 1.024,
+    "min": 1.024,
+    "shape": [
+     1
+    ],
+    "std": 0.0
+   }
+  },
+  "odd_223x225": {
+   "original_sizes": {
+    "max": 225.0,
+    "mean": 224.0,
+    "min": 223.0,
+    "shape": [
+     1,
+     2
+    ],
+    "std": 1.0
+   },
+   "pixel_values": {
+    "max": 2.61896,
+    "mean": 0.21351,
+    "min": -2.11083,
+    "shape": [
+     1,
+     512,
+     512,
+     3
+    ],
+    "std": 0.86007
+   },
+   "scales": {
+    "max": 2.27556,
+    "mean": 2.27556,
+    "min": 2.27556,
+    "shape": [
+     1
+    ],
+    "std": 0.0
+   }
+  },
+  "tall_96x48": {
+   "original_sizes": {
+    "max": 96.0,
+    "mean": 72.0,
+    "min": 48.0,
+    "shape": [
+     1,
+     2
+    ],
+    "std": 24.0
+   },
+   "pixel_values": {
+    "max": 2.58792,
+    "mean": 0.1098,
+    "min": -2.07616,
+    "shape": [
+     1,
+     512,
+     512,
+     3
+    ],
+    "std": 0.62426
+   },
+   "scales": {
+    "max": 5.33333,
+    "mean": 5.33333,
+    "min": 5.33333,
+    "shape": [
+     1
+    ],
+    "std": 0.0
+   }
+  },
+  "wide_48x96": {
+   "original_sizes": {
+    "max": 96.0,
+    "mean": 72.0,
+    "min": 48.0,
+    "shape": [
+     1,
+     2
+    ],
+    "std": 24.0
+   },
+   "pixel_values": {
+    "max": 2.57913,
+    "mean": 0.10981,
+    "min": -2.06385,
+    "shape": [
+     1,
+     512,
+     512,
+     3
+    ],
+    "std": 0.62217
+   },
+   "scales": {
+    "max": 5.33333,
+    "mean": 5.33333,
+    "min": 5.33333,
+    "shape": [
+     1
+    ],
+    "std": 0.0
+   }
+  }
+ },
  "EoMTImageProcessor": {
   "large_300x500": {
    "pixel_values": {
