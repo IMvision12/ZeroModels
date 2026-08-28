@@ -64,6 +64,52 @@ class GraniteSpeech5Tokenizer(BaseTokenizer):
         ids = [group[0] for group in itertools.groupby(ids)]  # group consecutive
         return [i for i in ids if i != self.pad_token_id]  # drop the blank
 
+    def ctc_offsets(self, ids, frame_seconds: float) -> List[dict]:
+        """Word-level timestamps from per-frame CTC argmax ids.
+
+        Collapses each run of identical ids into one token carrying its ``[start,
+        end]`` frame span (the blank is dropped), groups the subword tokens into words
+        at the space marker (``Ġ`` for byte-level BPE, ``▁`` for sentencepiece), and
+        converts frame spans to seconds via ``frame_seconds`` (the audio time one CTC
+        frame covers). CTC alignment is spiky, so a timestamp marks roughly where a word
+        is emitted. Returns ``[{"text": word, "timestamp": (start, end)}, ...]``.
+        """
+        ids = [int(i) for i in ids]
+        # Runs of identical ids collapse to one token with an inclusive frame span; a
+        # trailing blank sentinel flushes the final run. Blanks are dropped.
+        tokens = []  # (id, start_frame, end_frame)
+        prev, run_start = self.pad_token_id, 0
+        for frame, tid in enumerate(ids + [self.pad_token_id]):
+            if tid != prev:
+                if prev != self.pad_token_id:
+                    tokens.append((prev, run_start, frame - 1))
+                prev, run_start = tid, frame
+
+        words = []  # each: {"ids": [...], "start": frame, "end": frame}
+        for tid, start, end in tokens:
+            piece = self._tok.id_to_token(tid) or ""
+            if not words or piece.startswith(("Ġ", "▁")):
+                words.append({"ids": [tid], "start": start, "end": end})
+            else:
+                words[-1]["ids"].append(tid)
+                words[-1]["end"] = end
+
+        offsets = []
+        for word in words:
+            text = self._tok.decode(word["ids"], skip_special_tokens=True).strip()
+            if not text:
+                continue
+            offsets.append(
+                {
+                    "text": text,
+                    "timestamp": (
+                        round(word["start"] * frame_seconds, 2),
+                        round((word["end"] + 1) * frame_seconds, 2),
+                    ),
+                }
+            )
+        return offsets
+
     def decode(self, token_ids, skip_special_tokens: bool = True):
         if hasattr(token_ids, "cpu"):
             token_ids = token_ids.cpu()

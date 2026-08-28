@@ -18,6 +18,53 @@ from .whisper_layers import (
 # variant's weights repo, whose zm_config.json declares the canonical WhisperModel.
 WHISPER_HUB_SIBLINGS = frozenset({"WhisperModel", "WhisperConditionalGenerate"})
 
+
+def apply_whisper_timestamp_rules(
+    scores, generated, begin_index, timestamp_begin, eos_token_id, max_initial_index
+):
+    """transformers' ``WhisperTimeStampLogitsProcessor``, host-side (numpy).
+
+    Enforces Whisper's timestamp-token grammar on a step's logits so the model emits a
+    valid ``<|t|> text <|t|>`` structure: timestamps come in pairs, never decrease, and
+    a step is forced to a timestamp when their summed probability beats the top text
+    token. ``scores`` is ``(B, V)``; ``generated`` is ``(B, L)`` with the forced prompt
+    at ``[:begin_index]``. Coordinates: ``<|notimestamps|>`` is ``timestamp_begin - 1``,
+    and ``<|0.00|>`` is ``timestamp_begin``. Returns the modified scores.
+    """
+    neg = -1e9  # matches the model's additive suppress bias; never the argmax
+    scores = scores.copy()
+    scores[:, timestamp_begin - 1] = neg  # never emit <|notimestamps|> mid-stream
+    batch, length = generated.shape
+    for k in range(batch):
+        seq = generated[k, begin_index:].tolist()
+        last_ts = len(seq) >= 1 and seq[-1] >= timestamp_begin
+        penult_ts = len(seq) < 2 or seq[-2] >= timestamp_begin
+        if last_ts:
+            if penult_ts:  # a pair just closed -> the next token must be text
+                scores[k, timestamp_begin:] = neg
+            else:  # one timestamp open -> the next must be a timestamp (or eos)
+                scores[k, :eos_token_id] = neg
+        stamps = [t for t in seq if t >= timestamp_begin]
+        if stamps:  # timestamps are non-decreasing
+            ts_last = stamps[-1] if (last_ts and not penult_ts) else stamps[-1] + 1
+            scores[k, timestamp_begin:ts_last] = neg
+    if length == begin_index:  # the very first generated token must be a timestamp
+        scores[:, :timestamp_begin] = neg
+        if max_initial_index is not None:
+            scores[:, timestamp_begin + max_initial_index + 1 :] = neg
+    # If the total probability mass on timestamps exceeds the top text token, force one.
+    logprobs = scores - (
+        scores.max(-1, keepdims=True)
+        + np.log(np.exp(scores - scores.max(-1, keepdims=True)).sum(-1, keepdims=True))
+    )
+    for k in range(batch):
+        ts_lp = logprobs[k, timestamp_begin:]
+        ts_logprob = ts_lp.max() + np.log(np.exp(ts_lp - ts_lp.max()).sum())
+        if ts_logprob > logprobs[k, :timestamp_begin].max():
+            scores[k, :timestamp_begin] = neg
+    return scores
+
+
 _ACTIVATION_ALIASES = {
     "gelu": lambda x: keras.activations.gelu(x, approximate=False),
     "gelu_new": lambda x: keras.activations.gelu(x, approximate=True),
@@ -571,12 +618,13 @@ class WhisperConditionalGenerate(WhisperModel, BaseSeq2SeqGeneration):
         language: Optional[str] = "en",
         task: str = "transcribe",
         no_timestamps: bool = True,
+        return_timestamps: bool = False,
         max_new_tokens: Optional[int] = None,
         sampling_rate: int = 16000,
         return_ids: bool = False,
         suppress_tokens: Optional[List[int]] = None,
         begin_suppress_tokens: Optional[List[int]] = None,
-    ) -> Union[List[str], List[List[int]]]:
+    ) -> Union[List[str], List[List[int]], List[dict]]:
         # Generation settings come from self.generate_args: the repo's zm_config
         # generate_args (the OpenAI generation_config, verbatim) when loaded by repo
         # id, else the class default. Explicit call args override; the processor /
@@ -587,8 +635,10 @@ class WhisperConditionalGenerate(WhisperModel, BaseSeq2SeqGeneration):
 
         sot = ga.get("decoder_start_token_id", processor.decoder_start_token_id)
         eos = ga.get("eos_token_id", processor.tokenizer.eos_token_id)
+        # With timestamps the model emits <|t|> tokens, so the prompt must NOT force
+        # <|notimestamps|>.
         prompt_ids = [sot] + self._decoder_prompt_ids(
-            processor, ga, language, task, no_timestamps
+            processor, ga, language, task, no_timestamps and not return_timestamps
         )
 
         suppress = sorted(
@@ -620,6 +670,12 @@ class WhisperConditionalGenerate(WhisperModel, BaseSeq2SeqGeneration):
 
         features = ops.convert_to_tensor(inputs["input_features"])
         batch = int(features.shape[0])
+
+        if return_timestamps:
+            return self._generate_with_timestamps(
+                features, processor, ga, prompt_ids, max_new_tokens, eos, return_ids
+            )
+
         decoder_start_ids = ops.convert_to_tensor([prompt_ids] * batch, dtype="int32")
         generated = super().generate(
             features, decoder_start_ids, max_new_tokens=max_new_tokens, eos_token_id=eos
@@ -629,6 +685,114 @@ class WhisperConditionalGenerate(WhisperModel, BaseSeq2SeqGeneration):
         if return_ids:
             return ids
         return processor.batch_decode(ids, skip_special_tokens=True)
+
+    def _generate_with_timestamps(
+        self, features, processor, ga, prompt_ids, max_new_tokens, eos, return_ids
+    ):
+        """Segment-level timestamp decoding (Whisper's ``<|t|>`` tokens).
+
+        Runs a cached greedy loop (reusing the seq2seq KV cache via ``build_cache`` /
+        ``call_with_cache``) with a host-side ``WhisperTimeStampLogitsProcessor``, then
+        splits the answer at timestamp pairs. Faithful to transformers'
+        ``return_timestamps=True`` path. Returns one dict per audio,
+        ``{"text": str, "chunks": [{"text": str, "timestamp": (start, end)}, ...]}``,
+        or the raw ids when ``return_ids``. The compiled ``while_loop`` cannot carry the
+        running sequence the timestamp rules need, so this loop stays uncompiled;
+        plain transcription keeps the fast compiled path.
+        """
+        import contextlib
+
+        timestamp_begin = processor._special_id("<|notimestamps|>") + 1
+        max_initial = ga.get("max_initial_timestamp_index", 50)
+        time_precision = 0.02  # Whisper: 30 s over 1500 frames, 2 frames per token.
+        prompt_len = len(prompt_ids)
+
+        if keras.backend.backend() == "torch":
+            import torch
+
+            grad_ctx = torch.no_grad()
+        else:
+            grad_ctx = contextlib.nullcontext()
+
+        encoder_hidden_states = self.encode(features)
+        batch = int(features.shape[0])
+        decoder_start_ids = ops.convert_to_tensor([prompt_ids] * batch, dtype="int32")
+        with grad_ctx:
+            cache, logits = self.build_cache(
+                decoder_start_ids, encoder_hidden_states, prompt_len + max_new_tokens
+            )
+            generated = np.tile(np.asarray(prompt_ids, dtype="int32"), (batch, 1))
+            done = np.zeros((batch,), dtype=bool)
+            for step in range(max_new_tokens):
+                scores = np.asarray(ops.convert_to_numpy(logits), dtype="float32")
+                scores = apply_whisper_timestamp_rules(
+                    scores, generated, prompt_len, timestamp_begin, eos, max_initial
+                )
+                nxt = scores.argmax(axis=-1).astype("int32")
+                nxt = np.where(done, eos, nxt).astype("int32")
+                generated = np.concatenate([generated, nxt[:, None]], axis=1)
+                done = done | (nxt == eos)
+                if bool(done.all()) or step == max_new_tokens - 1:
+                    break
+                logits, cache = self.call_with_cache(
+                    ops.convert_to_tensor(nxt[:, None], dtype="int32"),
+                    cache,
+                    prompt_len + step,
+                )
+
+        if return_ids:
+            return [list(row) for row in generated]
+        return [
+            self._parse_timestamp_segments(
+                generated[k],
+                prompt_len,
+                timestamp_begin,
+                time_precision,
+                processor,
+                eos,
+            )
+            for k in range(int(generated.shape[0]))
+        ]
+
+    def _parse_timestamp_segments(
+        self, generated_row, prompt_len, timestamp_begin, time_precision, processor, eos
+    ):
+        """Split one decoded id row into timestamped chunks. A segment opens at the
+        first ``<|t|>`` token, collects text until the next ``<|t|>`` closes it, and a
+        following ``<|t|>`` opens the next (consecutive timestamps share a boundary)."""
+        decode = processor.tokenizer.decode
+        ids = [int(t) for t in generated_row[prompt_len:]]
+        segments, text_tokens = [], []
+        cur_start, cur_tokens = None, []
+        for tid in ids:
+            if tid == eos:
+                break
+            if tid >= timestamp_begin:
+                stamp = round((tid - timestamp_begin) * time_precision, 2)
+                if cur_start is None:
+                    cur_start = stamp
+                else:
+                    segments.append(
+                        {
+                            "text": decode(cur_tokens, skip_special_tokens=True),
+                            "timestamp": (cur_start, stamp),
+                        }
+                    )
+                    cur_start, cur_tokens = None, []
+            else:
+                cur_tokens.append(tid)
+                text_tokens.append(tid)
+        if cur_start is not None and cur_tokens:  # unterminated final segment
+            segments.append(
+                {
+                    "text": decode(cur_tokens, skip_special_tokens=True),
+                    "timestamp": (cur_start, None),
+                }
+            )
+        return {
+            "text": decode(text_tokens, skip_special_tokens=True),
+            "chunks": segments,
+        }
 
     def _decoder_prompt_ids(self, processor, ga, language, task, no_timestamps):
         """Start-of-transcript prompt after ``<sot>``: ``[<lang>], <task>,
