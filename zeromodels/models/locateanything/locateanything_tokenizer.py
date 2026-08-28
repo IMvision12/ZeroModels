@@ -10,11 +10,11 @@ class LocateAnythingTokenizer(BaseTokenizer):
     """Qwen2.5 BPE tokenizer extended with LocateAnything's grounding tokens.
 
     Same ``tokenizers`` backend as :class:`Qwen2Tokenizer`, plus the box / ref /
-    coordinate special-token ids and parsers that turn a generated id sequence
-    into structured grounding results: ``parse_boxes`` (``<box>`` quadruples),
-    ``parse_points`` (two-coordinate ``<box>`` points), and ``parse_grounding``
-    (each ``<ref>`` label paired with the boxes/points that follow it). Each
-    coordinate is ``coord_start_token_id + v`` for v in [0, 1000].
+    coordinate special-token ids and ``parse_grounding``, which turns a generated id
+    sequence into structured results (each ``<ref>`` label paired with the boxes /
+    points that follow it; a box is four coordinates, a point is two). Each coordinate
+    is ``coord_start_token_id + v`` for v in [0, 1000]. The processor's
+    ``post_process_generation`` wraps this with pixel rescaling.
     """
 
     DEFAULT_VARIANT = "locateanything_3b"
@@ -78,40 +78,6 @@ class LocateAnythingTokenizer(BaseTokenizer):
         return self._tok.decode(
             self.to_id_list(ids), skip_special_tokens=skip_special_tokens
         )
-
-    def parse_boxes(self, ids):
-        """Extract bounding boxes from a generated id sequence. Returns a list of
-        ``[x1, y1, x2, y2]`` in the [0, 1000] grid (divide by 1000 and multiply by
-        the image width/height for pixels)."""
-        ids = self.to_id_list(ids)
-        boxes, coords, inside = [], [], False
-        for tid in ids:
-            if tid == self.box_start_token_id:
-                inside, coords = True, []
-            elif tid == self.box_end_token_id:
-                if len(coords) == 4:
-                    boxes.append(coords)
-                inside, coords = False, []
-            elif inside and self.coord_start_token_id <= tid <= self.coord_end_token_id:
-                coords.append(tid - self.coord_start_token_id)
-        return boxes
-
-    def parse_points(self, ids):
-        """Extract pointing results from a generated id sequence. Returns a list
-        of ``[x, y]`` in the [0, 1000] grid; a point is a ``<box>`` carrying two
-        coordinates rather than four. Use this for the pointing task."""
-        ids = self.to_id_list(ids)
-        points, coords, inside = [], [], False
-        for tid in ids:
-            if tid == self.box_start_token_id:
-                inside, coords = True, []
-            elif tid == self.box_end_token_id:
-                if len(coords) == 2:
-                    points.append(coords)
-                inside, coords = False, []
-            elif inside and self.coord_start_token_id <= tid <= self.coord_end_token_id:
-                coords.append(tid - self.coord_start_token_id)
-        return points
 
     def parse_grounding(self, ids):
         """Parse a generated id sequence into grounding results, pairing each
