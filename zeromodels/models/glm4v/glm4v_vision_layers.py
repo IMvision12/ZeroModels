@@ -98,6 +98,10 @@ class Glm4vVisionPatchEmbed(layers.Layer):
         self.embed_dim = embed_dim
         self.proj = layers.Dense(embed_dim, use_bias=True, name="proj")
 
+    def build(self, input_shape):
+        self.proj.build(input_shape)
+        self.built = True
+
     def call(self, x):
         return self.proj(x)
 
@@ -202,6 +206,12 @@ class Glm4VisionMlp(layers.Layer):
         self.up_proj = layers.Dense(intermediate_size, use_bias=False, name="up")
         self.down_proj = layers.Dense(hidden_size, use_bias=False, name="down")
 
+    def build(self, input_shape):
+        self.gate_proj.build(input_shape)
+        self.up_proj.build(input_shape)
+        self.down_proj.build(tuple(input_shape[:-1]) + (self.intermediate_size,))
+        self.built = True
+
     def call(self, x):
         return self.down_proj(ops.silu(self.gate_proj(x)) * self.up_proj(x))
 
@@ -237,6 +247,11 @@ class Glm4vVisionAttention(layers.Layer):
         self.scaling = self.head_dim**-0.5
         self.qkv = layers.Dense(embed_dim * 3, use_bias=False, name="qkv")
         self.proj = layers.Dense(embed_dim, use_bias=False, name="proj")
+
+    def build(self, input_shape):
+        self.qkv.build(input_shape)
+        self.proj.build(input_shape)
+        self.built = True
 
     def call(self, hidden_states, cos, sin, attention_mask=None):
         seq = ops.shape(hidden_states)[0]
@@ -291,6 +306,13 @@ class Glm4vVisionBlock(layers.Layer):
         self.attn = Glm4vVisionAttention(embed_dim, num_heads, name="attn")
         self.mlp = Glm4VisionMlp(embed_dim, intermediate_size, name="mlp")
 
+    def build(self, input_shape):
+        self.norm1.build(input_shape)
+        self.norm2.build(input_shape)
+        self.attn.build(input_shape)
+        self.mlp.build(input_shape)
+        self.built = True
+
     def call(self, hidden_states, cos, sin, attention_mask=None):
         hidden_states = hidden_states + self.attn(
             self.norm1(hidden_states), cos, sin, attention_mask=attention_mask
@@ -326,6 +348,15 @@ class Glm4vVisionPatchMerger(layers.Layer):
         self.gate_proj = layers.Dense(context_dim, use_bias=False, name="gate")
         self.up_proj = layers.Dense(context_dim, use_bias=False, name="up")
         self.down_proj = layers.Dense(dim, use_bias=False, name="down")
+
+    def build(self, input_shape):
+        self.proj.build(input_shape)
+        inter = tuple(input_shape[:-1]) + (self.dim,)
+        self.post_projection_norm.build(inter)
+        self.gate_proj.build(inter)
+        self.up_proj.build(inter)
+        self.down_proj.build(tuple(input_shape[:-1]) + (self.context_dim,))
+        self.built = True
 
     def call(self, x):
         x = self.proj(x)
@@ -406,6 +437,21 @@ class Glm4vVisionModel(layers.Layer):
         self.merger = Glm4vVisionPatchMerger(
             out_hidden_size, intermediate_size, name="merger"
         )
+
+    def build(self, input_shape):
+        # input_shape = (num_patches, patch_dim) flattened patches.
+        embed_shape = (None, self.embed_dim)
+        self.patch_embed.build(input_shape)
+        self.post_conv_layernorm.build(embed_shape)
+        self.embeddings.build(embed_shape)
+        for block in self.blocks:
+            block.build(embed_shape)
+        self.post_layernorm.build(embed_shape)
+        self.downsample.build(
+            (None, self.spatial_merge_size, self.spatial_merge_size, self.embed_dim)
+        )
+        self.merger.build((None, self.out_hidden_size))
+        self.built = True
 
     def call(self, pixel_values, grid_thw):
         m = self.spatial_merge_size

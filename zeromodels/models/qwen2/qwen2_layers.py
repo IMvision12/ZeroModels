@@ -62,6 +62,12 @@ class Qwen2MLP(layers.Layer):
         self.up = layers.Dense(mlp_dim, use_bias=False, name="up")
         self.down = layers.Dense(embed_dim, use_bias=False, name="down")
 
+    def build(self, input_shape):
+        self.gate.build(input_shape)
+        self.up.build(input_shape)
+        self.down.build(tuple(input_shape[:-1]) + (self.mlp_dim,))
+        self.built = True
+
     def call(self, x):
         return self.down(ops.silu(self.gate(x)) * self.up(x))
 
@@ -118,6 +124,15 @@ class Qwen2Attention(layers.Layer):
             num_kv_heads * self.head_dim, use_bias=True, name="value"
         )
         self.output_proj = layers.Dense(embed_dim, use_bias=False, name="output_proj")
+
+    def build(self, input_shape):
+        self.query.build(input_shape)
+        self.key.build(input_shape)
+        self.value.build(input_shape)
+        self.output_proj.build(
+            tuple(input_shape[:-1]) + (self.num_heads * self.head_dim,)
+        )
+        self.built = True
 
     def _split_heads(self, x, num_heads):
         b = ops.shape(x)[0]
@@ -260,6 +275,13 @@ class Qwen2DecoderLayer(layers.Layer):
         )
         self.mlp_norm = Qwen2RMSNorm(eps=norm_eps, name="mlp_norm")
         self.mlp = Qwen2MLP(embed_dim, mlp_dim, name="mlp")
+
+    def build(self, input_shape):
+        self.attention_norm.build(input_shape)
+        self.attention.build(input_shape)
+        self.mlp_norm.build(input_shape)
+        self.mlp.build(input_shape)
+        self.built = True
 
     def call(
         self,

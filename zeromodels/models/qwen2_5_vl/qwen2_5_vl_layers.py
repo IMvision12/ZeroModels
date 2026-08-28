@@ -65,6 +65,12 @@ class Qwen2_5VLMLP(layers.Layer):
         self.up = layers.Dense(mlp_dim, use_bias=use_bias, name="up")
         self.down = layers.Dense(embed_dim, use_bias=use_bias, name="down")
 
+    def build(self, input_shape):
+        self.gate.build(input_shape)
+        self.up.build(input_shape)
+        self.down.build(tuple(input_shape[:-1]) + (self.mlp_dim,))
+        self.built = True
+
     def call(self, x):
         return self.down(ops.silu(self.gate(x)) * self.up(x))
 
@@ -359,6 +365,10 @@ class Qwen2_5_VisionPatchEmbed(layers.Layer):
         self.embed_dim = embed_dim
         self.proj = layers.Dense(embed_dim, use_bias=False, name="proj")
 
+    def build(self, input_shape):
+        self.proj.build(input_shape)
+        self.built = True
+
     def call(self, x):
         return self.proj(x)
 
@@ -396,6 +406,11 @@ class Qwen2_5VLVisionAttention(layers.Layer):
         self.scaling = self.head_dim**-0.5
         self.qkv = layers.Dense(embed_dim * 3, use_bias=True, name="qkv")
         self.proj = layers.Dense(embed_dim, use_bias=True, name="proj")
+
+    def build(self, input_shape):
+        self.qkv.build(input_shape)
+        self.proj.build(input_shape)
+        self.built = True
 
     def call(self, hidden_states, cos, sin, attention_mask=None):
         seq = ops.shape(hidden_states)[0]
@@ -459,6 +474,13 @@ class Qwen2_5VLVisionBlock(layers.Layer):
         self.attn = Qwen2_5VLVisionAttention(embed_dim, num_heads, name="attn")
         self.mlp = Qwen2_5VLMLP(embed_dim, intermediate_size, use_bias=True, name="mlp")
 
+    def build(self, input_shape):
+        self.norm1.build(input_shape)
+        self.norm2.build(input_shape)
+        self.attn.build(input_shape)
+        self.mlp.build(input_shape)
+        self.built = True
+
     def call(self, hidden_states, cos, sin, attention_mask=None):
         hidden_states = hidden_states + self.attn(
             self.norm1(hidden_states), cos, sin, attention_mask=attention_mask
@@ -503,6 +525,13 @@ class Qwen2_5VLPatchMerger(layers.Layer):
         self.ln_q = Qwen2_5VLRMSNorm(eps=1e-6, name="ln_q")
         self.mlp_fc1 = layers.Dense(self.hidden_size, use_bias=True, name="mlp_fc1")
         self.mlp_fc2 = layers.Dense(dim, use_bias=True, name="mlp_fc2")
+
+    def build(self, input_shape):
+        self.ln_q.build(input_shape)
+        merged_shape = (None, self.hidden_size)
+        self.mlp_fc1.build(merged_shape)
+        self.mlp_fc2.build(merged_shape)
+        self.built = True
 
     def call(self, x):
         x = ops.reshape(self.ln_q(x), (-1, self.hidden_size))

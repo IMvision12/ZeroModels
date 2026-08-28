@@ -75,6 +75,14 @@ class MiniMaxM3VLVisionModel(layers.Layer):
             for i in range(num_layers)
         ]
 
+    def build(self, input_shape):
+        # input_shape = (num_patches, patch_dim) packed patches.
+        self.patch_embed.build(input_shape)
+        self.pre_norm.build((None, self.embed_dim))
+        for block in self.blocks:
+            block.build((None, None, self.embed_dim))
+        self.built = True
+
     def call(self, pixel_values, grid_thw=None):
         # grid_thw drives host-side rope construction (``for t,h,w in grid_thw``),
         # so it must be a concrete iterable. In the functional graph this call runs

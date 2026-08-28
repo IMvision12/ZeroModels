@@ -93,6 +93,13 @@ class T5Attention(layers.Layer):
         self.v = layers.Dense(self.inner_dim, use_bias=False, name=f"{prefix}_v")
         self.o = layers.Dense(embed_dim, use_bias=False, name=f"{prefix}_o")
 
+    def build(self, input_shape):
+        self.q.build(input_shape)
+        self.k.build(input_shape)
+        self.v.build(input_shape)
+        self.o.build(tuple(input_shape[:-1]) + (self.inner_dim,))
+        self.built = True
+
     def split_heads(self, x, batch):
         x = ops.reshape(x, (batch, -1, self.num_heads, self.key_value_dim))
         return ops.transpose(x, (0, 2, 1, 3))
@@ -121,6 +128,11 @@ class T5SelfAttentionLayer(layers.Layer):
         self.layer_norm = T5LayerNorm(eps, name=f"{prefix}_ln")
         self.attention = T5Attention(embed_dim, key_value_dim, num_heads, prefix=prefix)
 
+    def build(self, input_shape):
+        self.layer_norm.build(input_shape)
+        self.attention.build(input_shape)
+        self.built = True
+
     def call(self, hidden_states, position_bias):
         normed = self.layer_norm(hidden_states)
         return hidden_states + self.attention(normed, position_bias)
@@ -131,6 +143,11 @@ class T5CrossAttentionLayer(layers.Layer):
         super().__init__(**kwargs)
         self.layer_norm = T5LayerNorm(eps, name=f"{prefix}_ln")
         self.attention = T5Attention(embed_dim, key_value_dim, num_heads, prefix=prefix)
+
+    def build(self, input_shape):
+        self.layer_norm.build(input_shape)
+        self.attention.build(input_shape)
+        self.built = True
 
     def call(self, hidden_states, encoder_hidden_states, position_bias):
         normed = self.layer_norm(hidden_states)
@@ -147,6 +164,14 @@ class T5FeedForwardLayer(layers.Layer):
         self.wi = layers.Dense(mlp_dim, use_bias=False, name=f"{prefix}_wi")
         self.act = layers.Activation(hidden_act, name=f"{prefix}_act")
         self.wo = layers.Dense(embed_dim, use_bias=False, name=f"{prefix}_wo")
+
+    def build(self, input_shape):
+        self.layer_norm.build(input_shape)
+        self.wi.build(input_shape)
+        inter_shape = tuple(input_shape[:-1]) + (self.wi.units,)
+        self.act.build(inter_shape)
+        self.wo.build(inter_shape)
+        self.built = True
 
     def call(self, hidden_states):
         normed = self.layer_norm(hidden_states)
@@ -173,6 +198,11 @@ class T5EncoderBlock(layers.Layer):
         self.ff = T5FeedForwardLayer(
             embed_dim, mlp_dim, hidden_act, eps, prefix=f"{prefix}_ff"
         )
+
+    def build(self, input_shape):
+        self.self_attention.build(input_shape)
+        self.ff.build(input_shape)
+        self.built = True
 
     def call(self, hidden_states, position_bias):
         hidden_states = self.self_attention(hidden_states, position_bias)
@@ -204,6 +234,12 @@ class T5DecoderBlock(layers.Layer):
         self.ff = T5FeedForwardLayer(
             embed_dim, mlp_dim, hidden_act, eps, prefix=f"{prefix}_ff"
         )
+
+    def build(self, input_shape):
+        self.self_attention.build(input_shape)
+        self.cross_attention.build(input_shape)
+        self.ff.build(input_shape)
+        self.built = True
 
     def call(
         self,

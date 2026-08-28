@@ -257,6 +257,18 @@ class Gemma3nAttention(layers.Layer):
             num_heads * head_dim, use_bias=False, name="output_proj"
         )
 
+    def build(self, input_shape):
+        prefix = tuple(input_shape[:-1])
+        self.query.build(input_shape)
+        self.query_norm.build(prefix + (self.num_heads, self.head_dim))
+        if not self.is_kv_shared:
+            self.key.build(input_shape)
+            self.value.build(input_shape)
+            self.key_norm.build(prefix + (self.num_kv_heads, self.head_dim))
+            self.value_norm.build(prefix + (self.num_kv_heads, self.head_dim))
+        self.output_proj.build(prefix + (self.num_heads * self.head_dim,))
+        self.built = True
+
     def project_kv(self, hidden, cos, sin):
         b, s = int(hidden.shape[0]), int(hidden.shape[1])
         k = ops.reshape(self.key(hidden), (b, s, self.num_kv_heads, self.head_dim))
@@ -396,6 +408,24 @@ class Gemma3nDecoderLayer(layers.Layer):
         self.post_per_layer_input_norm = Gemma3nRMSNorm(
             eps=norm_eps, name="post_per_layer_input_norm"
         )
+
+    def build(self, input_shape):
+        # input_shape = (num_altup_inputs, batch, seq, embed_dim); the active
+        # stream (and every norm/attention/mlp) runs on (batch, seq, embed_dim).
+        active_shape = tuple(input_shape[1:])
+        prefix = active_shape[:-1]
+        self.altup.build(input_shape)
+        self.attention_norm.build(active_shape)
+        self.attention.build(active_shape)
+        self.laurel.build(active_shape)
+        self.post_attention_norm.build(active_shape)
+        self.pre_feedforward_norm.build(active_shape)
+        self.mlp.build(active_shape)
+        self.post_feedforward_norm.build(active_shape)
+        self.per_layer_input_gate.build(active_shape)
+        self.per_layer_projection.build(prefix + (self.hidden_size_per_layer_input,))
+        self.post_per_layer_input_norm.build(active_shape)
+        self.built = True
 
     def finish(self, predictions, active, attn, laurel_output, per_layer_input):
         # Shared post-attention body: AltUp correct + per-layer-input fold-in.

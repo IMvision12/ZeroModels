@@ -96,6 +96,12 @@ class DeepseekV4MLP(layers.Layer):
         self.up = layers.Dense(mlp_dim, use_bias=False, name="up")
         self.down = layers.Dense(embed_dim, use_bias=False, name="down")
 
+    def build(self, input_shape):
+        self.gate.build(input_shape)
+        self.up.build(input_shape)
+        self.down.build(tuple(input_shape[:-1]) + (self.mlp_dim,))
+        self.built = True
+
     def call(self, x):
         return self.down(clamped_swiglu(self.gate(x), self.up(x), self.swiglu_limit))
 
@@ -941,6 +947,16 @@ class DeepseekV4DecoderLayer(layers.Layer):
         self.ffn_hc = DeepseekV4HyperConnection(
             hc_mult, embed_dim, hc_sinkhorn_iters, hc_eps, name="ffn_hc"
         )
+
+    def build(self, input_shape):
+        collapsed_shape = tuple(input_shape[:-2]) + (self.embed_dim,)
+        self.attn_hc.build(input_shape)
+        self.ffn_hc.build(input_shape)
+        self.attention_norm.build(collapsed_shape)
+        self.attention.build(collapsed_shape)
+        self.mlp_norm.build(collapsed_shape)
+        self.mlp.build(collapsed_shape)
+        self.built = True
 
     def mix(self, streams, post, comb, sublayer_out):
         dtype = streams.dtype
