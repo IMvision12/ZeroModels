@@ -73,6 +73,7 @@ model.generate(
     language="en",
     task="transcribe",
     no_timestamps=True,
+    return_timestamps=False,
     max_new_tokens=224,
     sampling_rate=16000,
     return_ids=False,
@@ -86,12 +87,15 @@ model.generate(
 - **language** (`str`, *optional*, defaults to `"en"`): forced language token. `None` lets the model detect it.
 - **task** (`str`, *optional*, defaults to `"transcribe"`): `"transcribe"` keeps the source language, `"translate"` renders English.
 - **no_timestamps** (`bool`, *optional*, defaults to `True`): emit plain text rather than timestamp tokens.
+- **return_timestamps** (`bool`, *optional*, defaults to `False`): decode segment-level timestamps. Returns one dict per clip instead of a string (see [Timestamps](#timestamps)).
 - **max_new_tokens** (`int`, *optional*, defaults to `224`): decode budget, half the 448-token context.
 - **sampling_rate** (`int`, *optional*, defaults to `16000`): sample rate of `audio`; resample first if yours differs.
 - **return_ids** (`bool`, *optional*, defaults to `False`): return token ids instead of strings.
 - **suppress_tokens** / **begin_suppress_tokens** (`list`, *optional*): token ids to ban, overriding the defaults.
 
-**Returns** a list of strings, one per clip (or a list of id lists when `return_ids=True`).
+**Returns** a list of strings, one per clip. A list of id lists when `return_ids=True`; a
+list of `{"text", "chunks": [{"text", "timestamp": (start, end)}, ...]}` dicts when
+`return_timestamps=True`.
 
 ### WhisperModel
 
@@ -251,6 +255,34 @@ for line in model.generate(clips, processor, language="en"):
 ```python
 text = model.generate(audio, processor, language="en", task="translate")
 ```
+
+### Timestamps
+
+Pass `return_timestamps=True` to decode segment-level timestamps. Each clip comes back as
+`{"text", "chunks": [...]}` instead of a string, where every chunk carries its text and a
+`(start, end)` pair in seconds:
+
+```python
+result = model.generate(
+    audio, processor, language="en", task="transcribe", return_timestamps=True
+)[0]
+
+print(result["text"])
+for chunk in result["chunks"]:
+    print(chunk["timestamp"], chunk["text"])
+```
+
+```
+ He tells us that at this festive season of the year, with Christmas and roast beef looming before us, similarly drawn from eating and its results occur most readily to the mind.
+(0.0, 6.2)  He tells us that at this festive season of the year, with Christmas and roast beef looming
+(6.2, 11.96)  before us, similarly drawn from eating and its results occur most readily to the mind.
+```
+
+The model emits `<|t|>` timestamp tokens (0.02 s resolution) bracketing each segment, and a
+`WhisperTimeStampLogitsProcessor` enforces the pairing grammar during decoding, matching
+transformers bit-for-bit. This uses a cached but uncompiled loop (the timestamp rules need
+the running sequence), so plain transcription keeps the faster compiled path. Batches and
+`task="translate"` work the same way.
 
 `task="translate"` always renders **English** output, whatever `language` says the input
 is. Pass `language=None` to let the model detect the spoken language itself.
