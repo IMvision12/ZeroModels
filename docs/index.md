@@ -20,7 +20,7 @@ template: home.html
   </a>
   <h1>Run <em>any</em> model,<br>on any backend</h1>
   <p class="kf-hero__lede">
-    118 model families ported to pure Keras 3, with weights converted from the
+    100+ model families ported to pure Keras 3, with weights converted from the
     original checkpoints. The same code runs on JAX, PyTorch and TensorFlow, and
     nothing from <code>transformers</code> or <code>torch</code> is needed at
     run time.
