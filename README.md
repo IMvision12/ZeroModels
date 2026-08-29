@@ -96,6 +96,7 @@ Documentation sources are also available in [`docs/`](docs/).
 
     | 🏷️ Model Name | 📜 Reference Paper | 📦 Source of Weights |
     |---------------|-------------------|---------------------|
+    | BEiT | [BEiT: BERT Pre-Training of Image Transformers](https://arxiv.org/abs/2106.08254) | `transformers` |
     | CaiT | [Going deeper with Image Transformers](https://arxiv.org/abs/2103.17239) | `timm` |
     | ConvMixer | [Patches Are All You Need?](https://arxiv.org/abs/2201.09792) | `timm` |
     | ConvNeXt | [A ConvNet for the 2020s](https://arxiv.org/abs/2201.03545) | `timm` |
@@ -160,6 +161,7 @@ Documentation sources are also available in [`docs/`](docs/).
 
     | 🏷️ Model Name | 📜 Reference Paper | 📦 Source of Weights |
     |---------------|-------------------|---------------------|
+    | BEiT | [BEiT: BERT Pre-Training of Image Transformers](https://arxiv.org/abs/2106.08254) | `transformers` |
     | DeepLabV3 | [Rethinking Atrous Convolution for Semantic Image Segmentation](https://arxiv.org/abs/1706.05587) | `torchvision` |
     | EoMT | [Your ViT is Secretly an Image Segmentation Model](https://arxiv.org/abs/2503.19108) | `transformers` |
     | MaskFormer | [Per-Pixel Classification is Not All You Need for Semantic Segmentation](https://arxiv.org/abs/2107.06278) | `transformers` |
