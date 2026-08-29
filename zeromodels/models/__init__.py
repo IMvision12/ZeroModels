@@ -121,6 +121,7 @@ from zeromodels.models import (
     swin,
     swinv2,
     t5,
+    table_transformer,
     tipsv2,
     tipsv2_dpt,
     vgg,

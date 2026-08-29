@@ -184,13 +184,13 @@ nav:
           - MobileViTV2: mobilevitv2.md
           - PVT: pvt.md
           - PVTv2: pvt_v2.md
-          - RegNet: regnet.md
           - RF-DETR: rf_detr.md
           - RT-DETR: rt_detr.md
           - RT-DETRv2: rt_detr_v2.md
           - SAM: sam.md
           - SAM 2: sam2.md
           - SegFormer: segformer.md
+          - Table Transformer: table_transformer.md
           - TIPSv2-DPT: tipsv2_dpt.md
       - Audio models:
           - Granite Speech: granite_speech.md

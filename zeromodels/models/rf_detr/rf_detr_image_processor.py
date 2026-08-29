@@ -1,8 +1,7 @@
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import keras
-import numpy as np
-from PIL import Image
+from keras import ops
 
 from zeromodels.base import BaseImageProcessor
 from zeromodels.utils.labels_util import COCO_91_CLASSES
@@ -86,14 +85,10 @@ class RFDETRImageProcessor(BaseImageProcessor):
         """
         return {"height": 560, "width": 560}
 
-    def __call__(
-        self, image: Union[str, np.ndarray, Image.Image, List]
-    ) -> Dict[str, Union[keras.KerasTensor, np.ndarray]]:
+    def __call__(self, image) -> Dict[str, keras.KerasTensor]:
         return self.call(image)
 
-    def call(
-        self, image: Union[str, np.ndarray, Image.Image, List]
-    ) -> Dict[str, Union[keras.KerasTensor, np.ndarray]]:
+    def call(self, image) -> Dict[str, keras.KerasTensor]:
         if isinstance(image, (list, tuple)):
             return self.stack_images(image)
         image, _, _, _ = self.preprocess_image(
@@ -110,7 +105,7 @@ class RFDETRImageProcessor(BaseImageProcessor):
             image = image * (self.rescale_factor * 255)
 
         if not self.return_tensor:
-            image = keras.ops.convert_to_numpy(image)
+            image = ops.convert_to_numpy(image)
 
         return {"pixel_values": image}
 
@@ -155,7 +150,7 @@ def rf_detr_post_process_object_detection(
     num_top_queries: int = 300,
     target_sizes: Optional[List[Tuple[int, int]]] = None,
     label_names: Optional[List[str]] = None,
-) -> List[Dict[str, np.ndarray]]:
+) -> list:
     """Post-process raw RF-DETR outputs into usable detections.
 
     RF-DETR uses sigmoid activation (not softmax) and does not have a
@@ -199,34 +194,29 @@ def rf_detr_post_process_object_detection(
                 print(f"{name}: {score:.2f}")
         ```
     """
-    logits = keras.ops.convert_to_numpy(outputs["logits"])
-    boxes = keras.ops.convert_to_numpy(outputs["pred_boxes"])
+    logits = ops.convert_to_tensor(outputs["logits"])
+    boxes = ops.convert_to_tensor(outputs["pred_boxes"])
 
     batch_size = logits.shape[0]
     num_classes = logits.shape[2]
 
-    probs = sigmoid(logits)
+    probs = ops.sigmoid(logits)
 
     results = []
     for i in range(batch_size):
-        prob_i = probs[i]
-        boxes_i = boxes[i]
-
-        flat_scores = prob_i.reshape(-1)
+        flat_scores = ops.reshape(probs[i], (-1,))
         num_select = min(num_top_queries, flat_scores.shape[0])
-        topk_indices = np.argpartition(flat_scores, -num_select)[-num_select:]
-        topk_indices = topk_indices[np.argsort(-flat_scores[topk_indices])]
+        topk_scores, topk_indices = ops.top_k(flat_scores, num_select)
 
-        topk_scores = flat_scores[topk_indices]
-        topk_box_indices = topk_indices // num_classes
-        topk_labels = topk_indices % num_classes
+        topk_box_indices = ops.floor_divide(topk_indices, num_classes)
+        topk_labels = ops.mod(topk_indices, num_classes)
 
-        topk_boxes = boxes_i[topk_box_indices]
-
-        keep = topk_scores > threshold
-        scores = topk_scores[keep]
-        labels = topk_labels[keep]
-        kept_boxes = topk_boxes[keep]
+        keep = ops.nonzero(ops.greater(topk_scores, threshold))[0]
+        scores = ops.take(topk_scores, keep, axis=0)
+        labels = ops.take(topk_labels, keep, axis=0)
+        kept_boxes = ops.take(
+            boxes[i], ops.take(topk_box_indices, keep, axis=0), axis=0
+        )
 
         cx, cy, w, h = (
             kept_boxes[:, 0],
@@ -234,19 +224,23 @@ def rf_detr_post_process_object_detection(
             kept_boxes[:, 2],
             kept_boxes[:, 3],
         )
-        x_min = cx - w / 2
-        y_min = cy - h / 2
-        x_max = cx + w / 2
-        y_max = cy + h / 2
-        xyxy_boxes = np.stack([x_min, y_min, x_max, y_max], axis=-1)
+        xyxy_boxes = ops.stack(
+            [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], axis=-1
+        )
 
         if target_sizes is not None:
             img_h, img_w = target_sizes[i]
-            scale = np.array([img_w, img_h, img_w, img_h], dtype=np.float32)
+            scale = ops.convert_to_tensor([img_w, img_h, img_w, img_h], dtype="float32")
             xyxy_boxes = xyxy_boxes * scale
 
-        _names = label_names if label_names is not None else COCO_91_CLASSES
-        mapped_names = [_names[l] if l < len(_names) else f"class_{l}" for l in labels]
+        scores = ops.convert_to_numpy(scores)
+        labels = ops.convert_to_numpy(labels)
+        xyxy_boxes = ops.convert_to_numpy(xyxy_boxes)
+
+        names = label_names if label_names is not None else COCO_91_CLASSES
+        mapped_names = [
+            names[label] if label < len(names) else f"class_{label}" for label in labels
+        ]
 
         results.append(
             {
@@ -267,7 +261,7 @@ def rf_detr_post_process_instance_segmentation(
     target_sizes: Optional[List[Tuple[int, int]]] = None,
     label_names: Optional[List[str]] = None,
     mask_threshold: float = 0.5,
-) -> List[Dict[str, np.ndarray]]:
+) -> list:
     """Post-process ``RFDETRInstanceSegment`` outputs into instance masks + scores/labels/boxes.
 
     Mirrors :func:`rf_detr_post_process_object_detection`'s sigmoid + flat top-k
@@ -294,78 +288,81 @@ def rf_detr_post_process_instance_segmentation(
         ``"label_names"``, ``"boxes"`` (xyxy), and ``"masks"``: a boolean array of
         shape ``(K, H, W)`` for each image.
     """
-    logits = keras.ops.convert_to_numpy(outputs["logits"])
-    boxes = keras.ops.convert_to_numpy(outputs["pred_boxes"])
-    mask_logits = keras.ops.convert_to_numpy(outputs["pred_masks"]).astype(np.float32)
+    logits = ops.convert_to_tensor(outputs["logits"])
+    boxes = ops.convert_to_tensor(outputs["pred_boxes"])
+    mask_logits = ops.cast(ops.convert_to_tensor(outputs["pred_masks"]), "float32")
 
     batch_size = logits.shape[0]
     num_classes = logits.shape[2]
-    probs = sigmoid(logits)
+    probs = ops.sigmoid(logits)
 
     results = []
     for i in range(batch_size):
-        prob_i = probs[i]
-        boxes_i = boxes[i]
-        masks_i = mask_logits[i]
-
-        flat_scores = prob_i.reshape(-1)
+        flat_scores = ops.reshape(probs[i], (-1,))
         num_select = min(num_top_queries, flat_scores.shape[0])
-        topk_indices = np.argpartition(flat_scores, -num_select)[-num_select:]
-        topk_indices = topk_indices[np.argsort(-flat_scores[topk_indices])]
+        topk_scores, topk_indices = ops.top_k(flat_scores, num_select)
+        topk_query = ops.floor_divide(topk_indices, num_classes)
+        topk_labels = ops.mod(topk_indices, num_classes)
 
-        topk_scores = flat_scores[topk_indices]
-        topk_query_indices = topk_indices // num_classes
-        topk_labels = topk_indices % num_classes
+        # Keep the above-threshold pairs, then, since the scores are sorted
+        # descending, keep only the first (highest-scoring) occurrence of each
+        # query: a vectorized dedup via a strictly-lower-triangular equality count.
+        above = ops.greater(topk_scores, threshold)
+        n = topk_query.shape[0]
+        eq = ops.equal(ops.expand_dims(topk_query, 1), ops.expand_dims(topk_query, 0))
+        earlier = ops.tril(ops.ones((n, n)), k=-1)
+        prior = ops.sum(ops.cast(eq, "int32") * ops.cast(earlier, "int32"), axis=1)
+        first = ops.equal(prior, 0)
+        keep = ops.nonzero(ops.logical_and(above, first))[0]
 
-        keep = topk_scores > threshold
-        q_idx = topk_query_indices[keep]
-        labels = topk_labels[keep]
-        scores = topk_scores[keep]
+        q_idx = ops.take(topk_query, keep, axis=0)
+        labels = ops.take(topk_labels, keep, axis=0)
+        scores = ops.take(topk_scores, keep, axis=0)
 
-        seen, sel = set(), []
-        for j in range(len(q_idx)):
-            if int(q_idx[j]) not in seen:
-                seen.add(int(q_idx[j]))
-                sel.append(j)
-        q_idx = q_idx[sel]
-        labels = labels[sel]
-        scores = scores[sel]
-
-        kept_boxes = boxes_i[q_idx]
+        kept_boxes = ops.take(boxes[i], q_idx, axis=0)
         cx, cy, w, h = (
             kept_boxes[:, 0],
             kept_boxes[:, 1],
             kept_boxes[:, 2],
             kept_boxes[:, 3],
         )
-        xyxy_boxes = np.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], axis=-1)
+        xyxy_boxes = ops.stack(
+            [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], axis=-1
+        )
 
         if target_sizes is not None:
             img_h, img_w = target_sizes[i]
-            xyxy_boxes = xyxy_boxes * np.array(
-                [img_w, img_h, img_w, img_h], dtype=np.float32
-            )
+            scale = ops.convert_to_tensor([img_w, img_h, img_w, img_h], dtype="float32")
+            xyxy_boxes = xyxy_boxes * scale
 
-        if q_idx.size > 0:
-            km = masks_i[q_idx][..., None]  # (K, mh, mw, 1)
+        num_kept = int(keep.shape[0])
+        if num_kept > 0:
+            km = ops.expand_dims(ops.take(mask_logits[i], q_idx, axis=0), -1)
             if target_sizes is not None:
                 img_h, img_w = target_sizes[i]
-                km = keras.ops.convert_to_numpy(
-                    keras.ops.image.resize(
-                        km,
-                        (img_h, img_w),
-                        interpolation="bilinear",
-                        data_format="channels_last",
-                    )
+                km = ops.image.resize(
+                    km,
+                    (img_h, img_w),
+                    interpolation="bilinear",
+                    data_format="channels_last",
                 )
-            km = km[..., 0]
-            masks_bin = (1.0 / (1.0 + np.exp(-km))) > mask_threshold
+            masks_bin = ops.greater(ops.sigmoid(km[..., 0]), mask_threshold)
         else:
-            mh, mw = target_sizes[i] if target_sizes is not None else masks_i.shape[1:]
-            masks_bin = np.zeros((0, mh, mw), dtype=bool)
+            if target_sizes is not None:
+                mh, mw = target_sizes[i]
+            else:
+                mh, mw = mask_logits.shape[2], mask_logits.shape[3]
+            masks_bin = ops.zeros((0, mh, mw), dtype="bool")
 
-        _names = label_names if label_names is not None else COCO_91_CLASSES
-        mapped_names = [_names[l] if l < len(_names) else f"class_{l}" for l in labels]
+        scores = ops.convert_to_numpy(scores)
+        labels = ops.convert_to_numpy(labels)
+        xyxy_boxes = ops.convert_to_numpy(xyxy_boxes)
+        masks_bin = ops.convert_to_numpy(masks_bin)
+
+        names = label_names if label_names is not None else COCO_91_CLASSES
+        mapped_names = [
+            names[label] if label < len(names) else f"class_{label}" for label in labels
+        ]
 
         results.append(
             {
@@ -378,12 +375,3 @@ def rf_detr_post_process_instance_segmentation(
         )
 
     return results
-
-
-def sigmoid(x: np.ndarray) -> np.ndarray:
-    """Numerically stable sigmoid."""
-    return np.where(
-        x >= 0,
-        1.0 / (1.0 + np.exp(-x)),
-        np.exp(x) / (1.0 + np.exp(x)),
-    )

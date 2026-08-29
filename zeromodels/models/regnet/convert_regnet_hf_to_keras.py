@@ -17,11 +17,6 @@ from zeromodels.conversion.weight_transfer_util import (
 )
 from zeromodels.models.regnet import RegNetImageClassify
 
-# Hosted variant -> HF (transformers) repo id, for every standard RegNet X/Y FLOP
-# variant (002=0.2 GF ... 320=32 GF). The arch is read from each repo's config.json
-# via RegNetImageClassify.config_from_hf, so no per-variant arch table is needed
-# here; ``hf:facebook/regnet-*`` also loads any of these on the fly. (The larger
-# self-supervised "-seer" checkpoints are not listed but load the same way.)
 REGNET_FLOPS = (
     "002",
     "004",
@@ -42,9 +37,6 @@ REGNET_VARIANTS = {
     for flops in REGNET_FLOPS
 }
 
-# keras weight name ``{layer.name}_{weight.name}`` -> HF (torch) name. The keras
-# layers are named as the HF module path with ``.`` replaced by ``_``, so ``_ ->
-# .`` alone reconstructs the path; the rest renames Keras weight suffixes.
 WEIGHT_NAME_MAPPING = {
     "_": ".",
     "kernel": "weight",
@@ -85,15 +77,8 @@ if __name__ == "__main__":
     _meta.version = lambda name: (
         "0.23.0" if name == "tokenizers" else _orig_version(name)
     )
-    import torch
     import transformers
     from huggingface_hub import hf_hub_download
-
-    # Compare in true float32: cuDNN TF32 on a GPU inflates the conv/BN diff to
-    # ~1e-2 (HF runs on CPU), which can spuriously trip the 1e-2 parity gate on the
-    # SE ("y") variants. Disabling TF32 restores the real ~5e-6 conversion fidelity.
-    torch.backends.cudnn.allow_tf32 = False
-    torch.backends.cuda.matmul.allow_tf32 = False
 
     for variant, hf_id in REGNET_VARIANTS.items():
         print(f"\n{'=' * 60}")
