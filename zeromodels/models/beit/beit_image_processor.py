@@ -1,7 +1,6 @@
 from typing import Dict, List, Optional, Tuple, Union
 
 import keras
-import numpy as np
 from keras import ops
 from PIL import Image
 
@@ -20,7 +19,7 @@ class BeitImageProcessor(BaseImageProcessor):
     to ``[0, 1]``, and normalizes with 0.5/0.5 statistics (``IMAGENET_STANDARD``).
     Because it normalizes, pair it with a model built with
     ``include_normalization=False``; the models otherwise normalize internally and
-    take raw ``[0, 255]`` pixels with no processor.
+    take raw ``[0, 255]`` pixels with no processor. Runs entirely on ``keras.ops``.
 
     Also provides ``post_process_semantic_segmentation``, which upsamples the
     quarter-resolution segmentation logits to the requested sizes and takes the
@@ -91,31 +90,54 @@ class BeitImageProcessor(BaseImageProcessor):
     def __call__(self, image):
         return self.call(image)
 
-    def call(self, image: Union[str, np.ndarray, Image.Image, List]):
+    def call(self, image):
         if isinstance(image, (list, tuple)):
             batch = ops.concatenate(
                 [ops.convert_to_tensor(self.call(im)) for im in image], axis=0
             )
             return ops.convert_to_numpy(batch) if not self.return_tensor else batch
-        is_keras_tensor = (
-            not isinstance(image, (str, np.ndarray, Image.Image))
-            and hasattr(image, "shape")
-            and hasattr(image, "dtype")
-        )
-        if is_keras_tensor:
+
+        if isinstance(image, (str, Image.Image)):
+            if self.do_resize:
+                image, _, _, _ = self.preprocess_image(
+                    image,
+                    target_size=(self.size["height"], self.size["width"]),
+                    image_mean=self.image_mean if self.do_normalize else None,
+                    image_std=self.image_std if self.do_normalize else None,
+                    rescale=self.do_rescale,
+                    interpolation=self.resample,
+                    antialias=self.antialias,
+                    data_format=self.data_format,
+                )
+            else:
+                image = ops.cast(
+                    ops.expand_dims(ops.convert_to_tensor(load_image(image)), 0),
+                    "float32",
+                )
+                if self.do_rescale:
+                    image = image / 255.0
+                if self.do_normalize:
+                    image = self.normalize_image(
+                        image,
+                        self.image_mean,
+                        self.image_std,
+                        data_format="channels_last",
+                    )
+                if get_data_format(self.data_format) == "channels_first":
+                    image = ops.transpose(image, (0, 3, 1, 2))
+        else:
+            image = ops.convert_to_tensor(image)
             if len(image.shape) == 4:
                 image = image[0]
             if len(image.shape) != 3:
                 raise ValueError("Input tensor must have shape (H, W, C)")
-            image_float = ops.cast(image, "float32")
-            max_v = ops.convert_to_numpy(ops.max(image_float)).item()
-            min_v = ops.convert_to_numpy(ops.min(image_float)).item()
+            image = ops.cast(image, "float32")
+            max_v = float(ops.convert_to_numpy(ops.max(image)))
+            min_v = float(ops.convert_to_numpy(ops.min(image)))
             if max_v <= 1.0 and min_v >= 0.0:
-                image = image_float * 255.0
-            elif not (min_v >= 0 and max_v <= 255):
+                image = image * 255.0
+            elif min_v < 0 or max_v > 255:
                 raise ValueError("Tensor values must be in [0, 1] or [0, 255] range")
-            else:
-                image = image_float
             image = ops.expand_dims(image, axis=0)
             if self.do_resize:
                 target = (self.size["height"], self.size["width"])
@@ -138,30 +160,7 @@ class BeitImageProcessor(BaseImageProcessor):
                 image = (image - mean) / std
             if get_data_format(self.data_format) == "channels_first":
                 image = ops.transpose(image, (0, 3, 1, 2))
-        elif self.do_resize:
-            image, _, _, _ = self.preprocess_image(
-                image,
-                target_size=(self.size["height"], self.size["width"]),
-                image_mean=self.image_mean if self.do_normalize else None,
-                image_std=self.image_std if self.do_normalize else None,
-                rescale=self.do_rescale,
-                interpolation=self.resample,
-                antialias=self.antialias,
-                data_format=self.data_format,
-            )
-        else:
-            # No resize: decode, then rescale + normalize at the image's own size.
-            image = ops.expand_dims(
-                ops.convert_to_tensor(np.asarray(load_image(image), "float32")), 0
-            )
-            if self.do_rescale:
-                image = image / 255.0
-            if self.do_normalize:
-                image = self.normalize_image(
-                    image, self.image_mean, self.image_std, data_format="channels_last"
-                )
-            if get_data_format(self.data_format) == "channels_first":
-                image = ops.transpose(image, (0, 3, 1, 2))
+
         if self.do_center_crop:
             image = self.center_crop(image)
         if not self.return_tensor:
@@ -203,7 +202,7 @@ def beit_post_process_semantic_segmentation(
     outputs,
     target_sizes: Optional[List[Tuple[int, int]]] = None,
     data_format: Optional[str] = None,
-) -> List[np.ndarray]:
+) -> list:
     """Turn BEiT segmentation logits into per-pixel label maps, matching HF.
 
     ``BeitSemanticSegment`` returns logits at a quarter of the input resolution.
@@ -211,6 +210,7 @@ def beit_post_process_semantic_segmentation(
     (bilinear, ``align_corners=False``) and takes the argmax over the class axis;
     upsampling before the argmax keeps class boundaries smooth. When
     ``target_sizes`` is ``None`` the maps stay at the model's output resolution.
+    Runs on ``keras.ops`` and materializes each map to numpy at the end.
 
     Args:
         outputs: Model logits, ``(B, H, W, num_classes)`` for ``channels_last`` or
@@ -224,20 +224,18 @@ def beit_post_process_semantic_segmentation(
         A list of length ``batch_size``, each a ``(height, width)`` array of class
         ids.
     """
-    logits = ops.convert_to_numpy(outputs)
+    logits = ops.convert_to_tensor(outputs)
     if get_data_format(data_format) == "channels_first":
-        logits = np.transpose(logits, (0, 2, 3, 1))  # -> (B, H, W, C)
+        logits = ops.transpose(logits, (0, 2, 3, 1))  # -> (B, H, W, C)
 
     results = []
-    for i in range(logits.shape[0]):
+    for i in range(int(logits.shape[0])):
         single = logits[i : i + 1]  # (1, H, W, C)
         if target_sizes is not None:
-            single = ops.convert_to_numpy(
-                ops.image.resize(
-                    single,
-                    (int(target_sizes[i][0]), int(target_sizes[i][1])),
-                    interpolation="bilinear",
-                )
+            single = ops.image.resize(
+                single,
+                (int(target_sizes[i][0]), int(target_sizes[i][1])),
+                interpolation="bilinear",
             )
-        results.append(np.argmax(single[0], axis=-1))
+        results.append(ops.convert_to_numpy(ops.argmax(single[0], axis=-1)))
     return results

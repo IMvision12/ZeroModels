@@ -158,7 +158,7 @@ processor = BeitImageProcessor.from_weights(
     "zeromodels/beit-base-finetuned-ade-640-640"
 )
 
-image = Image.open("assets/data/ade_val_1.jpg").convert("RGB")
+image = Image.open("assets/data/mountain.jpg").convert("RGB")
 pixels = processor(image)  # (1, 640, 640, 3), raw [0, 255]; the model normalizes
 logits = model(pixels, training=False)  # (1, 160, 160, 150), channels_last
 seg = processor.post_process_semantic_segmentation(
@@ -169,7 +169,7 @@ seg = processor.post_process_semantic_segmentation(
 plot_segmentation(image, seg, ADE20K_150_CLASSES)  # overlay + legend
 ```
 
-<img src="../assets/beit_seg_output.jpg" alt="BEiT-base + UPerNet segmentation of a house-and-garden scene: input and ADE20K overlay" width="760">
+<img src="../assets/beit_seg_output.jpg" alt="BEiT-base + UPerNet segmentation of a mountain landscape: input and ADE20K overlay" width="760">
 
 The logits come out at a quarter of the input resolution (160x160 for a 640 input);
 `post_process_semantic_segmentation` upsamples them (bilinear, before the argmax) to each
