@@ -85,8 +85,15 @@ if __name__ == "__main__":
     _meta.version = lambda name: (
         "0.23.0" if name == "tokenizers" else _orig_version(name)
     )
+    import torch
     import transformers
     from huggingface_hub import hf_hub_download
+
+    # Compare in true float32: cuDNN TF32 on a GPU inflates the conv/BN diff to
+    # ~1e-2 (HF runs on CPU), which can spuriously trip the 1e-2 parity gate on the
+    # SE ("y") variants. Disabling TF32 restores the real ~5e-6 conversion fidelity.
+    torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cuda.matmul.allow_tf32 = False
 
     for variant, hf_id in REGNET_VARIANTS.items():
         print(f"\n{'=' * 60}")
