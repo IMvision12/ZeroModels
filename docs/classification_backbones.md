@@ -30,7 +30,7 @@ backbone = ResNetModel.from_weights("zeromodels/resnet50_a1_in1k")
 feature_map = backbone(images)  # (B, H/32, W/32, 2048)
 ```
 
-The same pattern works for every classification arch - swap `ResNet` for `CaiT`, `ViT`, `ConvNeXt`, `EfficientNet`, `Swin`, `MobileNetV3`, etc.
+The same pattern works for every classification arch - swap `ResNet` for `CaiT`, `ViT`, `ConvNeXt`, `RegNet`, `EfficientNet`, `Swin`, `MobileNetV3`, etc.
 
 ## Data Format
 
@@ -65,6 +65,7 @@ The number of stages and their semantics depend on the architecture:
 | Family                                              | Stages when `as_backbone=True`                                  |
 |-----------------------------------------------------|-----------------------------------------------------------------|
 | ResNet / ResNetV2 / Res2Net / ResNeXt / SENet       | 4 (one per residual stage)                                      |
+| RegNet                                              | 4 (one per stage; strides 4, 8, 16, 32)                         |
 | ConvNeXt / ConvNeXtV2                               | 4                                                               |
 | EfficientNet / EfficientNet-Lite / EfficientNetV2   | 5 (at stride-2 boundaries; head conv excluded)                  |
 | EfficientFormer                                     | 4                                                               |
