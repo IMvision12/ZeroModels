@@ -1,7 +1,6 @@
 import math
 
 import keras
-import numpy as np
 from keras import layers, ops
 
 
@@ -720,9 +719,13 @@ class Gemma3nAudioRelativePositionEmbedding(layers.Layer):
         )
         num_timescales = hidden_size // 2
         log_increment = math.log(1.0e4) / max(num_timescales - 1, 1)
-        inv = np.exp(np.arange(num_timescales) * -log_increment).astype("float32")
+        inv = ops.convert_to_numpy(
+            ops.exp(ops.arange(num_timescales, dtype="float32") * -log_increment)
+        )
         self.inv_timescales = inv[None, None, :]  # [1, 1, num_timescales]
-        pos = np.arange(self.max_backward, -self.max_forward - 1, -1, dtype="float32")
+        pos = ops.convert_to_numpy(
+            ops.arange(self.max_backward, -self.max_forward - 1, -1, dtype="float32")
+        )
         self.pos_indices = pos[None]  # [1, F_span]
         self.max_span_plus_1 = self.pos_indices.shape[1]
 
@@ -815,14 +818,16 @@ class Gemma3nAudioAttention(layers.Layer):
 
         # Static local causal validity mask [W, C].
         w, c = self.chunk_size, self.context_size
-        lower = np.tril(np.ones((c, w), dtype=bool), k=0).T
-        upper = np.tril(
-            np.ones((w, c), dtype=bool),
+        lower = ops.transpose(ops.tril(ops.ones((c, w)), k=0))
+        upper = ops.tril(
+            ops.ones((w, c)),
             k=self.max_past_horizon + self.max_future_horizon,
         )
-        self.local_causal_valid_mask = np.ones((w, c), dtype=bool) & lower & upper
+        self.local_causal_valid_mask = ops.convert_to_numpy(
+            ops.logical_and(ops.cast(lower, "bool"), ops.cast(upper, "bool"))
+        )
         # Block gather start indices; sliced per call by num_blocks.
-        self._starts = np.arange(4096)
+        self._starts = ops.convert_to_numpy(ops.arange(4096))
 
     def build(self, input_shape):
         self.per_dim_scale = self.add_weight(
@@ -845,7 +850,7 @@ class Gemma3nAudioAttention(layers.Layer):
         x = ops.pad(x, pad_cfg)
         idx = (
             self._starts[:num_blocks, None] * self.chunk_size
-            + np.arange(self.context_size)[None, :]
+            + ops.convert_to_numpy(ops.arange(self.context_size))[None, :]
         )
         idx = ops.convert_to_tensor(idx.astype("int32"))
         return ops.take(x, idx, axis=1)  # [B, U, C, ...]
@@ -879,7 +884,7 @@ class Gemma3nAudioAttention(layers.Layer):
 
         logits = self.relative_position_embedding(query_blocks, key_blocks)
         logits = ops.tanh(logits / self.logit_cap) * self.logit_cap
-        neg_inf = ops.cast(float(np.finfo(np.float32).min), "float32")
+        neg_inf = ops.cast(-3.4028234663852886e38, "float32")  # most negative float32
         logits = ops.where(final_cond, logits, neg_inf)
         probs = ops.softmax(logits, axis=-1)  # [B,N,U,W,C]
 

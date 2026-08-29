@@ -1,5 +1,4 @@
 import keras
-import numpy as np
 from keras import layers, ops
 
 MASK_NEG = -1e9
@@ -363,10 +362,12 @@ class MiniMaxM3VLAttention(layers.Layer):
             ops.cast(key_positions, "int32")[None, None, None, :]
             > ops.cast(position_ids, "int32")[:, None, :, None]
         )
-        scores = ops.where(future, -np.inf, scores)
+        scores = ops.where(future, float("-inf"), scores)
         if pad:
             scores = ops.pad(
-                scores, ((0, 0), (0, 0), (0, 0), (0, pad)), constant_values=-np.inf
+                scores,
+                ((0, 0), (0, 0), (0, 0), (0, pad)),
+                constant_values=float("-inf"),
             )
         scores = ops.reshape(
             scores, (b, self.index_n_heads, q_len, num_blocks, self.index_block_size)
@@ -380,11 +381,11 @@ class MiniMaxM3VLAttention(layers.Layer):
             local_hot = ops.max(
                 ops.one_hot(local_idx, num_blocks, dtype="float32"), axis=2
             )
-            block_scores = ops.where(local_hot > 0, np.inf, block_scores)
+            block_scores = ops.where(local_hot > 0, float("inf"), block_scores)
 
         topk = min(self.index_topk_blocks, num_blocks)
         top_scores, top_idx = ops.top_k(block_scores, topk)
-        valid = ops.cast(top_scores > -np.inf, "float32")
+        valid = ops.cast(top_scores > float("-inf"), "float32")
         keep_blocks = ops.max(
             ops.one_hot(top_idx, num_blocks, dtype="float32") * valid[..., None],
             axis=2,
@@ -657,22 +658,26 @@ def vision_rope_3d(grid_thw, head_dim, theta, spatial_merge_size):
     m = spatial_merge_size
     coords = []
     for t, h, w in grid_thw:
-        hi = np.tile(np.arange(h)[:, None], (1, w))
-        hi = hi.reshape(h // m, m, w // m, m).transpose(0, 2, 1, 3).flatten()
-        wi = np.tile(np.arange(w)[None, :], (h, 1))
-        wi = wi.reshape(h // m, m, w // m, m).transpose(0, 2, 1, 3).flatten()
-        ti = np.repeat(np.arange(t), h * w)
-        coords.append(np.stack([ti, np.tile(hi, t), np.tile(wi, t)], axis=-1))
-    coords = np.concatenate(coords, axis=0).astype("float32")  # (N, 3)
-    inv_freq = 1.0 / (theta ** (np.arange(0, axis_dim, 2, dtype="float32") / axis_dim))
-    freqs = np.concatenate(
-        [coords[:, i : i + 1] * inv_freq[None] for i in range(3)], axis=-1
+        hi = ops.tile(ops.reshape(ops.arange(h), (h, 1)), (1, w))
+        hi = ops.reshape(
+            ops.transpose(ops.reshape(hi, (h // m, m, w // m, m)), (0, 2, 1, 3)), (-1,)
+        )
+        wi = ops.tile(ops.reshape(ops.arange(w), (1, w)), (h, 1))
+        wi = ops.reshape(
+            ops.transpose(ops.reshape(wi, (h // m, m, w // m, m)), (0, 2, 1, 3)), (-1,)
+        )
+        ti = ops.repeat(ops.arange(t), h * w)
+        coords.append(ops.stack([ti, ops.tile(hi, (t,)), ops.tile(wi, (t,))], axis=-1))
+    coords = ops.cast(ops.concatenate(coords, axis=0), "float32")  # (N, 3)
+    exponent = ops.cast(ops.arange(0, axis_dim, 2), "float32") / axis_dim
+    inv_freq = ops.expand_dims(
+        1.0 / ops.power(ops.convert_to_tensor(theta, "float32"), exponent), 0
     )
-    emb = np.concatenate([freqs, freqs], axis=-1)
-    return (
-        ops.convert_to_tensor(np.cos(emb)),
-        ops.convert_to_tensor(np.sin(emb)),
+    freqs = ops.concatenate(
+        [coords[:, i : i + 1] * inv_freq for i in range(3)], axis=-1
     )
+    emb = ops.concatenate([freqs, freqs], axis=-1)
+    return ops.cos(emb), ops.sin(emb)
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")

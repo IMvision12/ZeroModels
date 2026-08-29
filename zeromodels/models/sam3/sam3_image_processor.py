@@ -1,7 +1,7 @@
 from typing import Optional, Tuple
 
 import keras
-import numpy as np
+from keras import ops
 
 from zeromodels.base import BaseImageProcessor
 
@@ -61,7 +61,7 @@ class SAM3ImageProcessor(BaseImageProcessor):
             rescale_factor=self.rescale_factor,
         )
         return {
-            "pixel_values": np.asarray(pixel_values),
+            "pixel_values": ops.convert_to_numpy(pixel_values),
             "original_size": original_size,
         }
 

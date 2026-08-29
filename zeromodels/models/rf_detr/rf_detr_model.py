@@ -1531,14 +1531,12 @@ class RFDETRDetect(BaseModel):
 
     @classmethod
     def transfer_from_hf(cls, keras_model, state_dict):
-        import numpy as np
-
         from .convert_rf_detr_hf_to_keras import transfer_rf_detr_weights
 
         # RF-DETR's custom layers create their weights on the first call, so
         # build the functional graph on a dummy input before assigning weights.
         shape = [d if d is not None else 1 for d in keras_model.inputs[0].shape]
-        keras_model(np.zeros(shape, dtype="float32"))
+        keras_model(ops.zeros(shape, dtype="float32"))
         transfer_rf_detr_weights(keras_model, state_dict)
 
     @classmethod
@@ -1836,12 +1834,10 @@ class RFDETRInstanceSegment(BaseModel):
 
     @classmethod
     def transfer_from_hf(cls, keras_model, state_dict):
-        import numpy as np
-
         from .convert_rf_detr_hf_to_keras import transfer_rf_detr_seg_weights
 
         shape = [d if d is not None else 1 for d in keras_model.inputs[0].shape]
-        keras_model(np.zeros(shape, dtype="float32"))
+        keras_model(ops.zeros(shape, dtype="float32"))
         transfer_rf_detr_seg_weights(keras_model, state_dict)
 
     @classmethod

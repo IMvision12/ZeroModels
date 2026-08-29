@@ -1,5 +1,4 @@
 import keras
-import numpy as np
 from keras import layers, ops
 
 from zeromodels.base.base_attention import fused_attention
@@ -198,7 +197,7 @@ class Glm5MoeMoE(layers.Layer):
             ops.one_hot(group_idx, self.n_group, dtype="float32"), axis=1
         )
         score_mask = ops.repeat(group_mask, self.num_experts // self.n_group, axis=-1)
-        choice = ops.where(score_mask > 0, biased, -np.inf)
+        choice = ops.where(score_mask > 0, biased, float("-inf"))
         _, top_idx = ops.top_k(choice, self.num_experts_per_tok)
         top_vals = ops.take_along_axis(scores, top_idx, axis=-1)
         if self.norm_topk_prob:

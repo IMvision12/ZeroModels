@@ -1,8 +1,7 @@
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import keras
-import numpy as np
-from PIL import Image
+from keras import ops
 
 from zeromodels.base import BaseImageProcessor
 from zeromodels.utils.image_util import get_data_format, load_image
@@ -17,7 +16,8 @@ class MaskFormerImageProcessor(BaseImageProcessor):
 
     Resizes the longest edge to ``target_size``, pads to a square,
     rescales to ``[0, 1]``, and applies ImageNet normalization. Uses pure
-    Keras 3 ops for all tensor operations.
+    Keras 3 ops for all tensor operations. Accepts a path, a PIL image, or an
+    array (a 4D array is treated as a single-image batch).
 
     Args:
         target_size: Target square edge length (matches the model's
@@ -58,44 +58,38 @@ class MaskFormerImageProcessor(BaseImageProcessor):
         """
         return 512
 
-    def __call__(
-        self, image: Union[str, np.ndarray, Image.Image]
-    ) -> Dict[str, keras.KerasTensor]:
+    def __call__(self, image) -> Dict[str, keras.KerasTensor]:
         return self.call(image)
 
-    def call(
-        self, image: Union[str, np.ndarray, Image.Image]
-    ) -> Dict[str, keras.KerasTensor]:
-        if isinstance(image, np.ndarray) and image.ndim == 4:
+    def call(self, image) -> Dict[str, keras.KerasTensor]:
+        if hasattr(image, "ndim") and image.ndim == 4:
             image = image[0]
-        image = load_image(image).astype(np.float32)
+        image = load_image(image)
 
         h, w = image.shape[:2]
         scale = self.target_size / max(h, w)
         new_h, new_w = int(h * scale), int(w * scale)
 
-        image = keras.ops.convert_to_tensor(image, dtype="float32")
-        image = keras.ops.expand_dims(image, axis=0)
-        image = keras.ops.image.resize(image, (new_h, new_w), interpolation="bilinear")
+        image = ops.convert_to_tensor(image, dtype="float32")
+        image = ops.expand_dims(image, axis=0)
+        image = ops.image.resize(image, (new_h, new_w), interpolation="bilinear")
         image = image / 255.0
 
-        padded = keras.ops.zeros(
-            (1, self.target_size, self.target_size, 3), dtype="float32"
-        )
-        padded = keras.ops.slice_update(padded, (0, 0, 0, 0), image)
+        padded = ops.zeros((1, self.target_size, self.target_size, 3), dtype="float32")
+        padded = ops.slice_update(padded, (0, 0, 0, 0), image)
 
-        mean = keras.ops.reshape(
-            keras.ops.convert_to_tensor(self.image_mean, dtype="float32"),
+        mean = ops.reshape(
+            ops.convert_to_tensor(self.image_mean, dtype="float32"),
             (1, 1, 1, 3),
         )
-        std = keras.ops.reshape(
-            keras.ops.convert_to_tensor(self.image_std, dtype="float32"),
+        std = ops.reshape(
+            ops.convert_to_tensor(self.image_std, dtype="float32"),
             (1, 1, 1, 3),
         )
         padded = (padded - mean) / std
 
         if get_data_format(self.data_format) == "channels_first":
-            padded = keras.ops.transpose(padded, (0, 3, 1, 2))
+            padded = ops.transpose(padded, (0, 3, 1, 2))
 
         return {"pixel_values": padded}
 
@@ -104,7 +98,7 @@ class MaskFormerImageProcessor(BaseImageProcessor):
         outputs: Dict[str, keras.KerasTensor],
         target_sizes: Optional[List[Tuple[int, int]]] = None,
         label_names: Optional[List[str]] = None,
-    ) -> List[np.ndarray]:
+    ) -> list:
         return maskformer_post_process_semantic(
             outputs,
             target_sizes=target_sizes,
@@ -134,9 +128,7 @@ class MaskFormerImageProcessor(BaseImageProcessor):
         )
 
 
-def unpad_and_resize_masks(
-    mask_logits, model_size: int, target_h: int, target_w: int
-) -> np.ndarray:
+def unpad_and_resize_masks(mask_logits, model_size: int, target_h: int, target_w: int):
     """Upscale mask logits, remove padding, and resize to the original image.
 
     The model predicts masks for a square ``model_size`` input that the
@@ -151,25 +143,25 @@ def unpad_and_resize_masks(
         target_w: Original (unpadded) image width.
 
     Returns:
-        Numpy array of shape ``(1, Q, target_h, target_w)``.
+        Tensor of shape ``(1, Q, target_h, target_w)``.
     """
     scale = model_size / max(target_h, target_w)
     resized_h, resized_w = int(target_h * scale), int(target_w * scale)
-    mask_logits = keras.ops.convert_to_tensor(mask_logits, dtype="float32")
+    mask_logits = ops.convert_to_tensor(mask_logits, dtype="float32")
 
-    mask_4d = keras.ops.transpose(mask_logits, (0, 2, 3, 1))
-    mask_full = keras.ops.image.resize(
+    mask_4d = ops.transpose(mask_logits, (0, 2, 3, 1))
+    mask_full = ops.image.resize(
         mask_4d, (model_size, model_size), interpolation="bilinear"
     )
-    mask_full = keras.ops.transpose(mask_full, (0, 3, 1, 2))
+    mask_full = ops.transpose(mask_full, (0, 3, 1, 2))
     mask_cropped = mask_full[:, :, :resized_h, :resized_w]
 
-    mask_cropped_4d = keras.ops.transpose(mask_cropped, (0, 2, 3, 1))
-    mask_final = keras.ops.image.resize(
+    mask_cropped_4d = ops.transpose(mask_cropped, (0, 2, 3, 1))
+    mask_final = ops.image.resize(
         mask_cropped_4d, (target_h, target_w), interpolation="bilinear"
     )
-    mask_final = keras.ops.transpose(mask_final, (0, 3, 1, 2))
-    return keras.ops.convert_to_numpy(mask_final)
+    mask_final = ops.transpose(mask_final, (0, 3, 1, 2))
+    return mask_final
 
 
 def default_label_names(num_classes):
@@ -200,7 +192,7 @@ def maskformer_post_process_semantic(
     target_sizes: Optional[List[Tuple[int, int]]] = None,
     model_size: int = 512,
     label_names: Optional[List[str]] = None,
-) -> List[np.ndarray]:
+) -> list:
     """Fuse per-query class and mask predictions into semantic label maps.
 
     For each image, softmaxes the class logits (dropping the no-object class),
@@ -222,7 +214,7 @@ def maskformer_post_process_semantic(
     mask_logits = outputs["masks_queries_logits"]
 
     batch_size = class_logits.shape[0]
-    results: List[np.ndarray] = []
+    results = []
     for i in range(batch_size):
         if target_sizes is None:
             target_h, target_w = model_size, model_size
@@ -232,14 +224,10 @@ def maskformer_post_process_semantic(
         mask_resized = unpad_and_resize_masks(
             mask_logits[i : i + 1], model_size, target_h, target_w
         )
-        masks_classes = keras.ops.softmax(class_logits[i], axis=-1)[:, :-1]
-        masks_probs = keras.ops.sigmoid(
-            keras.ops.convert_to_tensor(mask_resized[0], dtype="float32")
-        )
-        seg_logits = keras.ops.einsum("qc,qhw->chw", masks_classes, masks_probs)
-        seg = keras.ops.convert_to_numpy(keras.ops.argmax(seg_logits, axis=0)).astype(
-            np.int32
-        )
+        masks_classes = ops.softmax(class_logits[i], axis=-1)[:, :-1]
+        masks_probs = ops.sigmoid(mask_resized[0])
+        seg_logits = ops.einsum("qc,qhw->chw", masks_classes, masks_probs)
+        seg = ops.convert_to_numpy(ops.argmax(seg_logits, axis=0)).astype("int32")
         results.append(seg)
     return results
 
@@ -282,45 +270,52 @@ def maskformer_post_process_panoptic(
         label_names = default_label_names(int(class_logits.shape[-1]))
 
     num_classes = class_logits.shape[-1] - 1
+    num_queries = int(class_logits.shape[1])
     target_h, target_w = target_size
 
     mask_logits_resized = unpad_and_resize_masks(
         mask_logits, model_size, target_h, target_w
     )
-    scores_all = keras.ops.convert_to_numpy(keras.ops.softmax(class_logits[0], axis=-1))
-    pred_scores = np.max(scores_all, axis=-1)
-    pred_labels = np.argmax(scores_all, axis=-1)
+    scores = ops.softmax(class_logits[0], axis=-1)
+    pred_scores = ops.max(scores, axis=-1)
+    pred_labels = ops.argmax(scores, axis=-1)
+    mask_probs_sig = ops.sigmoid(mask_logits_resized[0])
 
-    mask_probs = mask_logits_resized[0]
-    keep = (pred_labels != num_classes) & (pred_scores > threshold)
-    mask_probs = mask_probs[keep]
-    pred_scores = pred_scores[keep]
-    pred_labels = pred_labels[keep]
-
-    if mask_probs.shape[0] == 0:
+    keep = ops.logical_and(
+        ops.not_equal(pred_labels, num_classes),
+        ops.greater(pred_scores, threshold),
+    )
+    if int(ops.sum(ops.cast(keep, "int32"))) == 0:
         return {
-            "segmentation": np.full(target_size, -1, dtype=np.int32),
+            "segmentation": ops.convert_to_numpy(
+                ops.full(target_size, -1, dtype="int32")
+            ),
             "segments_info": [],
         }
-
-    mask_probs_sig = keras.ops.convert_to_numpy(
-        keras.ops.sigmoid(keras.ops.convert_to_tensor(mask_probs, dtype="float32"))
+    weighted = ops.reshape(pred_scores, (-1, 1, 1)) * mask_probs_sig
+    keep_bias = ops.where(
+        keep,
+        ops.zeros_like(pred_scores),
+        ops.full_like(pred_scores, float("-inf")),
     )
-    mask_labels = (pred_scores[:, None, None] * mask_probs_sig).argmax(0)
+    weighted = weighted + ops.reshape(keep_bias, (-1, 1, 1))
+    mask_labels = ops.argmax(weighted, axis=0)
 
-    segmentation = np.full(target_size, -1, dtype=np.int32)
+    segmentation = ops.full(target_size, -1, dtype="int32")
     segments_info: List[Dict] = []
     current_id = 0
     stuff_memory: Dict[int, int] = {}
 
-    for k in range(pred_labels.shape[0]):
+    for k in range(num_queries):
+        if not bool(keep[k]):
+            continue
         pred_class = int(pred_labels[k])
-        mask_k = mask_labels == k
-        mask_k_area = int(mask_k.sum())
-        original_mask = mask_probs_sig[k] >= mask_threshold
-        original_area = int(original_mask.sum())
-        final_mask = mask_k & original_mask
-        final_area = int(final_mask.sum())
+        mask_k = ops.equal(mask_labels, k)
+        mask_k_area = int(ops.sum(ops.cast(mask_k, "int32")))
+        original_mask = ops.greater_equal(mask_probs_sig[k], mask_threshold)
+        original_area = int(ops.sum(ops.cast(original_mask, "int32")))
+        final_mask = ops.logical_and(mask_k, original_mask)
+        final_area = int(ops.sum(ops.cast(final_mask, "int32")))
 
         if mask_k_area == 0 or original_area == 0 or final_area == 0:
             continue
@@ -330,11 +325,17 @@ def maskformer_post_process_panoptic(
 
         if stuff_classes and pred_class in stuff_classes:
             if pred_class in stuff_memory:
-                segmentation[final_mask] = stuff_memory[pred_class]
+                segmentation = ops.where(
+                    final_mask,
+                    ops.cast(stuff_memory[pred_class], "int32"),
+                    segmentation,
+                )
                 continue
             stuff_memory[pred_class] = current_id
 
-        segmentation[final_mask] = current_id
+        segmentation = ops.where(
+            final_mask, ops.cast(current_id, "int32"), segmentation
+        )
         name = (
             label_names[pred_class]
             if label_names is not None and pred_class < len(label_names)
@@ -350,4 +351,7 @@ def maskformer_post_process_panoptic(
         )
         current_id += 1
 
-    return {"segmentation": segmentation, "segments_info": segments_info}
+    return {
+        "segmentation": ops.convert_to_numpy(segmentation),
+        "segments_info": segments_info,
+    }

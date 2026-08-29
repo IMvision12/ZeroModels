@@ -1,5 +1,4 @@
 import keras
-import numpy as np
 from keras import ops
 
 from zeromodels.base import BaseProcessor
@@ -55,10 +54,8 @@ class GraniteSpeech5Processor(BaseProcessor):
             label_ids = [self.tokenizer.tokenize(t) for t in texts]
             max_len = max(len(x) for x in label_ids)
             pad_id = self.tokenizer.pad_token_id
-            labels = np.full((len(label_ids), max_len), pad_id, dtype="int32")
-            for i, seq in enumerate(label_ids):
-                labels[i, : len(seq)] = seq
-            out["labels"] = ops.convert_to_tensor(labels)
+            labels = [list(seq) + [pad_id] * (max_len - len(seq)) for seq in label_ids]
+            out["labels"] = ops.convert_to_tensor(labels, dtype="int32")
         return out
 
     def batch_decode(
@@ -69,7 +66,7 @@ class GraniteSpeech5Processor(BaseProcessor):
                 token_ids, skip_special_tokens=skip_special_tokens
             )
         # Word-level timestamps: one dict per clip, mirroring Whisper's shape.
-        token_ids = np.asarray(ops.convert_to_numpy(token_ids)).tolist()
+        token_ids = ops.convert_to_numpy(token_ids).tolist()
         fs = self.frame_seconds
         return [
             {

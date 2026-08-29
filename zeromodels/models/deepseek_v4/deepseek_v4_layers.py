@@ -1,5 +1,4 @@
 import keras
-import numpy as np
 from keras import layers, ops
 
 MASK_NEG = -1e9
@@ -450,7 +449,9 @@ class DeepseekV4Attention(layers.Layer):
         self.compress_inv_freq = (
             None
             if compress_inv_freq is None
-            else np.asarray(compress_inv_freq, dtype="float32")
+            else ops.convert_to_numpy(
+                ops.convert_to_tensor(compress_inv_freq, dtype="float32")
+            )
         )
         self.norm_eps = norm_eps
         self.scaling = head_dim**-0.5

@@ -1,9 +1,7 @@
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 
 import keras
-import numpy as np
 from keras import ops
-from PIL import Image
 
 from zeromodels.base import BaseImageProcessor
 from zeromodels.utils.image_util import get_data_format, load_image
@@ -95,9 +93,7 @@ class EfficientDetImageProcessor(BaseImageProcessor):
             t = ops.transpose(t, (0, 3, 1, 2))
         return t, scale, (orig_h, orig_w)
 
-    def call(
-        self, image: Union[str, np.ndarray, Image.Image, List]
-    ) -> Dict[str, Union[keras.KerasTensor, np.ndarray]]:
+    def call(self, image) -> Dict:
         items = list(image) if isinstance(image, (list, tuple)) else [image]
         tensors, scales, sizes = [], [], []
         for item in items:

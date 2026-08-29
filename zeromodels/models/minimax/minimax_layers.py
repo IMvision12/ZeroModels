@@ -1,5 +1,4 @@
 import keras
-import numpy as np
 from keras import layers, ops
 
 
@@ -343,9 +342,10 @@ class MiniMaxLightningAttention(layers.Layer):
 
         base = 1.0 / (2.0 ** (8.0 / num_heads))
         factor = 1.0 - layer_idx / (num_layers - 1 + 1e-5) + 1e-5
-        self.slope = (
-            base ** np.arange(1, num_heads + 1, dtype="float32") * factor
-        ).reshape(num_heads, 1, 1)
+        self.slope = ops.reshape(
+            base ** ops.arange(1, num_heads + 1, dtype="float32") * factor,
+            (num_heads, 1, 1),
+        )
 
         self.qkv = layers.Dense(num_heads * head_dim * 3, use_bias=False, name="qkv")
         self.output_gate = layers.Dense(
@@ -414,7 +414,7 @@ class MiniMaxLightningAttention(layers.Layer):
             k_decay = ops.exp(-slope * (cur - r))
             diag = r - ops.transpose(r)  # (cur, cur), i - j
             diag = slope[None] * diag[None, None]
-            diag = ops.where(diag >= 0.0, -diag, -np.inf)
+            diag = ops.where(diag >= 0.0, -diag, float("-inf"))
             diag = ops.exp(diag)  # (1, H, cur, cur)
             block_decay = ops.exp(-slope * float(cur))  # (H, 1, 1)
 
