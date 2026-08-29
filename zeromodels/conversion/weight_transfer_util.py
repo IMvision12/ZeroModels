@@ -212,6 +212,7 @@ def transform_conv_weights(
             "sr",
             "reduction",  # spatial_reduction / sequence_reduction (PVT SRA conv)
             "proj",  # patch-embed proj / projection conv (only reached for 4D weights)
+            "attention",  # Squeeze-and-Excitation 1x1 gate conv (RegNet-Y SE)
         ]
     ):
         # Standard 2D convolution
