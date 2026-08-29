@@ -229,6 +229,12 @@ TABLE_TRANSFORMER_VARIANTS = {
     "table-transformer-structure-recognition-v1.1-all": (
         "microsoft/table-transformer-structure-recognition-v1.1-all"
     ),
+    "table-transformer-structure-recognition-v1.1-fin": (
+        "microsoft/table-transformer-structure-recognition-v1.1-fin"
+    ),
+    "table-transformer-structure-recognition-v1.1-pub": (
+        "microsoft/table-transformer-structure-recognition-v1.1-pub"
+    ),
 }
 
 
@@ -253,9 +259,6 @@ if __name__ == "__main__":
     from huggingface_hub import hf_hub_download
 
     from zeromodels.conversion.hf_download_utils import download_hf_state_dict
-
-    torch.backends.cudnn.allow_tf32 = False
-    torch.backends.cuda.matmul.allow_tf32 = False
 
     for variant, hf_id in TABLE_TRANSFORMER_VARIANTS.items():
         print(f"\n{'=' * 60}")

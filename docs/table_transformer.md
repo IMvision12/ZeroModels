@@ -1,10 +1,12 @@
 # Table Transformer
 
 <div class="kf-note kf-note--weights">
-<b>Weights:</b> Table Transformer loads Microsoft's PubTables-1M checkpoints on the fly with
-the <code>hf:</code> prefix, e.g.
-<code>from_weights("hf:microsoft/table-transformer-detection")</code>. The architecture is read
-from the repo's <code>config.json</code>, so no shape arguments are needed.
+<b>Weights:</b> pretrained Keras weights live on Hugging Face under
+<a href="https://huggingface.co/zeromodels">zeromodels/table-transformer-&lt;variant&gt;</a>
+(each repo carries <code>zm_config.json</code>, <code>zm_preprocessor.json</code>, and
+<code>model.weights.h5</code>). Load with
+<code>from_weights("zeromodels/table-transformer-detection")</code>; the architecture is read
+from the repo config, so no shape arguments are needed.
 </div>
 
 Table Transformer (TATR) applies the DETR detection recipe to tables. It is the same
@@ -155,26 +157,27 @@ The module also exports the two label tuples for convenience:
 
 ```python
 from zeromodels.models.table_transformer.table_transformer_image_processor import (
-    TABLE_DETECTION_LABELS,   # ("table", "table rotated")
-    TABLE_STRUCTURE_LABELS,   # ("table", "table column", "table row", ...)
+    TABLE_DETECTION_LABELS,  # ("table", "table rotated")
+    TABLE_STRUCTURE_LABELS,  # ("table", "table column", "table row", ...)
 )
 ```
 
 ## Model Variants
 
 All variants are ResNet-18 backboned. Load any of them with
-`TableTransformerDetect.from_weights("hf:<repo>")`.
+`TableTransformerDetect.from_weights("zeromodels/<variant>")`.
 
-| Task                   | HF repo                                                        | Queries | Classes |
+| Task                   | Repo                                                           | Queries | Classes |
 |------------------------|---------------------------------------------------------------|--------:|--------:|
-| Table detection        | `microsoft/table-transformer-detection`                       | 15      | 2 + 1   |
-| Structure recognition  | `microsoft/table-transformer-structure-recognition`           | 125     | 6 + 1   |
-| Structure v1.1 (all)   | `microsoft/table-transformer-structure-recognition-v1.1-all`  | 125     | 6 + 1   |
-| Structure v1.1 (fin)   | `microsoft/table-transformer-structure-recognition-v1.1-fin`  | 125     | 6 + 1   |
-| Structure v1.1 (pub)   | `microsoft/table-transformer-structure-recognition-v1.1-pub`  | 125     | 6 + 1   |
+| Table detection        | `zeromodels/table-transformer-detection`                      | 15      | 2 + 1   |
+| Structure recognition  | `zeromodels/table-transformer-structure-recognition`          | 125     | 6 + 1   |
+| Structure v1.1 (all)   | `zeromodels/table-transformer-structure-recognition-v1.1-all` | 125     | 6 + 1   |
+| Structure v1.1 (fin)   | `zeromodels/table-transformer-structure-recognition-v1.1-fin` | 125     | 6 + 1   |
+| Structure v1.1 (pub)   | `zeromodels/table-transformer-structure-recognition-v1.1-pub` | 125     | 6 + 1   |
 
-The v1.1 checkpoints store the backbone under the native Hugging Face ResNet naming rather
-than the timm-style layout of the two originals; the loader handles both automatically.
+Detection finds tables in a page image; the structure-recognition variants decompose a
+cropped table into its rows, columns, and header / spanning cells (the three v1.1 checkpoints
+differ only in their training corpus: all, financial, or publication tables).
 
 ## Basic Usage: Table Detection
 
@@ -188,8 +191,10 @@ from zeromodels.models.table_transformer.table_transformer_image_processor impor
     TABLE_DETECTION_LABELS,
 )
 
-model = TableTransformerDetect.from_weights("hf:microsoft/table-transformer-detection")
-processor = TableTransformerImageProcessor()
+model = TableTransformerDetect.from_weights("zeromodels/table-transformer-detection")
+processor = TableTransformerImageProcessor.from_weights(
+    "zeromodels/table-transformer-detection"
+)
 
 image = Image.open("page.jpg").convert("RGB")
 inputs = processor(image)
@@ -217,9 +222,16 @@ get the table images for the next stage.
 
 ## Table-Structure Recognition
 
-Structure recognition takes a **cropped table** image and returns its rows, columns, and
-header / spanning cells. Same call, a different checkpoint, and the default label set already
-matches:
+Structure recognition takes a **cropped table** and predicts its **structure** (six classes:
+rows, columns, the column header, projected row headers, and spanning cells), not one box per
+cell. That is the difference from cell-detection models such as TableFormer: to get discrete
+cells you **intersect the predicted rows and columns** (and keep each spanning cell whole).
+The tables below are the real Table 2 and Table 3 from *Attention Is All You Need*
+(arXiv:1706.03762), cropped from the paper's PDF pages with the `table-transformer-detection`
+checkpoint. Here the ablations table is decomposed into its cells (green), with the
+A / B / C / D variation-group labels kept as single spanning cells (red):
+
+<img src="../assets/table_transformer_output.jpg" alt="Table Transformer structure recognition on the ablations table from Attention Is All You Need, decomposed into per-cell boxes with the A/B/C/D group labels as spanning cells" width="640">
 
 ```python
 from PIL import Image
@@ -229,25 +241,91 @@ from zeromodels.models.table_transformer import (
 )
 
 model = TableTransformerDetect.from_weights(
-    "hf:microsoft/table-transformer-structure-recognition-v1.1-all"
+    "zeromodels/table-transformer-structure-recognition-v1.1-all"
 )
-processor = TableTransformerImageProcessor()
+processor = TableTransformerImageProcessor.from_weights(
+    "zeromodels/table-transformer-structure-recognition-v1.1-all"
+)
 
-table = Image.open("cropped_table.jpg").convert("RGB")
+table = Image.open("assets/data/attention_table3.png").convert("RGB")
 output = model(processor(table)["pixel_values"], training=False)
-# output["logits"]:     (1, 125, 7)
+# output["logits"]:     (1, 125, 7)   six structure classes + no-object
 # output["pred_boxes"]: (1, 125, 4)
 
-cells = processor.post_process_object_detection(
+struct = processor.post_process_object_detection(
     output, threshold=0.6, target_sizes=[(table.height, table.width)]
 )[0]
-# cells["label_names"] are drawn from the six structure classes:
-# table, table column, table row, table column header,
-# table projected row header, table spanning cell
+
+
+def structure_to_cells(struct):
+    """One box per cell, from the predicted rows x columns (spanning cells kept whole)."""
+
+    def kind(name):
+        return [
+            [float(v) for v in box]
+            for box, n in zip(struct["boxes"], struct["label_names"])
+            if n == name
+        ]
+
+    rows = sorted(kind("table row"), key=lambda b: b[1])
+    cols = sorted(kind("table column"), key=lambda b: b[0])
+    spans = kind("table spanning cell")
+
+    def spanned(box):
+        cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+        return any(s[0] <= cx <= s[2] and s[1] <= cy <= s[3] for s in spans)
+
+    grid = [[c[0], r[1], c[2], r[3]] for r in rows for c in cols]
+    return [b for b in grid if not spanned(b)] + spans
+
+
+cells = structure_to_cells(struct)
+print(f"{len(cells)} cells")
 ```
 
-Intersecting the predicted rows and columns reconstructs the cell grid; the header and
-spanning-cell predictions then tag which cells are headers or span multiple rows/columns.
+```
+260 cells
+```
+
+The raw prediction has **13** `table column`, **21** `table row`, **1** `table column header`,
+and **4** `table spanning cell` boxes (read them off `struct["label_names"]`). Intersecting the
+13 columns with the 21 rows gives a 273-cell grid; dropping the 17 grid cells covered by the
+four A / B / C / D spanning cells and adding those 4 spans back yields the **260** cells drawn
+above. The column-header and spanning-cell classes then tell you which cells are headers or
+span multiple rows / columns.
+
+### Batch of Multiple Tables
+
+Pass a list of table crops and one `target_sizes` entry per image. Every image is resized to
+the same square, so stacking is always safe and the batch result is identical to running the
+images one at a time. Here the paper's results table (Table 2) and ablations table (Table 3)
+are decomposed into cells together (reusing `structure_to_cells` from above):
+
+<img src="../assets/table_transformer_batch_output.jpg" alt="Table Transformer per-cell structure of the results table and the ablations table from Attention Is All You Need, run as one batch" width="560">
+
+```python
+from PIL import Image
+
+paths = ["assets/data/attention_table2.png", "assets/data/attention_table3.png"]
+images = [Image.open(p).convert("RGB") for p in paths]
+
+inputs = processor(paths)  # (2, 800, 800, 3)
+outputs = model(inputs["pixel_values"], training=False)
+
+results = processor.post_process_object_detection(
+    outputs, threshold=0.6, target_sizes=[(im.height, im.width) for im in images]
+)
+for path, struct in zip(paths, results):
+    print(path, len(structure_to_cells(struct)), "cells")
+```
+
+```
+assets/data/attention_table2.png 59 cells
+assets/data/attention_table3.png 260 cells
+```
+
+The results table (5 x 12) and the ablations table (13 x 21) are decomposed together, and each
+image's cells match running it on its own.
 
 ## Data Format
 
@@ -265,7 +343,7 @@ Set the global format before constructing the model, and both sides agree:
 import keras
 
 keras.config.set_image_data_format("channels_first")
-model = TableTransformerDetect.from_weights("hf:microsoft/table-transformer-detection")
+model = TableTransformerDetect.from_weights("zeromodels/table-transformer-detection")
 # now expects (B, 3, H, W)
 ```
 
@@ -275,9 +353,9 @@ takes no `data_format` kwarg.
 
 ## Loading Fine-tuned and Community Weights
 
-Any Hugging Face repo whose `model_type` is `"table-transformer"` loads with the `hf:`
-prefix, including the official `microsoft/table-transformer-*` checkpoints and arbitrary
-fine-tunes:
+The `zeromodels/table-transformer-*` repos above are pre-converted. Any **other** Hugging Face
+repo whose `model_type` is `"table-transformer"` (the upstream `microsoft/table-transformer-*`
+checkpoints, or a community fine-tune) loads with the `hf:` prefix, converting on the fly:
 
 ```python
 from zeromodels.models.table_transformer import TableTransformerDetect
@@ -286,12 +364,11 @@ model = TableTransformerDetect.from_weights("hf:<user>/my-table-transformer-fine
 
 # Architecture only, randomly initialized
 model = TableTransformerDetect.from_weights(
-    "hf:microsoft/table-transformer-detection", load_weights=False
+    "zeromodels/table-transformer-detection", load_weights=False
 )
 ```
 
 No shape arguments are needed. The architecture is read from the repo's `config.json` and
 mapped onto the constructor: `d_model`, `encoder_attention_heads`, `encoder_layers`,
 `decoder_layers`, `encoder_ffn_dim`, `num_queries`, and the label count. `TableTransformerModel`
-accepts `hf:` the same way, warm-starting the backbone and transformer from the detector's
-weights.
+loads the same way, warm-starting the backbone and transformer from the detector's weights.
