@@ -1,5 +1,4 @@
 import keras
-import numpy as np
 from keras import ops
 
 from zeromodels.base import BaseProcessor
@@ -198,19 +197,18 @@ class LocateAnythingProcessor(BaseProcessor):
             out["image_grid_hws"] = ops.convert_to_tensor(
                 image_inputs["image_grid_hws"]
             )
-            grid = [tuple(g) for g in np.asarray(image_inputs["image_grid_hws"])]
+            grid = [
+                tuple(g) for g in ops.convert_to_numpy(image_inputs["image_grid_hws"])
+            ]
             per_text = self.deal_per_text(texts, self.image_token, grid)
             texts = [self.expand_image_tokens(t, g) for t, g in zip(texts, per_text)]
 
         ids = [self.tokenizer.encode(t) for t in texts]
         max_len = max(len(x) for x in ids)
-        input_ids = np.zeros((len(ids), max_len), dtype="int32")
-        attention_mask = np.zeros((len(ids), max_len), dtype="int32")
-        for i, seq in enumerate(ids):
-            input_ids[i, : len(seq)] = seq
-            attention_mask[i, : len(seq)] = 1
-        out["input_ids"] = ops.convert_to_tensor(input_ids)
-        out["attention_mask"] = ops.convert_to_tensor(attention_mask)
+        input_ids = [list(seq) + [0] * (max_len - len(seq)) for seq in ids]
+        attention_mask = [[1] * len(seq) + [0] * (max_len - len(seq)) for seq in ids]
+        out["input_ids"] = ops.convert_to_tensor(input_ids, dtype="int32")
+        out["attention_mask"] = ops.convert_to_tensor(attention_mask, dtype="int32")
         return out
 
     def post_process_generation(self, generated, task=None, image_size=None, text=None):
@@ -229,10 +227,17 @@ class LocateAnythingProcessor(BaseProcessor):
         [x1, y1, x2, y2]}`` or ``{"label": ..., "point": [x, y]}``.
         """
         try:
-            arr = np.asarray(ops.convert_to_numpy(generated))
+            arr = ops.convert_to_numpy(generated)
         except (TypeError, ValueError):
-            arr = np.asarray(generated)
-        sequences = [arr.tolist()] if arr.ndim == 1 else [row.tolist() for row in arr]
+            arr = None
+        if arr is not None:
+            sequences = (
+                [arr.tolist()] if arr.ndim == 1 else [row.tolist() for row in arr]
+            )
+        elif generated and isinstance(generated[0], (list, tuple)):
+            sequences = [list(row) for row in generated]
+        else:
+            sequences = [list(generated)]
 
         results = []
         for seq in sequences:

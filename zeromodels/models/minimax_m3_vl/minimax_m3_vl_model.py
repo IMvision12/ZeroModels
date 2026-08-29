@@ -88,11 +88,7 @@ class MiniMaxM3VLVisionModel(layers.Layer):
         # so it must be a concrete iterable. In the functional graph this call runs
         # eagerly (see compute_output_spec), so a tensor grid is materialized here.
         if not isinstance(grid_thw, (list, tuple)):
-            import numpy as np
-
-            grid_thw = (
-                np.asarray(ops.convert_to_numpy(grid_thw)).astype("int64").tolist()
-            )
+            grid_thw = ops.convert_to_numpy(grid_thw).astype("int64").tolist()
         cos, sin = vision_rope_3d(
             grid_thw, self.head_dim, self.rope_theta, self.spatial_merge_size
         )
@@ -531,9 +527,7 @@ class MiniMaxM3VLModel(BaseModel):
     def host_grid(self, grid_thw):
         if isinstance(grid_thw, (list, tuple)):
             return [list(map(int, g)) for g in grid_thw]
-        import numpy as np
-
-        return np.asarray(ops.convert_to_numpy(grid_thw)).astype("int64").tolist()
+        return ops.convert_to_numpy(grid_thw).astype("int64").tolist()
 
     def prepare_inputs(self, inputs):
         input_ids = ops.cast(ops.convert_to_tensor(inputs["input_ids"]), "int32")

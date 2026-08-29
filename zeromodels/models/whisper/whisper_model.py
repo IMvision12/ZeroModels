@@ -1,7 +1,6 @@
 from typing import List, Optional, Union
 
 import keras
-import numpy as np
 from keras import layers, ops
 
 from zeromodels.base import BaseModel, BaseSeq2SeqGeneration
@@ -22,47 +21,64 @@ WHISPER_HUB_SIBLINGS = frozenset({"WhisperModel", "WhisperConditionalGenerate"})
 def apply_whisper_timestamp_rules(
     scores, generated, begin_index, timestamp_begin, eos_token_id, max_initial_index
 ):
-    """transformers' ``WhisperTimeStampLogitsProcessor``, host-side (numpy).
+    """transformers' ``WhisperTimeStampLogitsProcessor`` (host-side grammar, keras ops).
 
     Enforces Whisper's timestamp-token grammar on a step's logits so the model emits a
     valid ``<|t|> text <|t|>`` structure: timestamps come in pairs, never decrease, and
     a step is forced to a timestamp when their summed probability beats the top text
-    token. ``scores`` is ``(B, V)``; ``generated`` is ``(B, L)`` with the forced prompt
-    at ``[:begin_index]``. Coordinates: ``<|notimestamps|>`` is ``timestamp_begin - 1``,
-    and ``<|0.00|>`` is ``timestamp_begin``. Returns the modified scores.
+    token. ``scores`` is a ``(B, V)`` tensor; ``generated`` is a list of ``B`` token-id
+    lists with the forced prompt at ``[:begin_index]``. Coordinates: ``<|notimestamps|>``
+    is ``timestamp_begin - 1``, and ``<|0.00|>`` is ``timestamp_begin``. The per-batch
+    grammar decisions are computed host-side from ``generated``, then applied to the
+    logits with ``ops.where``. Returns the modified scores tensor.
     """
     neg = -1e9  # matches the model's additive suppress bias; never the argmax
-    scores = scores.copy()
-    scores[:, timestamp_begin - 1] = neg  # never emit <|notimestamps|> mid-stream
-    batch, length = generated.shape
+    batch = len(generated)
+    length = len(generated[0])
+    col = ops.arange(int(scores.shape[-1]))
+    rows = []
     for k in range(batch):
-        seq = generated[k, begin_index:].tolist()
+        seq = generated[k][begin_index:]
         last_ts = len(seq) >= 1 and seq[-1] >= timestamp_begin
         penult_ts = len(seq) < 2 or seq[-2] >= timestamp_begin
+        # always suppress <|notimestamps|> mid-stream
+        row = ops.equal(col, timestamp_begin - 1)
         if last_ts:
             if penult_ts:  # a pair just closed -> the next token must be text
-                scores[k, timestamp_begin:] = neg
+                row = ops.logical_or(row, col >= timestamp_begin)
             else:  # one timestamp open -> the next must be a timestamp (or eos)
-                scores[k, :eos_token_id] = neg
+                row = ops.logical_or(row, col < eos_token_id)
         stamps = [t for t in seq if t >= timestamp_begin]
         if stamps:  # timestamps are non-decreasing
             ts_last = stamps[-1] if (last_ts and not penult_ts) else stamps[-1] + 1
-            scores[k, timestamp_begin:ts_last] = neg
+            row = ops.logical_or(
+                row, ops.logical_and(col >= timestamp_begin, col < ts_last)
+            )
+        rows.append(row)
+    forbidden = ops.stack(rows, axis=0)
     if length == begin_index:  # the very first generated token must be a timestamp
-        scores[:, :timestamp_begin] = neg
+        first = col < timestamp_begin
         if max_initial_index is not None:
-            scores[:, timestamp_begin + max_initial_index + 1 :] = neg
+            first = ops.logical_or(
+                first, col >= timestamp_begin + max_initial_index + 1
+            )
+        forbidden = ops.logical_or(forbidden, first[None, :])
+    scores = ops.where(forbidden, neg, scores)
     # If the total probability mass on timestamps exceeds the top text token, force one.
+    mx = ops.max(scores, axis=-1, keepdims=True)
     logprobs = scores - (
-        scores.max(-1, keepdims=True)
-        + np.log(np.exp(scores - scores.max(-1, keepdims=True)).sum(-1, keepdims=True))
+        mx + ops.log(ops.sum(ops.exp(scores - mx), axis=-1, keepdims=True))
     )
+    force = []
     for k in range(batch):
         ts_lp = logprobs[k, timestamp_begin:]
-        ts_logprob = ts_lp.max() + np.log(np.exp(ts_lp - ts_lp.max()).sum())
-        if ts_logprob > logprobs[k, :timestamp_begin].max():
-            scores[k, :timestamp_begin] = neg
-    return scores
+        ts_max = ops.max(ts_lp)
+        ts_logprob = ts_max + ops.log(ops.sum(ops.exp(ts_lp - ts_max)))
+        force.append(ts_logprob > ops.max(logprobs[k, :timestamp_begin]))
+    force_ts = ops.logical_and(
+        ops.stack(force, axis=0)[:, None], (col < timestamp_begin)[None, :]
+    )
+    return ops.where(force_ts, neg, scores)
 
 
 _ACTIVATION_ALIASES = {
@@ -680,8 +696,8 @@ class WhisperConditionalGenerate(WhisperModel, BaseSeq2SeqGeneration):
         generated = super().generate(
             features, decoder_start_ids, max_new_tokens=max_new_tokens, eos_token_id=eos
         )
-        prompt_col = np.tile(np.asarray(prompt_ids, dtype=generated.dtype), (batch, 1))
-        ids = [list(row) for row in np.concatenate([prompt_col, generated], axis=1)]
+        gen = ops.convert_to_numpy(generated)
+        ids = [list(prompt_ids) + gen[k].tolist() for k in range(batch)]
         if return_ids:
             return ids
         return processor.batch_decode(ids, skip_special_tokens=True)
@@ -721,21 +737,21 @@ class WhisperConditionalGenerate(WhisperModel, BaseSeq2SeqGeneration):
             cache, logits = self.build_cache(
                 decoder_start_ids, encoder_hidden_states, prompt_len + max_new_tokens
             )
-            generated = np.tile(np.asarray(prompt_ids, dtype="int32"), (batch, 1))
-            done = np.zeros((batch,), dtype=bool)
+            generated = [list(prompt_ids) for _ in range(batch)]
+            done = [False] * batch
             for step in range(max_new_tokens):
-                scores = np.asarray(ops.convert_to_numpy(logits), dtype="float32")
                 scores = apply_whisper_timestamp_rules(
-                    scores, generated, prompt_len, timestamp_begin, eos, max_initial
+                    logits, generated, prompt_len, timestamp_begin, eos, max_initial
                 )
-                nxt = scores.argmax(axis=-1).astype("int32")
-                nxt = np.where(done, eos, nxt).astype("int32")
-                generated = np.concatenate([generated, nxt[:, None]], axis=1)
-                done = done | (nxt == eos)
-                if bool(done.all()) or step == max_new_tokens - 1:
+                nxt = ops.convert_to_numpy(ops.argmax(scores, axis=-1)).tolist()
+                nxt = [eos if done[k] else int(nxt[k]) for k in range(batch)]
+                for k in range(batch):
+                    generated[k].append(nxt[k])
+                    done[k] = done[k] or (nxt[k] == eos)
+                if all(done) or step == max_new_tokens - 1:
                     break
                 logits, cache = self.call_with_cache(
-                    ops.convert_to_tensor(nxt[:, None], dtype="int32"),
+                    ops.convert_to_tensor([[x] for x in nxt], dtype="int32"),
                     cache,
                     prompt_len + step,
                 )
@@ -751,7 +767,7 @@ class WhisperConditionalGenerate(WhisperModel, BaseSeq2SeqGeneration):
                 processor,
                 eos,
             )
-            for k in range(int(generated.shape[0]))
+            for k in range(len(generated))
         ]
 
     def _parse_timestamp_segments(

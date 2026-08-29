@@ -1,7 +1,6 @@
 from typing import List, Union
 
 import keras
-import numpy as np
 from keras import ops
 from tokenizers import Tokenizer
 from tokenizers.pre_tokenizers import Metaspace
@@ -59,8 +58,6 @@ class Tipsv2Tokenizer(BaseTokenizer):
         try:
             path = hf_hub_download(repo, "tokenizer.json")
         except Exception:
-            # Original TIPSv2 repos ship only a SentencePiece ``tokenizer.model``;
-            # build the fast tokenizer.json from it (matches transformers' loader).
             from transformers import AutoTokenizer
 
             src = hf_hub_download(repo, "tokenizer.model")
@@ -84,7 +81,7 @@ class Tipsv2Tokenizer(BaseTokenizer):
         self, token_ids, skip_special_tokens: bool = True
     ) -> Union[str, List[str]]:
         if hasattr(token_ids, "numpy"):
-            token_ids = token_ids.numpy()
+            token_ids = ops.convert_to_numpy(token_ids)
         if hasattr(token_ids, "tolist"):
             token_ids = token_ids.tolist()
 
@@ -103,18 +100,18 @@ class Tipsv2Tokenizer(BaseTokenizer):
         """Encode text -> ``{"input_ids", "attention_mask"}`` (fixed ``max_seq_len``)."""
         texts = [inputs] if isinstance(inputs, str) else list(inputs)
         encs = self._tok.encode_batch(texts, add_special_tokens=True)
-        ids = np.array([e.ids for e in encs], dtype="int32")
-        mask = np.array([e.attention_mask for e in encs], dtype="int32")
         return {
-            "input_ids": ops.convert_to_tensor(ids, dtype="int32"),
-            "attention_mask": ops.convert_to_tensor(mask, dtype="int32"),
+            "input_ids": ops.convert_to_tensor([e.ids for e in encs], dtype="int32"),
+            "attention_mask": ops.convert_to_tensor(
+                [e.attention_mask for e in encs], dtype="int32"
+            ),
         }
 
     def batch_decode(
         self, token_ids_batch, skip_special_tokens: bool = True
     ) -> List[str]:
         if hasattr(token_ids_batch, "numpy"):
-            token_ids_batch = token_ids_batch.numpy()
+            token_ids_batch = ops.convert_to_numpy(token_ids_batch)
         out = []
         for row in token_ids_batch:
             row = row.tolist() if hasattr(row, "tolist") else list(row)

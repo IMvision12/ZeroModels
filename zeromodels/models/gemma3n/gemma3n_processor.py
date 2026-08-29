@@ -1,5 +1,4 @@
 import keras
-import numpy as np
 from keras import ops
 
 from zeromodels.base import BaseProcessor
@@ -95,7 +94,11 @@ class Gemma3nProcessor(BaseProcessor):
 
     def load_audio(self, item):
         if item.get("audio") is not None:
-            return np.asarray(item["audio"], dtype="float32").reshape(-1)
+            return ops.convert_to_numpy(
+                ops.reshape(
+                    ops.convert_to_tensor(item["audio"], dtype="float32"), (-1,)
+                )
+            )
         if item.get("path") is not None:
             import soundfile as sf
 
@@ -185,13 +188,10 @@ class Gemma3nProcessor(BaseProcessor):
         bos = tok.bos_token_id
         ids = [[bos] + tok.encode(t) for t in texts]
         max_len = max(len(x) for x in ids)
-        input_ids = np.zeros((len(ids), max_len), dtype="int32")
-        attention_mask = np.zeros((len(ids), max_len), dtype="int32")
-        for i, seq_ids in enumerate(ids):
-            input_ids[i, : len(seq_ids)] = seq_ids
-            attention_mask[i, : len(seq_ids)] = 1
-        out["input_ids"] = ops.convert_to_tensor(input_ids)
-        out["attention_mask"] = ops.convert_to_tensor(attention_mask)
+        input_ids = [row + [0] * (max_len - len(row)) for row in ids]
+        attention_mask = [[1] * len(row) + [0] * (max_len - len(row)) for row in ids]
+        out["input_ids"] = ops.convert_to_tensor(input_ids, dtype="int32")
+        out["attention_mask"] = ops.convert_to_tensor(attention_mask, dtype="int32")
         return out
 
     def get_config(self):
