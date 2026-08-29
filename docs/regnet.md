@@ -1,11 +1,11 @@
 # RegNet
 
 <div class="kf-note kf-note--weights">
-<b>Weights:</b> RegNet loads the official Facebook checkpoints straight from the Hub,
-converting on the fly:
-<code>RegNetImageClassify.from_weights("hf:facebook/regnet-y-040")</code>
-(12 <b>X</b> + 12 <b>Y</b> variants). Pre-converted Keras mirrors live under
-<a href="https://huggingface.co/zeromodels">zeromodels/regnet-&lt;variant&gt;</a>.
+<b>Weights:</b> pretrained Keras weights live on Hugging Face under
+<a href="https://huggingface.co/zeromodels">zeromodels/regnet-&lt;variant&gt;</a>
+(12 <b>X</b> + 12 <b>Y</b> variants; each repo carries <code>zm_config.json</code> +
+<code>model.weights.h5</code>). Load with
+<code>from_weights("zeromodels/regnet-y-040")</code>.
 </div>
 
 RegNet (Designing Network Design Spaces) is a family of ConvNets whose per-stage widths and
@@ -80,7 +80,7 @@ Typed config (`model_type="regnet"`) holding the fields above; serialized into e
 
 ## Model Variants
 
-For `RegNetImageClassify.from_weights("hf:facebook/regnet-<variant>")`. The number is the
+For `RegNetImageClassify.from_weights("zeromodels/regnet-<variant>")`. The number is the
 model's compute in units of 0.1 GFLOPs (`002` = 0.2 GF ... `320` = 32 GF).
 
 | Family                 | Variants                                                                 |
@@ -90,7 +90,8 @@ model's compute in units of 0.1 GFLOPs (`002` = 0.2 GF ... `320` = 32 GF).
 
 At matched compute the Y family (with Squeeze-and-Excitation) is generally stronger; e.g.
 `regnet-y-320` reaches ~80.9% ImageNet-1k top-1. All are 224x224, 1000 classes. The larger
-self-supervised checkpoints `facebook/regnet-y-{320,640,1280,10b}-seer` load the same way.
+self-supervised `facebook/regnet-y-{320,640,1280,10b}-seer` checkpoints are not mirrored here
+but load on the fly with the `hf:` prefix (see [below](#loading-fine-tuned-and-community-weights)).
 
 ## Basic Usage
 
@@ -100,7 +101,7 @@ import numpy as np
 from PIL import Image
 from zeromodels.models.regnet import RegNetImageClassify
 
-model = RegNetImageClassify.from_weights("hf:facebook/regnet-y-040")
+model = RegNetImageClassify.from_weights("zeromodels/regnet-y-040")
 
 image = Image.open("assets/data/coco_bear.jpg").convert("RGB").resize((224, 224))
 pixels = np.asarray(image, "float32")[None]  # (1, 224, 224, 3), raw [0, 255]
@@ -120,7 +121,7 @@ For detection / segmentation, take the four stage outputs:
 ```python
 from zeromodels.models.regnet import RegNetModel
 
-backbone = RegNetModel.from_weights("hf:facebook/regnet-y-040", as_backbone=True)
+backbone = RegNetModel.from_weights("zeromodels/regnet-y-040", as_backbone=True)
 feats = backbone(np.zeros((1, 224, 224, 3), "float32"), training=False)
 print([tuple(f.shape) for f in feats])
 # spatial 56 / 28 / 14 / 7 (strides 4, 8, 16, 32); channels are the variant's hidden_sizes
@@ -140,13 +141,14 @@ bit-exact.** A model reads `keras.config.image_data_format()` when it is **const
 import keras
 
 keras.config.set_image_data_format("channels_first")
-model = RegNetImageClassify.from_weights("hf:facebook/regnet-y-040")  # expects (B, 3, H, W)
+model = RegNetImageClassify.from_weights("zeromodels/regnet-y-040")  # expects (B, 3, H, W)
 ```
 
 ## Loading Fine-tuned and Community Weights
 
-Any Hugging Face repo whose `model_type` is `"regnet"` (the official `facebook/regnet-*`
-checkpoints or any fine-tune) loads with the `hf:` prefix, converting on the fly:
+The `zeromodels/regnet-*` repos above are pre-converted. Any **other** Hugging Face repo whose
+`model_type` is `"regnet"` (the upstream `facebook/regnet-*` and `-seer` checkpoints, or any
+fine-tune) loads with the `hf:` prefix, converting on the fly:
 
 ```python
 from zeromodels.models.regnet import RegNetImageClassify
