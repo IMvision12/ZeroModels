@@ -423,6 +423,22 @@ MODEL_TEST_CONFIGS = {
         "input_shape": (2, 32, 32, 3),
         "expected_output_shape": (2, 1000),
     },
+    "RegNetImageClassify": {
+        "module": "zeromodels.models.regnet",
+        "model_cls": "RegNetImageClassify",
+        "model_type": "classification",
+        "init_kwargs": {
+            "embedding_size": 8,
+            "hidden_sizes": (16, 32, 64, 128),
+            "depths": (1, 1, 1, 1),
+            "groups_width": 8,
+            "layer_type": "y",
+            "image_size": (32, 32, 3),
+            "num_classes": 1000,
+        },
+        "input_shape": (2, 32, 32, 3),
+        "expected_output_shape": (2, 1000),
+    },
     "Res2NetImageClassify": {
         "module": "zeromodels.models.res2net",
         "model_cls": "Res2NetImageClassify",
