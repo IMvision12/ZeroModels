@@ -31,11 +31,14 @@ pip install -U git+https://github.com/IMvision12/ZeroModels
 
 ## 📑 Documentation
 
-📖 **[imvision12.github.io/ZeroModels](https://imvision12.github.io/ZeroModels/)** — the rendered docs, with search.
+**[ZeroModels Documentation](https://imvision12.github.io/ZeroModels/)**
 
-Per-model guides - with architecture notes, usage examples, and available pretrained weights, cover one page per model across every supported task (classification, object detection, segmentation, depth estimation, feature extraction, vision-language, speech recognition, text encoding, and language modeling). Classification backbones share a single [page](https://imvision12.github.io/ZeroModels/classification_backbones/) since they all follow the same `XModel` / `XImageClassify` two-class structure; each other model has its own. Every example on those pages prints its real, measured output.
+Detailed guides are available for all supported tasks, with architecture notes, usage examples, pretrained weights, and real model outputs.
 
-The Markdown sources live in [`docs/`](docs/) if you would rather read them in the repo.
+Classification backbones share a single [documentation page](https://imvision12.github.io/ZeroModels/classification_backbones/), while other model families have dedicated pages.
+
+Documentation sources are also available in [`docs/`](docs/).
+
 
 ## 📑 Models
 
@@ -142,6 +145,7 @@ The Markdown sources live in [`docs/`](docs/) if you would rather read them in t
     |---------------|-------------------|---------------------|
     | D-FINE | [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/2410.13842) | `transformers` |
     | DETR | [End-to-End Object Detection with Transformers](https://arxiv.org/abs/2005.12872) | `transformers` |
+    | Table Transformer | [PubTables-1M: Towards comprehensive table extraction from unstructured documents](https://arxiv.org/abs/2110.00061) | `transformers` |
     | EfficientDet | [EfficientDet: Scalable and Efficient Object Detection](https://arxiv.org/abs/1911.09070) | `automl` |
     | RT-DETR | [DETRs Beat YOLOs on Real-time Object Detection](https://arxiv.org/abs/2304.08069) | `transformers` |
     | RT-DETRv2 | [RT-DETRv2: Improved Baseline with Bag-of-Freebies for Real-Time Detection Transformers](https://arxiv.org/abs/2407.17140) | `transformers` |

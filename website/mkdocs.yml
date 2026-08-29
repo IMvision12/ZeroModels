@@ -190,6 +190,7 @@ nav:
           - SAM: sam.md
           - SAM 2: sam2.md
           - SegFormer: segformer.md
+          - Table Transformer: table_transformer.md
           - TIPSv2-DPT: tipsv2_dpt.md
       - Audio models:
           - Granite Speech: granite_speech.md

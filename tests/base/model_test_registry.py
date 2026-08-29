@@ -745,6 +745,21 @@ MODEL_TEST_CONFIGS = {
             "pred_masks": (2, 10, 8, 8),
         },
     },
+    "TableTransformerDetect": {
+        "module": "zeromodels.models.table_transformer",
+        "model_cls": "TableTransformerDetect",
+        "model_type": "object_detection",
+        "init_kwargs": {
+            "image_size": 32,
+            "num_classes": 3,
+            "num_queries": 10,
+        },
+        "input_shape": (2, 32, 32, 3),
+        "expected_output_shape": {
+            "logits": (2, 10, 3),
+            "pred_boxes": (2, 10, 4),
+        },
+    },
     "RTDETRDetect": {
         "module": "zeromodels.models.rt_detr",
         "model_cls": "RTDETRDetect",
