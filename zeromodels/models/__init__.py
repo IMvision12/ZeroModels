@@ -1,4 +1,5 @@
 from zeromodels.models import (
+    beit,
     bert,
     cait,
     clip,

@@ -167,6 +167,7 @@ nav:
           - T5: t5.md
           - XLM-RoBERTa: xlm_roberta.md
       - Vision models:
+          - BEiT: beit.md
           - Classification backbones: classification_backbones.md
           - D-FINE: dfine.md
           - DeepLabV3: deeplabv3.md
