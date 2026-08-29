@@ -141,7 +141,9 @@ bit-exact.** A model reads `keras.config.image_data_format()` when it is **const
 import keras
 
 keras.config.set_image_data_format("channels_first")
-model = RegNetImageClassify.from_weights("zeromodels/regnet-y-040")  # expects (B, 3, H, W)
+model = RegNetImageClassify.from_weights(
+    "zeromodels/regnet-y-040"
+)  # expects (B, 3, H, W)
 ```
 
 ## Loading Fine-tuned and Community Weights
