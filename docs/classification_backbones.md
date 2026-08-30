@@ -3,32 +3,48 @@
 <div class="kf-note kf-note--weights">
 <b>Weights:</b> pretrained Keras weights live on Hugging Face under
 <a href="https://huggingface.co/zeromodels">zeromodels/&lt;variant&gt;</a>
-(each repo carries <code>zm_config.json</code> + <code>model.weights.h5</code>).
-Load with <code>from_weights("zeromodels/&lt;variant&gt;")</code>.
+(each repo carries <code>zm_config.json</code>, <code>model.weights.h5</code>, and
+<code>zm_preprocessor.json</code>).
+Load the model with <code>from_weights("zeromodels/&lt;variant&gt;")</code> and its matching
+preprocessor with <code>&lt;X&gt;ImageProcessor.from_weights("zeromodels/&lt;variant&gt;")</code>.
 </div>
 
-Every classification architecture in `zeromodels.models.<arch>` exposes **two classes** that share the same architectural parameters and the same set of pretrained variants:
+Every classification architecture in `zeromodels.models.<arch>` exposes **three classes** that share the same set of pretrained variants:
 
 | Class        | What it returns                                                     | Typical use                                    |
 |--------------|---------------------------------------------------------------------|------------------------------------------------|
+| `XImageProcessor` | Model-ready pixels - resize + rescale + normalize                | Preprocess inputs                              |
 | `XModel`     | The last layer output **before** the classifier head                | Feature extractor / transfer learning          |
 | `XImageClassify`  | Class logits - `XModel` plus the original architecture's head       | Drop-in classification                         |
 
 `XImageClassify` composes `XModel` internally and attaches the per-architecture head (CLS-token linear for ViT-family; GAP + Dense for CNNs; LayerNorm + mean-pool + Dense for hierarchical Transformers; etc.). You don't need to know which head pattern your architecture uses - `XImageClassify` already wires the correct one.
 
+**Normalization lives in the processor, not the model.** The models take *already-normalized* input, so run pixels through `XImageProcessor` (it resizes and applies the architecture's mean/std) before the model - passing raw `[0, 255]` pixels straight to the model will misclassify.
+
 ## Quick start
 
 ```python
-from zeromodels.models.resnet import ResNetImageClassify, ResNetModel
+from PIL import Image
+from zeromodels.models.resnet import (
+    ResNetImageClassify,
+    ResNetModel,
+    ResNetImageProcessor,
+)
+
+# Preprocess: resize + normalize (each arch ships its own <X>ImageProcessor)
+processor = ResNetImageProcessor.from_weights("zeromodels/resnet50_a1_in1k")
+pixels = processor(Image.open("your_image.jpg").convert("RGB"))  # (1, 224, 224, 3)
 
 # Full classifier - 1000-class logits
 classifier = ResNetImageClassify.from_weights("zeromodels/resnet50_a1_in1k")
-logits = classifier(images)  # (B, 1000)
+logits = classifier(pixels)  # (B, 1000)
 
 # Just the backbone - last-stage feature map, no head
 backbone = ResNetModel.from_weights("zeromodels/resnet50_a1_in1k")
-feature_map = backbone(images)  # (B, H/32, W/32, 2048)
+feature_map = backbone(pixels)  # (B, H/32, W/32, 2048)
 ```
+
+In every snippet below, the tensor fed to a model or backbone (`images` / `x` / `pixels`) is `XImageProcessor` output - already resized and normalized.
 
 The same pattern works for every classification arch - swap `ResNet` for `CaiT`, `ViT`, `ConvNeXt`, `RegNet`, `EfficientNet`, `Swin`, `MobileNetV3`, `LeViT`, etc.
 
