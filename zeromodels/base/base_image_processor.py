@@ -84,8 +84,8 @@ class BaseImageProcessor(PreprocessorMixin):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.size = self.as_size(size if size is not None else self.DEFAULT_SIZE)
-        self.crop_size = self.as_size(
+        self.size = self._as_size(size if size is not None else self.DEFAULT_SIZE)
+        self.crop_size = self._as_size(
             crop_size if crop_size is not None else self.DEFAULT_CROP_SIZE
         )
         self.resample = resample if resample is not None else self.DEFAULT_RESAMPLE
@@ -107,8 +107,13 @@ class BaseImageProcessor(PreprocessorMixin):
         self.data_format = data_format
 
     @staticmethod
-    def as_size(size):
-        """Normalize ``size`` (int or dict) to ``{"height": H, "width": W}``."""
+    def _as_size(size):
+        """Normalize ``size`` (int or dict) to ``{"height": H, "width": W}``.
+
+        Private so a subclass that defines its own ``as_size`` (e.g. bespoke
+        processors with a different signature) can't shadow the base ``__init__``'s
+        size handling.
+        """
         if isinstance(size, int):
             return {"height": size, "width": size}
         return dict(size)
