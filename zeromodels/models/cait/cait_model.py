@@ -12,7 +12,6 @@ from zeromodels.models.cait.cait_layers import (
     CaiTTalkingHeadAttention,
 )
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .cait_config import CaiTConfig
 
@@ -335,12 +334,12 @@ class CaiTModel(BaseModel):
         num_heads=4,
         drop_path_rate=0.0,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         name="CaiTModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "timm_id"):
             kwargs.pop(k, None)
 
@@ -354,11 +353,7 @@ class CaiTModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = cait_backbone_feature(
             x,
             patch_size=patch_size,
@@ -379,8 +374,6 @@ class CaiTModel(BaseModel):
         self.num_heads = num_heads
         self.drop_path_rate = drop_path_rate
         self.image_size = image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
 
     def get_config(self):
@@ -394,8 +387,6 @@ class CaiTModel(BaseModel):
                 "num_heads": self.num_heads,
                 "drop_path_rate": self.drop_path_rate,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "name": self.name,
             }
@@ -482,14 +473,14 @@ class CaiTImageClassify(BaseModel):
         num_heads=4,
         drop_path_rate=0.0,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
         name="CaiTImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         backbone = CaiTModel(
@@ -499,8 +490,6 @@ class CaiTImageClassify(BaseModel):
             num_heads=num_heads,
             drop_path_rate=drop_path_rate,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -517,8 +506,6 @@ class CaiTImageClassify(BaseModel):
         self.num_heads = num_heads
         self.drop_path_rate = drop_path_rate
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -533,8 +520,6 @@ class CaiTImageClassify(BaseModel):
                 "num_heads": self.num_heads,
                 "drop_path_rate": self.drop_path_rate,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,

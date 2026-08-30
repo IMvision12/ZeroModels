@@ -8,7 +8,6 @@ from zeromodels.models.resnet.resnet_model import (
 )
 from zeromodels.models.vit.vit_model import vit_backbone_feature
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .dino_config import DinoResNetConfig, DinoViTConfig
 
@@ -75,13 +74,13 @@ class DinoViTModel(BaseModel):
         qk_norm=False,
         drop_rate=0.0,
         attn_drop_rate=0.0,
-        include_normalization=True,
-        normalization_mode="imagenet",
         image_size=224,
         input_tensor=None,
         name="DinoViTModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         data_format = keras.config.image_data_format()
         input_shape = standardize_input_shape(image_size, data_format)
         image_size = (
@@ -95,11 +94,7 @@ class DinoViTModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         features = vit_backbone_feature(
             x,
             patch_size=patch_size,
@@ -136,8 +131,6 @@ class DinoViTModel(BaseModel):
         self.qk_norm = qk_norm
         self.drop_rate = drop_rate
         self.attn_drop_rate = attn_drop_rate
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.image_size = image_size
         self.input_tensor = input_tensor
 
@@ -155,8 +148,6 @@ class DinoViTModel(BaseModel):
                 "qk_norm": self.qk_norm,
                 "drop_rate": self.drop_rate,
                 "attn_drop_rate": self.attn_drop_rate,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "image_size": self.image_size,
                 "name": self.name,
             }
@@ -212,13 +203,13 @@ class DinoResNetModel(BaseModel):
         as_backbone=False,
         depths=None,
         filters=None,
-        include_normalization=True,
-        normalization_mode="imagenet",
         image_size=224,
         input_tensor=None,
         name="DinoResNetModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         if depths is None:
             depths = [3, 4, 6, 3]
         if filters is None:
@@ -235,11 +226,7 @@ class DinoResNetModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         features = resnet_backbone_feature(
             x,
             block_fn=bottleneck_block,
@@ -259,8 +246,6 @@ class DinoResNetModel(BaseModel):
         self.as_backbone = as_backbone
         self.depths = list(depths)
         self.filters = list(filters)
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.image_size = image_size
         self.input_tensor = input_tensor
 
@@ -271,8 +256,6 @@ class DinoResNetModel(BaseModel):
                 "as_backbone": self.as_backbone,
                 "depths": self.depths,
                 "filters": self.filters,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "image_size": self.image_size,
                 "name": self.name,
             }

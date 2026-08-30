@@ -11,7 +11,6 @@ from zeromodels.models.vit.vit_layers import (
     ViTSwiGLUGate,
 )
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .vit_config import ViTConfig
 
@@ -250,16 +249,6 @@ class ViTModel(BaseModel):
             match the active ``keras.config.image_data_format()``:
             ``(H, W, C)`` for ``channels_last`` or ``(C, H, W)`` for
             ``channels_first``. Defaults to `224`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'`, `'inception'` (default),
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``. Every released ViT
-            checkpoint was trained with 0.5/0.5 statistics, which is
-            `'inception'`; `'imagenet'` misclassifies.
         input_tensor: Optional Keras tensor as input. Useful for
             connecting the model to other Keras components.
             Defaults to `None`.
@@ -308,13 +297,19 @@ class ViTModel(BaseModel):
         layer_scale_init=None,
         resize_mode="bilinear",
         image_size=224,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         name="ViTModel",
         **kwargs,
     ):
-        for k in ("num_classes", "classifier_activation", "timm_id"):
+        # Normalization now lives in ViTImageProcessor, so the model takes
+        # already-normalized input; tolerate the removed args from older callers.
+        for k in (
+            "num_classes",
+            "classifier_activation",
+            "timm_id",
+            "include_normalization",
+            "normalization_mode",
+        ):
             kwargs.pop(k, None)
 
         data_format = keras.config.image_data_format()
@@ -331,13 +326,8 @@ class ViTModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
         x = vit_backbone_feature(
-            x,
+            img_input,
             patch_size=patch_size,
             embed_dim=embed_dim,
             depth=depth,
@@ -373,8 +363,6 @@ class ViTModel(BaseModel):
         self.layer_scale_init = layer_scale_init
         self.resize_mode = resize_mode
         self.image_size = image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
 
     def get_config(self):
@@ -396,8 +384,6 @@ class ViTModel(BaseModel):
                 "layer_scale_init": self.layer_scale_init,
                 "resize_mode": self.resize_mode,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "name": self.name,
                 "trainable": self.trainable,
@@ -466,16 +452,6 @@ class ViTImageClassify(BaseModel):
             match the active ``keras.config.image_data_format()``:
             ``(H, W, C)`` for ``channels_last`` or ``(C, H, W)`` for
             ``channels_first``. Defaults to `224`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'`, `'inception'` (default),
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``. Every released ViT
-            checkpoint was trained with 0.5/0.5 statistics, which is
-            `'inception'`; `'imagenet'` misclassifies.
         input_tensor: Optional Keras tensor as input. Useful for
             connecting the model to other Keras components.
             Defaults to `None`.
@@ -519,15 +495,16 @@ class ViTImageClassify(BaseModel):
         layer_scale_init=None,
         resize_mode="bilinear",
         image_size=224,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
         name="ViTImageClassify",
         **kwargs,
     ):
-        kwargs.pop("timm_id", None)
+        # Normalization now lives in ViTImageProcessor (the model takes
+        # already-normalized input); tolerate the removed args from older callers.
+        for k in ("timm_id", "include_normalization", "normalization_mode"):
+            kwargs.pop(k, None)
 
         backbone = ViTModel(
             patch_size=patch_size,
@@ -544,8 +521,6 @@ class ViTImageClassify(BaseModel):
             layer_scale_init=layer_scale_init,
             resize_mode=resize_mode,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -588,8 +563,6 @@ class ViTImageClassify(BaseModel):
         self.layer_scale_init = layer_scale_init
         self.resize_mode = resize_mode
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -612,8 +585,6 @@ class ViTImageClassify(BaseModel):
                 "layer_scale_init": self.layer_scale_init,
                 "resize_mode": self.resize_mode,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,

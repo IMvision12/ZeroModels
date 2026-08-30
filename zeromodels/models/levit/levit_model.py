@@ -10,7 +10,6 @@ from zeromodels.models.levit.levit_layers import (
     LevitMLP,
 )
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .levit_config import LevitConfig
 
@@ -200,12 +199,12 @@ class LevitModel(BaseModel):
         key_dim=(16, 16, 16),
         mlp_ratio=(2, 2, 2),
         attention_ratio=(2, 2, 2),
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         name="LevitModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "use_distillation", "hf_id"):
             kwargs.pop(k, None)
 
@@ -222,11 +221,7 @@ class LevitModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = levit_backbone_feature(
             x,
             image_size=image_size,
@@ -257,8 +252,6 @@ class LevitModel(BaseModel):
         self.key_dim = tuple(key_dim)
         self.mlp_ratio = tuple(mlp_ratio)
         self.attention_ratio = tuple(attention_ratio)
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
 
     def get_config(self):
@@ -277,8 +270,6 @@ class LevitModel(BaseModel):
                 "key_dim": self.key_dim,
                 "mlp_ratio": self.mlp_ratio,
                 "attention_ratio": self.attention_ratio,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "name": self.name,
             }
@@ -357,8 +348,6 @@ class LevitImageClassify(BaseModel):
         key_dim=(16, 16, 16),
         mlp_ratio=(2, 2, 2),
         attention_ratio=(2, 2, 2),
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         use_distillation=True,
@@ -366,6 +355,8 @@ class LevitImageClassify(BaseModel):
         name="LevitImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("hf_id", None)
 
         backbone = LevitModel(
@@ -381,8 +372,6 @@ class LevitImageClassify(BaseModel):
             key_dim=key_dim,
             mlp_ratio=mlp_ratio,
             attention_ratio=attention_ratio,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -422,8 +411,6 @@ class LevitImageClassify(BaseModel):
         self.key_dim = tuple(key_dim)
         self.mlp_ratio = tuple(mlp_ratio)
         self.attention_ratio = tuple(attention_ratio)
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.use_distillation = use_distillation
@@ -445,8 +432,6 @@ class LevitImageClassify(BaseModel):
                 "key_dim": self.key_dim,
                 "mlp_ratio": self.mlp_ratio,
                 "attention_ratio": self.attention_ratio,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "use_distillation": self.use_distillation,

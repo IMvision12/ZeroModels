@@ -10,7 +10,6 @@ from zeromodels.models.beit.beit_layers import (
 )
 from zeromodels.models.pvt_v2.pvt_v2_layers import adaptive_pool_matrix
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .beit_config import BeitConfig
 
@@ -186,12 +185,12 @@ class BeitModel(BaseModel):
         layer_scale_init_value=0.1,
         layer_norm_eps=1e-12,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         name="BeitModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "hf_id"):
             kwargs.pop(k, None)
 
@@ -208,11 +207,7 @@ class BeitModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = beit_backbone_feature(
             x,
             hidden_size=hidden_size,
@@ -238,8 +233,6 @@ class BeitModel(BaseModel):
         self.layer_scale_init_value = layer_scale_init_value
         self.layer_norm_eps = layer_norm_eps
         self.image_size = image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
 
     def get_config(self):
@@ -255,8 +248,6 @@ class BeitModel(BaseModel):
                 "layer_scale_init_value": self.layer_scale_init_value,
                 "layer_norm_eps": self.layer_norm_eps,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "name": self.name,
             }
@@ -312,14 +303,14 @@ class BeitImageClassify(BaseModel):
         layer_scale_init_value=0.1,
         layer_norm_eps=1e-12,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
         name="BeitImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("hf_id", None)
 
         backbone = BeitModel(
@@ -331,8 +322,6 @@ class BeitImageClassify(BaseModel):
             layer_scale_init_value=layer_scale_init_value,
             layer_norm_eps=layer_norm_eps,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -358,8 +347,6 @@ class BeitImageClassify(BaseModel):
         self.layer_scale_init_value = layer_scale_init_value
         self.layer_norm_eps = layer_norm_eps
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -376,8 +363,6 @@ class BeitImageClassify(BaseModel):
                 "layer_scale_init_value": self.layer_scale_init_value,
                 "layer_norm_eps": self.layer_norm_eps,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,
@@ -543,8 +528,6 @@ class BeitSemanticSegment(BaseModel):
         layer_scale_init_value=0.1,
         layer_norm_eps=1e-12,
         image_size=640,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         num_classes=150,
         out_indices=(3, 5, 7, 11),
@@ -552,6 +535,8 @@ class BeitSemanticSegment(BaseModel):
         name="BeitSemanticSegment",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("hf_id", None)
 
         backbone = BeitModel(
@@ -564,8 +549,6 @@ class BeitSemanticSegment(BaseModel):
             layer_scale_init_value=layer_scale_init_value,
             layer_norm_eps=layer_norm_eps,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -595,8 +578,6 @@ class BeitSemanticSegment(BaseModel):
         self.layer_scale_init_value = layer_scale_init_value
         self.layer_norm_eps = layer_norm_eps
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.out_indices = tuple(out_indices)
@@ -614,8 +595,6 @@ class BeitSemanticSegment(BaseModel):
                 "layer_scale_init_value": self.layer_scale_init_value,
                 "layer_norm_eps": self.layer_norm_eps,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "out_indices": self.out_indices,

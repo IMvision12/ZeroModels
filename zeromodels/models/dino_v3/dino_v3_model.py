@@ -4,7 +4,6 @@ from keras import layers, ops, utils
 from zeromodels.base import BaseModel
 from zeromodels.models.convnext.convnext_model import convnext_backbone_feature
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .dino_v3_config import DinoV3ConvNeXtConfig, DinoV3ViTConfig
 from .dino_v3_layers import (
@@ -300,13 +299,13 @@ class DinoV3ViTModel(BaseModel):
         hidden_act="gelu",
         mlp_bias=True,
         layer_norm_eps=1e-5,
-        include_normalization=True,
-        normalization_mode="imagenet",
         image_size=224,
         input_tensor=None,
         name="DinoV3ViTModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         data_format = keras.config.image_data_format()
         image_size = standardize_input_shape(image_size, data_format)
 
@@ -335,11 +334,7 @@ class DinoV3ViTModel(BaseModel):
 
         mlp_hidden_dim = int(embed_dim * mlp_ratio)
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = layers.Conv2D(
             filters=embed_dim,
             kernel_size=patch_size,
@@ -403,8 +398,6 @@ class DinoV3ViTModel(BaseModel):
         self.hidden_act = hidden_act
         self.mlp_bias = mlp_bias
         self.layer_norm_eps = layer_norm_eps
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.image_size = image_size
         self.input_tensor = input_tensor
 
@@ -428,8 +421,6 @@ class DinoV3ViTModel(BaseModel):
                 "hidden_act": self.hidden_act,
                 "mlp_bias": self.mlp_bias,
                 "layer_norm_eps": self.layer_norm_eps,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "image_size": self.image_size,
                 "name": self.name,
             }
@@ -502,13 +493,13 @@ class DinoV3ConvNeXtModel(BaseModel):
         as_backbone=False,
         depths=None,
         projection_dim=None,
-        include_normalization=True,
-        normalization_mode="imagenet",
         image_size=224,
         input_tensor=None,
         name="DinoV3ConvNeXtModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         if depths is None:
             depths = [3, 3, 9, 3]
         if projection_dim is None:
@@ -525,11 +516,7 @@ class DinoV3ConvNeXtModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         features = convnext_backbone_feature(
             x,
             depths=depths,
@@ -549,8 +536,6 @@ class DinoV3ConvNeXtModel(BaseModel):
         self.as_backbone = as_backbone
         self.depths = list(depths)
         self.projection_dim = list(projection_dim)
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.image_size = image_size
         self.input_tensor = input_tensor
 
@@ -561,8 +546,6 @@ class DinoV3ConvNeXtModel(BaseModel):
                 "as_backbone": self.as_backbone,
                 "depths": self.depths,
                 "projection_dim": self.projection_dim,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "image_size": self.image_size,
                 "name": self.name,
             }

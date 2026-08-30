@@ -6,7 +6,6 @@ from keras import layers, utils
 from zeromodels.base import BaseModel
 from zeromodels.conversion import copy_weights_by_path_suffix
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .mobilenetv3_config import MobileNetV3Config
 
@@ -510,13 +509,13 @@ class MobileNetV3Model(BaseModel):
         se_use_block_act=False,
         bn_epsilon=1e-5,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         as_backbone=False,
         name="MobileNetV3Model",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         for k in (
             "num_classes",
             "classifier_activation",
@@ -543,11 +542,7 @@ class MobileNetV3Model(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = mobilenetv3_backbone_feature(
             x,
             config=config,
@@ -578,8 +573,6 @@ class MobileNetV3Model(BaseModel):
         self.se_use_block_act = se_use_block_act
         self.bn_epsilon = bn_epsilon
         self.image_size = image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.as_backbone = as_backbone
 
@@ -598,8 +591,6 @@ class MobileNetV3Model(BaseModel):
                 "se_use_block_act": self.se_use_block_act,
                 "bn_epsilon": self.bn_epsilon,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "as_backbone": self.as_backbone,
                 "name": self.name,
@@ -705,8 +696,6 @@ class MobileNetV3ImageClassify(BaseModel):
         bn_epsilon=1e-5,
         head_use_bias=True,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
@@ -714,6 +703,8 @@ class MobileNetV3ImageClassify(BaseModel):
         name="MobileNetV3ImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         if config not in ("large", "small"):
@@ -735,8 +726,6 @@ class MobileNetV3ImageClassify(BaseModel):
             se_use_block_act=se_use_block_act,
             bn_epsilon=bn_epsilon,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -775,8 +764,6 @@ class MobileNetV3ImageClassify(BaseModel):
         self.bn_epsilon = bn_epsilon
         self.head_use_bias = head_use_bias
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -798,8 +785,6 @@ class MobileNetV3ImageClassify(BaseModel):
                 "bn_epsilon": self.bn_epsilon,
                 "head_use_bias": self.head_use_bias,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,

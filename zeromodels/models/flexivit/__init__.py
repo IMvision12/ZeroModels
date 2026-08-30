@@ -4,4 +4,11 @@ from zeromodels.models.flexivit.flexivit_model import (
     FlexiViTModel,
 )
 
-__all__ = ["FlexiViTImageClassify", "FlexiViTModel", "FlexiViTConfig"]
+from .flexivit_image_processor import FlexiViTImageProcessor
+
+__all__ = [
+    "FlexiViTImageProcessor",
+    "FlexiViTImageClassify",
+    "FlexiViTModel",
+    "FlexiViTConfig",
+]

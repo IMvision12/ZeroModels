@@ -183,6 +183,8 @@ class ResNeXtModel(ResNetModel):
         name="ResNeXtModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         super().__init__(
             block_fn=block_fn,
             depths=depths,
@@ -267,14 +269,14 @@ class ResNeXtImageClassify(ResNetImageClassify):
         senet=False,
         width_factor=2,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
         name="ResNeXtImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         data_format = keras.config.image_data_format()
@@ -287,8 +289,6 @@ class ResNeXtImageClassify(ResNetImageClassify):
             senet=senet,
             width_factor=width_factor,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -314,8 +314,6 @@ class ResNeXtImageClassify(ResNetImageClassify):
         self.senet = senet
         self.width_factor = width_factor
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation

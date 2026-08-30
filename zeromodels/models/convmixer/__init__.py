@@ -4,4 +4,11 @@ from zeromodels.models.convmixer.convmixer_model import (
     ConvMixerModel,
 )
 
-__all__ = ["ConvMixerImageClassify", "ConvMixerModel", "ConvMixerConfig"]
+from .convmixer_image_processor import ConvMixerImageProcessor
+
+__all__ = [
+    "ConvMixerImageProcessor",
+    "ConvMixerImageClassify",
+    "ConvMixerModel",
+    "ConvMixerConfig",
+]

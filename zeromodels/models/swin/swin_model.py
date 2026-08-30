@@ -10,7 +10,6 @@ from zeromodels.models.swin.swin_layers import (
     SwinWindowPartition,
 )
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .swin_config import SwinConfig
 
@@ -551,13 +550,13 @@ class SwinModel(BaseModel):
         dropout_rate=0.0,
         drop_path_rate=0.1,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         as_backbone=False,
         name="SwinModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "timm_id"):
             kwargs.pop(k, None)
 
@@ -573,11 +572,7 @@ class SwinModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = swin_backbone_feature(
             x,
             pretrain_size=pretrain_size,
@@ -602,8 +597,6 @@ class SwinModel(BaseModel):
         self.dropout_rate = dropout_rate
         self.drop_path_rate = drop_path_rate
         self.image_size = image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.as_backbone = as_backbone
 
@@ -619,8 +612,6 @@ class SwinModel(BaseModel):
                 "dropout_rate": self.dropout_rate,
                 "drop_path_rate": self.drop_path_rate,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "as_backbone": self.as_backbone,
                 "name": self.name,
@@ -715,14 +706,14 @@ class SwinImageClassify(BaseModel):
         dropout_rate=0.0,
         drop_path_rate=0.1,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
         name="SwinImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         data_format = keras.config.image_data_format()
@@ -736,8 +727,6 @@ class SwinImageClassify(BaseModel):
             dropout_rate=dropout_rate,
             drop_path_rate=drop_path_rate,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -760,8 +749,6 @@ class SwinImageClassify(BaseModel):
         self.dropout_rate = dropout_rate
         self.drop_path_rate = drop_path_rate
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -778,8 +765,6 @@ class SwinImageClassify(BaseModel):
                 "dropout_rate": self.dropout_rate,
                 "drop_path_rate": self.drop_path_rate,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,

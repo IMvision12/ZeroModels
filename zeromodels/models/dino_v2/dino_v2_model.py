@@ -4,7 +4,6 @@ from keras import layers, utils
 from zeromodels.base import BaseModel
 from zeromodels.models.vit.vit_model import vit_backbone_feature
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .dino_v2_config import DinoV2Config
 
@@ -95,13 +94,13 @@ class DinoV2Model(BaseModel):
         attn_drop_rate=0.0,
         layer_scale_init=1.0,
         use_swiglu=False,
-        include_normalization=True,
-        normalization_mode="imagenet",
         image_size=224,
         input_tensor=None,
         name="DinoV2Model",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         data_format = keras.config.image_data_format()
         input_shape = standardize_input_shape(image_size, data_format)
         image_size = (
@@ -115,11 +114,7 @@ class DinoV2Model(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         features = vit_backbone_feature(
             x,
             patch_size=patch_size,
@@ -159,8 +154,6 @@ class DinoV2Model(BaseModel):
         self.attn_drop_rate = attn_drop_rate
         self.layer_scale_init = layer_scale_init
         self.use_swiglu = use_swiglu
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.image_size = image_size
         self.input_tensor = input_tensor
 
@@ -180,8 +173,6 @@ class DinoV2Model(BaseModel):
                 "attn_drop_rate": self.attn_drop_rate,
                 "layer_scale_init": self.layer_scale_init,
                 "use_swiglu": self.use_swiglu,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "image_size": self.image_size,
                 "name": self.name,
             }

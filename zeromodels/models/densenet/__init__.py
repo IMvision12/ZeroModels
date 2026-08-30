@@ -4,4 +4,11 @@ from zeromodels.models.densenet.densenet_model import (
     DenseNetModel,
 )
 
-__all__ = ["DenseNetImageClassify", "DenseNetModel", "DenseNetConfig"]
+from .densenet_image_processor import DenseNetImageProcessor
+
+__all__ = [
+    "DenseNetImageProcessor",
+    "DenseNetImageClassify",
+    "DenseNetModel",
+    "DenseNetConfig",
+]

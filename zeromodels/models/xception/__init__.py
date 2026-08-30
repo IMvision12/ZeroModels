@@ -4,4 +4,11 @@ from zeromodels.models.xception.xception_model import (
     XceptionModel,
 )
 
-__all__ = ["XceptionImageClassify", "XceptionModel", "XceptionConfig"]
+from .xception_image_processor import XceptionImageProcessor
+
+__all__ = [
+    "XceptionImageProcessor",
+    "XceptionImageClassify",
+    "XceptionModel",
+    "XceptionConfig",
+]

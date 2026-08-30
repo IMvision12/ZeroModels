@@ -88,6 +88,8 @@ class FlexiViTModel(ViTModel):
         name="FlexiViTModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         super().__init__(
             as_backbone=as_backbone,
             image_size=image_size,
@@ -201,14 +203,14 @@ class FlexiViTImageClassify(ViTImageClassify):
         use_distillation=False,
         layer_scale_init=None,
         image_size=240,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
         name="FlexiViTImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         backbone = FlexiViTModel(
@@ -225,8 +227,6 @@ class FlexiViTImageClassify(ViTImageClassify):
             use_distillation=use_distillation,
             layer_scale_init=layer_scale_init,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -270,8 +270,6 @@ class FlexiViTImageClassify(ViTImageClassify):
         self.use_distillation = use_distillation
         self.layer_scale_init = layer_scale_init
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -293,8 +291,6 @@ class FlexiViTImageClassify(ViTImageClassify):
                 "use_distillation": self.use_distillation,
                 "layer_scale_init": self.layer_scale_init,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,

@@ -156,14 +156,14 @@ class ConvNeXtV2ImageClassify(ConvNeXtImageClassify):
         use_conv=False,
         use_grn=False,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
         name="ConvNeXtV2ImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         data_format = keras.config.image_data_format()
@@ -176,8 +176,6 @@ class ConvNeXtV2ImageClassify(ConvNeXtImageClassify):
             use_conv=use_conv,
             use_grn=use_grn,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -201,8 +199,6 @@ class ConvNeXtV2ImageClassify(ConvNeXtImageClassify):
         self.use_conv = use_conv
         self.use_grn = use_grn
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation

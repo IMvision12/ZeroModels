@@ -4,7 +4,6 @@ from keras import layers, utils
 from zeromodels.base import BaseModel
 from zeromodels.conversion import copy_weights_by_path_suffix
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .xception_config import XceptionConfig
 
@@ -523,13 +522,13 @@ class XceptionModel(BaseModel):
         preact=False,
         bn_epsilon=1e-3,
         image_size=299,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         as_backbone=False,
         name="XceptionModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "dropout_rate", "timm_id"):
             kwargs.pop(k, None)
 
@@ -551,11 +550,7 @@ class XceptionModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = xception_aligned_backbone(
             x,
             config=config,
@@ -572,8 +567,6 @@ class XceptionModel(BaseModel):
         self.preact = preact
         self.bn_epsilon = bn_epsilon
         self.image_size = image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.as_backbone = as_backbone
 
@@ -585,8 +578,6 @@ class XceptionModel(BaseModel):
                 "preact": self.preact,
                 "bn_epsilon": self.bn_epsilon,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "as_backbone": self.as_backbone,
                 "name": self.name,
@@ -671,8 +662,6 @@ class XceptionImageClassify(BaseModel):
         preact=False,
         bn_epsilon=1e-3,
         image_size=299,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
@@ -680,6 +669,8 @@ class XceptionImageClassify(BaseModel):
         name="XceptionImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         data_format = keras.config.image_data_format()
@@ -689,8 +680,6 @@ class XceptionImageClassify(BaseModel):
             preact=preact,
             bn_epsilon=bn_epsilon,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -710,8 +699,6 @@ class XceptionImageClassify(BaseModel):
         self.preact = preact
         self.bn_epsilon = bn_epsilon
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -725,8 +712,6 @@ class XceptionImageClassify(BaseModel):
                 "preact": self.preact,
                 "bn_epsilon": self.bn_epsilon,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,

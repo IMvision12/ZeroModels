@@ -6,7 +6,6 @@ from keras import layers, utils
 from zeromodels.base import BaseModel
 from zeromodels.conversion import copy_weights_by_path_suffix
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .resnet_config import ResNetConfig
 
@@ -404,13 +403,13 @@ class ResNetModel(BaseModel):
         senet=False,
         width_factor=2,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         as_backbone=False,
         name="ResNetModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "timm_id"):
             kwargs.pop(k, None)
 
@@ -426,11 +425,7 @@ class ResNetModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = resnet_backbone_feature(
             x,
             block_fn=block_fn,
@@ -453,8 +448,6 @@ class ResNetModel(BaseModel):
         self.senet = senet
         self.width_factor = width_factor
         self.image_size = image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.as_backbone = as_backbone
 
@@ -483,8 +476,6 @@ class ResNetModel(BaseModel):
                 "senet": self.senet,
                 "width_factor": self.width_factor,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "as_backbone": self.as_backbone,
                 "name": self.name,
@@ -593,14 +584,14 @@ class ResNetImageClassify(BaseModel):
         senet=False,
         width_factor=2,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
         name="ResNetImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         data_format = keras.config.image_data_format()
@@ -613,8 +604,6 @@ class ResNetImageClassify(BaseModel):
             senet=senet,
             width_factor=width_factor,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -638,8 +627,6 @@ class ResNetImageClassify(BaseModel):
         self.senet = senet
         self.width_factor = width_factor
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -671,8 +658,6 @@ class ResNetImageClassify(BaseModel):
                 "senet": self.senet,
                 "width_factor": self.width_factor,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,

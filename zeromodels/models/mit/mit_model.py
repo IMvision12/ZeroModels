@@ -8,7 +8,6 @@ from zeromodels.models.mit.mit_layers import (
     MiTStochasticDepth,
 )
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .mit_config import MiTConfig
 
@@ -355,12 +354,12 @@ class MiTModel(BaseModel):
         depths=(2, 2, 2, 2),
         drop_path_rate=0.1,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         name="MiTModel",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "hf_id"):
             kwargs.pop(k, None)
 
@@ -376,11 +375,7 @@ class MiTModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         features = mit_backbone_feature(
             x,
             embed_dim=embed_dim,
@@ -398,8 +393,6 @@ class MiTModel(BaseModel):
         self.depths = list(depths)
         self.drop_path_rate = drop_path_rate
         self.image_size = image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
 
     def get_config(self):
@@ -411,8 +404,6 @@ class MiTModel(BaseModel):
                 "depths": self.depths,
                 "drop_path_rate": self.drop_path_rate,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "name": self.name,
             }
@@ -501,14 +492,14 @@ class MiTImageClassify(BaseModel):
         depths=(2, 2, 2, 2),
         drop_path_rate=0.1,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
         name="MiTImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("hf_id", None)
 
         data_format = keras.config.image_data_format()
@@ -518,8 +509,6 @@ class MiTImageClassify(BaseModel):
             depths=depths,
             drop_path_rate=drop_path_rate,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -537,8 +526,6 @@ class MiTImageClassify(BaseModel):
         self.depths = list(depths)
         self.drop_path_rate = drop_path_rate
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -551,8 +538,6 @@ class MiTImageClassify(BaseModel):
                 "depths": self.depths,
                 "drop_path_rate": self.drop_path_rate,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,

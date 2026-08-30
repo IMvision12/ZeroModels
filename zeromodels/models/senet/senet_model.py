@@ -172,14 +172,14 @@ class SENetImageClassify(ResNetImageClassify):
         senet=True,
         width_factor=2,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
         name="SENetImageClassify",
         **kwargs,
     ):
+        kwargs.pop("include_normalization", None)
+        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
         resolve_block_fn(kwargs)
         # If `block_fn_name` was provided, it has overwritten kwargs["block_fn"].
@@ -195,8 +195,6 @@ class SENetImageClassify(ResNetImageClassify):
             senet=senet,
             width_factor=width_factor,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -222,8 +220,6 @@ class SENetImageClassify(ResNetImageClassify):
         self.senet = senet
         self.width_factor = width_factor
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation

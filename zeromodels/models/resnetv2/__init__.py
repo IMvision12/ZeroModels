@@ -4,4 +4,11 @@ from zeromodels.models.resnetv2.resnetv2_model import (
     ResNetV2Model,
 )
 
-__all__ = ["ResNetV2ImageClassify", "ResNetV2Model", "ResNetV2Config"]
+from .resnetv2_image_processor import ResNetV2ImageProcessor
+
+__all__ = [
+    "ResNetV2ImageProcessor",
+    "ResNetV2ImageClassify",
+    "ResNetV2Model",
+    "ResNetV2Config",
+]

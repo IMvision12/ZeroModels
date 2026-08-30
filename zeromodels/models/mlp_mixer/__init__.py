@@ -4,4 +4,11 @@ from zeromodels.models.mlp_mixer.mlp_mixer_model import (
     MLPMixerModel,
 )
 
-__all__ = ["MLPMixerImageClassify", "MLPMixerModel", "MLPMixerConfig"]
+from .mlp_mixer_image_processor import MLPMixerImageProcessor
+
+__all__ = [
+    "MLPMixerImageProcessor",
+    "MLPMixerImageClassify",
+    "MLPMixerModel",
+    "MLPMixerConfig",
+]

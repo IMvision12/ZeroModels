@@ -4,7 +4,10 @@ from zeromodels.models.poolformer.poolformer_model import (
     PoolFormerModel,
 )
 
+from .poolformer_image_processor import PoolFormerImageProcessor
+
 __all__ = [
+    "PoolFormerImageProcessor",
     "PoolFormerImageClassify",
     "PoolFormerModel",
     "PoolFormerConfig",
