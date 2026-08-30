@@ -90,6 +90,23 @@ MODEL_TEST_CONFIGS = {
         "input_shape": (2, 32, 32, 3),
         "expected_output_shape": (2, 1000),
     },
+    "LevitImageClassify": {
+        "module": "zeromodels.models.levit",
+        "model_cls": "LevitImageClassify",
+        "model_type": "classification",
+        "init_kwargs": {
+            "image_size": 64,
+            "hidden_sizes": (32, 64, 96),
+            "num_attention_heads": (2, 4, 6),
+            "depths": (1, 1, 1),
+            "key_dim": (16, 16, 16),
+            "mlp_ratio": (2, 2, 2),
+            "attention_ratio": (2, 2, 2),
+            "num_classes": 1000,
+        },
+        "input_shape": (2, 64, 64, 3),
+        "expected_output_shape": (2, 1000),
+    },
     "DeiTImageClassify": {
         "module": "zeromodels.models.deit",
         "model_cls": "DeiTImageClassify",

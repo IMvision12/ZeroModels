@@ -59,6 +59,7 @@ from zeromodels.models import (
     internvl,
     janus,
     kimi_k25,
+    levit,
     llama,
     llama2,
     llama4,

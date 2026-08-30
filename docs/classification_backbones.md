@@ -30,7 +30,9 @@ backbone = ResNetModel.from_weights("zeromodels/resnet50_a1_in1k")
 feature_map = backbone(images)  # (B, H/32, W/32, 2048)
 ```
 
-The same pattern works for every classification arch - swap `ResNet` for `CaiT`, `ViT`, `ConvNeXt`, `RegNet`, `EfficientNet`, `Swin`, `MobileNetV3`, etc.
+The same pattern works for every classification arch - swap `ResNet` for `CaiT`, `ViT`, `ConvNeXt`, `RegNet`, `EfficientNet`, `Swin`, `MobileNetV3`, `LeViT`, etc.
+
+`LeViT` is a hybrid conv/transformer classifier loaded from `hf:facebook/levit-*` (`128S`, `128`, `192`, `256`, `384`). `LevitImageClassify` averages its distillation heads internally, and `LevitModel` returns the final token sequence (LeViT has no spatial `as_backbone` pyramid). The reference preprocessing resizes the shortest edge to 256 and center-crops 224.
 
 ## Data Format
 
