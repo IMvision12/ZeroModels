@@ -90,7 +90,6 @@ if __name__ == "__main__":
         state = download_hf_state_dict(hf_id)
         keras_model = RegNetImageClassify(
             **RegNetImageClassify.config_from_hf(hf_config),
-            include_normalization=False,
         )
         transfer_regnet_weights(keras_model, state)
 

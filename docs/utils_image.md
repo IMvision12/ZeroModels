@@ -110,22 +110,10 @@ keras.config.set_image_data_format('channels_first').
 ## What is not here
 
 Pixel-level operations, resize, crop, pad, rescale, normalize, live on `BaseImageProcessor`
-so every image model shares one backend-agnostic implementation. See
+so every image model shares one backend-agnostic implementation. Normalization is no longer
+baked into the classification backbones: each `XImageProcessor` applies its architecture's
+mean/std, and the model takes already-normalized input. See
 [Main Classes](main_classes.md#baseimageprocessor).
-
-One in-graph helper does live in `image_util`, used by the classification backbones for
-their `include_normalization` path:
-
-```python
-from zeromodels.utils.image_util import normalize_image_for_classify_models
-
-x = normalize_image_for_classify_models(x, mode="imagenet")
-```
-
-It takes `[0, 255]`, divides by 255, and applies a named preset: `"imagenet"`,
-`"inception"`, `"dpn"`, `"clip"`, `"zero_to_one"`, or `"minus_one_to_one"`. Being pure
-`keras.ops`, it is symbolic-safe and can sit inside a functional graph, unlike the eager
-normalization on the processor side.
 
 See also [Video utils](utils_video.md), [Visualization utils](utils_visualization.md), and
 [Utilities](utils.md).

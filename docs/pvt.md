@@ -32,23 +32,20 @@ PvtImageClassify(
     sr_ratios=(8, 4, 2, 1),
     mlp_ratios=(8, 8, 4, 4),
     image_size=224,
-    include_normalization=True,
-    normalization_mode="imagenet",
     num_classes=1000,
     classifier_activation="linear",
     name="PvtImageClassify",
 )
 ```
 
-The classifier: the backbone plus a dense head over the last stage's class token.
-`include_normalization=True` means the model takes **raw `[0, 255]` pixels** and applies
-ImageNet mean/std internally, so there is no separate image processor to construct.
+The classifier: the backbone plus a dense head over the last stage's class token. The model
+takes **already-normalized** input; run pixels through `PvtImageProcessor` (resize + ImageNet
+mean/std) first.
 
 **Parameters**
 
 - **hidden_sizes** / **depths** / **num_attention_heads** / **sr_ratios** / **mlp_ratios** (`tuple`): per-stage width, block count, heads, spatial-reduction ratio, and FFN expansion. The variants differ only in `depths`; `from_weights` fills these from the variant config.
 - **image_size** (`int`, *optional*, defaults to `224`): resolution the model is built for. The learned position embeddings are interpolated to this grid (see [Variable Input Resolution](#variable-input-resolution)).
-- **include_normalization** (`bool`, *optional*, defaults to `True`): bake ImageNet normalization into the graph.
 - **num_classes** (`int`, *optional*, defaults to `1000`): classifier outputs.
 
 **Call** `model(pixel_values, training=False)`. **Returns** class logits of shape `(B, num_classes)`.
@@ -60,7 +57,7 @@ The backbone alone. With `as_backbone=True` it returns the four stage feature ma
 segmentation necks.
 
 ```python
-PvtModel(as_backbone=False, hidden_sizes=(64, 128, 320, 512), ..., include_normalization=True)
+PvtModel(as_backbone=False, hidden_sizes=(64, 128, 320, 512), ...)
 ```
 
 ### PvtConfig

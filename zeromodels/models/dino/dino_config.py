@@ -31,11 +31,6 @@ class DinoViTConfig(BaseConfig):
             Dropout rate.
         attn_drop_rate (`float`, *optional*, defaults to 0.0):
             Attention dropout rate.
-        include_normalization (`bool`, *optional*, defaults to `True`):
-            Whether to prepend in-model image normalization (so raw images can be
-            fed directly).
-        normalization_mode (`str`, *optional*, defaults to `"imagenet"`):
-            Normalization preset used when `include_normalization` is `True`.
         image_size (`int`, *optional*, defaults to 224):
             Square input resolution the model is built for.
 
@@ -61,8 +56,6 @@ class DinoViTConfig(BaseConfig):
     qk_norm: bool = False
     drop_rate: float = 0.0
     attn_drop_rate: float = 0.0
-    include_normalization: bool = True
-    normalization_mode: str = "imagenet"
     image_size: int = 224
 
 
@@ -80,10 +73,6 @@ class DinoResNetConfig(BaseConfig):
             Per-stage residual block counts.
         filters (`tuple`, *optional*, defaults to `(64, 128, 256, 512)`):
             Per-stage filter counts.
-        include_normalization (`bool`, *optional*, defaults to `True`):
-            Whether to prepend in-model image normalization.
-        normalization_mode (`str`, *optional*, defaults to `"imagenet"`):
-            Normalization preset used when `include_normalization` is `True`.
         image_size (`int`, *optional*, defaults to 224):
             Square input resolution the model is built for.
 
@@ -102,6 +91,4 @@ class DinoResNetConfig(BaseConfig):
     as_backbone: bool = False
     depths: tuple = (3, 4, 6, 3)
     filters: tuple = (64, 128, 256, 512)
-    include_normalization: bool = True
-    normalization_mode: str = "imagenet"
     image_size: int = 224

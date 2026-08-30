@@ -256,7 +256,6 @@ if __name__ == "__main__":
         keras_model = DinoV3ViTModel(
             **DINOV3_VIT_RECIPES[variant],
             image_size=224,
-            include_normalization=False,
         )
         transfer_dinov3_vit_weights(keras_model, hf_sd)
 
@@ -298,7 +297,6 @@ if __name__ == "__main__":
         keras_model = DinoV3ConvNeXtModel(
             **DINOV3_CONVNEXT_RECIPES[variant],
             image_size=224,
-            include_normalization=False,
         )
         transfer_dinov3_convnext_weights(keras_model, hf_sd)
 

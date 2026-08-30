@@ -301,15 +301,7 @@ class ViTModel(BaseModel):
         name="ViTModel",
         **kwargs,
     ):
-        # Normalization now lives in ViTImageProcessor, so the model takes
-        # already-normalized input; tolerate the removed args from older callers.
-        for k in (
-            "num_classes",
-            "classifier_activation",
-            "timm_id",
-            "include_normalization",
-            "normalization_mode",
-        ):
+        for k in ("num_classes", "classifier_activation", "timm_id"):
             kwargs.pop(k, None)
 
         data_format = keras.config.image_data_format()
@@ -501,10 +493,7 @@ class ViTImageClassify(BaseModel):
         name="ViTImageClassify",
         **kwargs,
     ):
-        # Normalization now lives in ViTImageProcessor (the model takes
-        # already-normalized input); tolerate the removed args from older callers.
-        for k in ("timm_id", "include_normalization", "normalization_mode"):
-            kwargs.pop(k, None)
+        kwargs.pop("timm_id", None)
 
         backbone = ViTModel(
             patch_size=patch_size,

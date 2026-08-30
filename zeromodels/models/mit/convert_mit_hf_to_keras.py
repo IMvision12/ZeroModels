@@ -137,9 +137,7 @@ if __name__ == "__main__":
         print(f"{'=' * 60}")
 
         state = download_hf_state_dict(hf_id)
-        keras_model = MiTImageClassify(
-            **MIT_MODEL_CONFIG[meta["model"]], include_normalization=False
-        )
+        keras_model = MiTImageClassify(**MIT_MODEL_CONFIG[meta["model"]])
         transfer_mit_weights(keras_model, state)
 
         hf_model = transformers.SegformerForImageClassification.from_pretrained(

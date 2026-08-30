@@ -238,9 +238,7 @@ if __name__ == "__main__":
         hf_sd = {k: v.cpu().numpy() for k, v in hf_model.state_dict().items()}
         hf_model = hf_model.to(device)
 
-        keras_model = MobileViTSemanticSegment.from_weights(
-            f"hf:{hf_id}", include_normalization=False
-        )
+        keras_model = MobileViTSemanticSegment.from_weights(f"hf:{hf_id}")
         transfer_mobilevit_weights(keras_model, hf_sd)
 
         rng = np.random.default_rng(0)

@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
         state = download_hf_state_dict(f"timm/{timm_id}")
         keras_model = InceptionNextImageClassify(
-            **INCEPTION_NEXT_MODEL_CONFIG[meta["model"]], include_normalization=False
+            **INCEPTION_NEXT_MODEL_CONFIG[meta["model"]]
         )
         transfer_inception_next_weights(keras_model, state)
 

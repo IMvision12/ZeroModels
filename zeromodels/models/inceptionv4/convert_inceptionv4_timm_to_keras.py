@@ -112,7 +112,7 @@ if __name__ == "__main__":
 
         state = download_hf_state_dict(f"timm/{timm_id}")
         keras_model = InceptionV4ImageClassify(
-            **INCEPTIONV4_MODEL_CONFIG[meta["model"]], include_normalization=False
+            **INCEPTIONV4_MODEL_CONFIG[meta["model"]]
         )
         transfer_inceptionv4_weights(keras_model, state)
 

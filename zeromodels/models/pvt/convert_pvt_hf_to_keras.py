@@ -137,9 +137,7 @@ if __name__ == "__main__":
         print(f"{'=' * 60}")
 
         state = download_hf_state_dict(hf_id)
-        keras_model = PvtImageClassify(
-            **PVT_MODEL_CONFIG[meta["model"]], include_normalization=False
-        )
+        keras_model = PvtImageClassify(**PVT_MODEL_CONFIG[meta["model"]])
         transfer_pvt_weights(keras_model, state)
 
         hf_model = transformers.PvtForImageClassification.from_pretrained(hf_id).eval()

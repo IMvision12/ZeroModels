@@ -42,8 +42,6 @@ DinoV3ViTModel(
     hidden_act="gelu",
     mlp_bias=True,
     layer_norm_eps=1e-5,
-    include_normalization=True,
-    normalization_mode="imagenet",
     image_size=224,
     input_tensor=None,
     name="DinoV3ViTModel",
@@ -62,14 +60,14 @@ class.**
 - **num_register_tokens** (`int`, *optional*, defaults to `4`): learned register tokens inserted after `[CLS]`. The token layout is `[CLS, registers..., patches...]`.
 - **rope_theta** (`float`, *optional*, defaults to `100.0`): rotary position embedding base. Position is applied on the fly, so there is no learned position table to interpolate.
 - **layer_scale_init**, **query_bias** / **key_bias** / **value_bias**, **hidden_act**, **mlp_bias**, **layer_norm_eps**: block-level knobs, all set from the variant config.
-- **include_normalization** (`bool`, *optional*, defaults to `True`): normalize inside the model, so you feed raw `[0, 255]` pixels.
 - **image_size** (`int` or `tuple`, *optional*, defaults to `224`): input resolution the model is built for.
 - **input_tensor** (`dict`, *optional*): pre-existing input tensors to build on.
 - **name** (`str`, *optional*, defaults to `"DinoV3ViTModel"`): model name.
 
-**Call** `model(pixel_values, training=False)` with raw `[0, 255]` pixels. **Returns** the
-token sequence `(B, 1 + num_register_tokens + num_patches, embed_dim)`. With
-`as_backbone=True`, a list of intermediate tensors.
+**Call** `model(pixel_values, training=False)` with normalized pixels from
+`DinoV3ImageProcessor`. **Returns** the token sequence
+`(B, 1 + num_register_tokens + num_patches, embed_dim)`. With `as_backbone=True`, a list of
+intermediate tensors.
 
 ### DinoV3ConvNeXtModel
 
@@ -78,8 +76,6 @@ DinoV3ConvNeXtModel(
     as_backbone=False,
     depths=None,
     projection_dim=None,
-    include_normalization=True,
-    normalization_mode="imagenet",
     image_size=224,
     input_tensor=None,
     name="DinoV3ConvNeXtModel",
@@ -98,15 +94,13 @@ defaults. Two matching options:
 
 - **`DinoV3ImageProcessor`** (matches transformers' `DINOv3ViTImageProcessor` for
   `facebook/dinov3-*`): a square resize to 224 (bilinear, through PIL on the raw uint8
-  image), rescale to `[0, 1]`, and ImageNet-standard normalization. Because it already
-  normalizes, load the model with `include_normalization=False`:
+  image), rescale to `[0, 1]`, and ImageNet-standard normalization. Run the image through
+  the processor before the model:
 
   ```python
   from zeromodels.models.dino_v3 import DinoV3ViTModel, DinoV3ImageProcessor
 
-  model = DinoV3ViTModel.from_weights(
-      "zeromodels/dinov3-vitb16-pretrain-lvd1689m", include_normalization=False
-  )
+  model = DinoV3ViTModel.from_weights("zeromodels/dinov3-vitb16-pretrain-lvd1689m")
   processor = DinoV3ImageProcessor.from_weights(
       "zeromodels/dinov3-vitb16-pretrain-lvd1689m"
   )
@@ -115,10 +109,9 @@ defaults. Two matching options:
   tokens = model(pixel_values, training=False)
   ```
 
-- **Built-in normalization**: the models default to `include_normalization=True`, so you
-  can instead feed **raw `[0, 255]` pixels** (resized to the model's `image_size`) and the
-  ImageNet normalization happens inside. Pass `include_normalization=False` if you have
-  already normalized.
+- **Normalization lives in the processor.** The models take *already-normalized* input, so
+  always preprocess with `DinoV3ImageProcessor`: feeding raw `[0, 255]` pixels straight to
+  the model produces wrong features.
 
 ## Model Variants
 
@@ -153,7 +146,6 @@ size, patch, registers = 1024, 16, 4
 model = DinoV3ViTModel.from_weights(
     "zeromodels/dinov3-vitl16-pretrain-lvd1689m",
     image_size=size,
-    include_normalization=False,
 )
 processor = DinoV3ImageProcessor.from_weights(
     "zeromodels/dinov3-vitl16-pretrain-lvd1689m", image_resolution=size
@@ -209,7 +201,6 @@ size = 1024
 model = DinoV3ViTModel.from_weights(
     "zeromodels/dinov3-vitl16-pretrain-lvd1689m",
     image_size=size,
-    include_normalization=False,
 )
 processor = DinoV3ImageProcessor.from_weights(
     "zeromodels/dinov3-vitl16-pretrain-lvd1689m", image_resolution=size

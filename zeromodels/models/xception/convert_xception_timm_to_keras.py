@@ -174,7 +174,6 @@ if __name__ == "__main__":
         keras_model = XceptionImageClassify(
             **model_cfg,
             num_classes=num_classes,
-            include_normalization=False,
         )
 
         transfer_xception_weights(keras_model, state, preact)

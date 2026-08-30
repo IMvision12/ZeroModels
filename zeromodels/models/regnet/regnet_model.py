@@ -246,10 +246,6 @@ class RegNetModel(BaseModel):
             Defaults to `"y"`.
         downsample_in_first_stage: Boolean, whether the first stage downsamples
             (stride 2). Defaults to `True`.
-        include_normalization: Boolean, whether to prepend image normalization.
-            When True, inputs should be uint8 in ``[0, 255]``. Defaults to `True`.
-        normalization_mode: String normalization preset. Defaults to
-            `"imagenet"`. Only used when ``include_normalization=True``.
         image_size: Input image spec (int, ``(H, W)``, or a 3-tuple ordered for
             the active ``keras.config.image_data_format()``). Defaults to `224`.
         input_tensor: Optional Keras tensor as input. Defaults to `None`.
@@ -308,8 +304,6 @@ class RegNetModel(BaseModel):
         name="RegNetModel",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation"):
             kwargs.pop(k, None)
 
@@ -398,9 +392,6 @@ class RegNetImageClassify(BaseModel):
         layer_type: String, `"y"` (with SE) or `"x"`. Defaults to `"y"`.
         downsample_in_first_stage: Boolean, whether the first stage downsamples.
             Defaults to `True`.
-        include_normalization: Boolean, whether to prepend image normalization.
-            Defaults to `True`.
-        normalization_mode: String normalization preset. Defaults to `"imagenet"`.
         image_size: Input image spec. Defaults to `224`.
         input_tensor: Optional Keras tensor as input. Defaults to `None`.
         num_classes: Integer, number of output classes. Defaults to `1000`.
@@ -454,8 +445,6 @@ class RegNetImageClassify(BaseModel):
         name="RegNetImageClassify",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         data_format = keras.config.image_data_format()
 
         backbone = RegNetModel(

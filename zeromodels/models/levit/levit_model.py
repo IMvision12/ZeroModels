@@ -153,10 +153,6 @@ class LevitModel(BaseModel):
         mlp_ratio: MLP expansion per stage. Defaults to (2, 2, 2).
         attention_ratio: Value-to-key dimension ratio per stage. Defaults to
             (2, 2, 2).
-        include_normalization: Bake ImageNet normalization into the graph (raw
-            [0, 255] pixels in). Defaults to True.
-        normalization_mode: Normalization statistics. LeViT uses ``"imagenet"``.
-            Defaults to ``"imagenet"``.
         input_tensor: Optional pre-existing Keras input tensor. Defaults to None.
         name: Model name. Defaults to ``"LevitModel"``.
     """
@@ -203,8 +199,6 @@ class LevitModel(BaseModel):
         name="LevitModel",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "use_distillation", "hf_id"):
             kwargs.pop(k, None)
 
@@ -306,8 +300,6 @@ class LevitImageClassify(BaseModel):
             heads' logits. Defaults to True.
         num_classes: Number of classifier outputs. Defaults to 1000.
         classifier_activation: Head activation. Defaults to ``"linear"``.
-        include_normalization: Bake ImageNet normalization into the graph. Defaults
-            to True.
         name: Model name. Defaults to ``"LevitImageClassify"``.
 
     See :class:`LevitModel` for the backbone architecture arguments.
@@ -355,8 +347,6 @@ class LevitImageClassify(BaseModel):
         name="LevitImageClassify",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         kwargs.pop("hf_id", None)
 
         backbone = LevitModel(

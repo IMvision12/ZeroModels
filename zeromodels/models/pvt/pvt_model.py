@@ -134,9 +134,9 @@ class PvtModel(BaseModel):
     - [Pyramid Vision Transformer](https://arxiv.org/abs/2102.12122)
 
     Args:
-        See :class:`PvtConfig`. ``include_normalization`` bakes ImageNet normalization into
-        the graph; ``image_size`` sets the input the model is built for. Defaults describe
-        PVT-Tiny.
+        See :class:`PvtConfig`. ``image_size`` sets the input the model is built for.
+        The model takes already-normalized input; :class:`PvtImageProcessor` handles the
+        ImageNet normalization. Defaults describe PVT-Tiny.
     """
 
     BASE_WEIGHT_CONFIG = None
@@ -183,8 +183,6 @@ class PvtModel(BaseModel):
         name="PvtModel",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "hf_id"):
             kwargs.pop(k, None)
 
@@ -294,8 +292,6 @@ class PvtImageClassify(BaseModel):
         name="PvtImageClassify",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         kwargs.pop("hf_id", None)
 
         backbone = PvtModel(

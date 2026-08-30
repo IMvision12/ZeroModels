@@ -197,14 +197,6 @@ class MLPMixerModel(BaseModel):
             match the active ``keras.config.image_data_format()``:
             ``(H, W, C)`` for ``channels_last`` or ``(C, H, W)`` for
             ``channels_first``. Defaults to `224`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'` (default), `'inception'`,
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``.
         input_tensor: Optional Keras tensor as input. Useful for
             connecting the model to other Keras components.
             Defaults to `None`.
@@ -256,8 +248,6 @@ class MLPMixerModel(BaseModel):
         name="MLPMixerModel",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "timm_id"):
             kwargs.pop(k, None)
 
@@ -355,14 +345,6 @@ class MLPMixerImageClassify(BaseModel):
             match the active ``keras.config.image_data_format()``:
             ``(H, W, C)`` for ``channels_last`` or ``(C, H, W)`` for
             ``channels_first``. Defaults to `224`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'` (default), `'inception'`,
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``.
         input_tensor: Optional Keras tensor as input. Useful for
             connecting the model to other Keras components.
             Defaults to `None`.
@@ -405,8 +387,6 @@ class MLPMixerImageClassify(BaseModel):
         name="MLPMixerImageClassify",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         backbone = MLPMixerModel(

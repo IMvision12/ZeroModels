@@ -44,9 +44,6 @@ class DinoViTModel(BaseModel):
         qk_norm: Whether to use QK normalization. Defaults to ``False``.
         drop_rate: Dropout rate. Defaults to ``0.0``.
         attn_drop_rate: Attention dropout rate. Defaults to ``0.0``.
-        include_normalization: Whether to prepend
-            image normalization.
-        normalization_mode: Normalization preset.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -79,8 +76,6 @@ class DinoViTModel(BaseModel):
         name="DinoViTModel",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         data_format = keras.config.image_data_format()
         input_shape = standardize_input_shape(image_size, data_format)
         image_size = (
@@ -180,9 +175,6 @@ class DinoResNetModel(BaseModel):
             only the final-stage feature map.
         depths: Per-stage block counts.
         filters: Per-stage filter counts.
-        include_normalization: Whether to prepend
-            image normalization.
-        normalization_mode: Normalization preset.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -208,8 +200,6 @@ class DinoResNetModel(BaseModel):
         name="DinoResNetModel",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         if depths is None:
             depths = [3, 4, 6, 3]
         if filters is None:

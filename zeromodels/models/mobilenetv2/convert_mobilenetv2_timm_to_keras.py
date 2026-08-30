@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
         state = download_hf_state_dict(f"timm/{timm_id}")
         keras_model = MobileNetV2ImageClassify(
-            **MOBILENETV2_MODEL_CONFIG[meta["model"]], include_normalization=False
+            **MOBILENETV2_MODEL_CONFIG[meta["model"]]
         )
         transfer_mobilenetv2_weights(keras_model, state)
 

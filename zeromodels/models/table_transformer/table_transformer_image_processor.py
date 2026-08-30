@@ -20,7 +20,7 @@ TABLE_STRUCTURE_LABELS = (
 class TableTransformerImageProcessor(BaseImageProcessor):
     """Preprocess images for Table Transformer inference.
 
-    Use this when the model is created with ``include_normalization=False``.
+    The model takes already-normalized input, so run pixels through this processor first.
     Mirrors the reference Detr image processor the Table Transformer checkpoints
     ship with: rescale to `[0, 1]`, resize to a square `size`, and apply
     ImageNet normalization.

@@ -147,9 +147,7 @@ if __name__ == "__main__":
         hf_config = json.load(
             open(hf_hub_download(hf_id, "config.json"), encoding="utf-8")
         )
-        km = BeitImageClassify(
-            **BeitImageClassify.config_from_hf(hf_config), include_normalization=False
-        )
+        km = BeitImageClassify(**BeitImageClassify.config_from_hf(hf_config))
         transfer_beit_weights(km, download_hf_state_dict(hf_id))
 
         hm = transformers.BeitForImageClassification.from_pretrained(hf_id).eval()

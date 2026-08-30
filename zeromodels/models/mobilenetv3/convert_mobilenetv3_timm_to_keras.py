@@ -246,7 +246,6 @@ if __name__ == "__main__":
         keras_model = MobileNetV3ImageClassify(
             **model_cfg,
             num_classes=num_classes,
-            include_normalization=False,
         )
 
         transfer_mobilenetv3_weights(keras_model, state, scounts, head_count_multiplier)

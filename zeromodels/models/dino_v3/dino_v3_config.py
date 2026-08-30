@@ -44,10 +44,6 @@ class DinoV3ViTConfig(BaseConfig):
             Whether the MLP projections use a bias.
         layer_norm_eps (`float`, *optional*, defaults to 1e-5):
             Epsilon for the LayerNorm layers.
-        include_normalization (`bool`, *optional*, defaults to `True`):
-            Whether to prepend in-model image normalization.
-        normalization_mode (`str`, *optional*, defaults to `"imagenet"`):
-            Normalization preset used when `include_normalization` is `True`.
         image_size (`int`, *optional*, defaults to 224):
             Square input resolution the model is built for.
 
@@ -79,8 +75,6 @@ class DinoV3ViTConfig(BaseConfig):
     hidden_act: str = "gelu"
     mlp_bias: bool = True
     layer_norm_eps: float = 1e-5
-    include_normalization: bool = True
-    normalization_mode: str = "imagenet"
     image_size: int = 224
 
 
@@ -99,10 +93,6 @@ class DinoV3ConvNeXtConfig(BaseConfig):
             Per-stage ConvNeXt block counts.
         projection_dim (`tuple`, *optional*, defaults to `(96, 192, 384, 768)`):
             Per-stage channel widths.
-        include_normalization (`bool`, *optional*, defaults to `True`):
-            Whether to prepend in-model image normalization.
-        normalization_mode (`str`, *optional*, defaults to `"imagenet"`):
-            Normalization preset used when `include_normalization` is `True`.
         image_size (`int`, *optional*, defaults to 224):
             Square input resolution the model is built for.
 
@@ -121,6 +111,4 @@ class DinoV3ConvNeXtConfig(BaseConfig):
     as_backbone: bool = False
     depths: tuple = (3, 3, 9, 3)
     projection_dim: tuple = (96, 192, 384, 768)
-    include_normalization: bool = True
-    normalization_mode: str = "imagenet"
     image_size: int = 224

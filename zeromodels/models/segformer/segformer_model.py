@@ -171,7 +171,6 @@ class SegFormerModel(BaseModel):
         backbone = MiTModel(
             embed_dim=embed_dim,
             depths=depths,
-            include_normalization=False,
             image_size=image_size,
             input_tensor=input_tensor,
             as_backbone=True,

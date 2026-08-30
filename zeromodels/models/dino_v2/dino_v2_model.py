@@ -42,9 +42,6 @@ class DinoV2Model(BaseModel):
         drop_rate: Dropout rate. Defaults to ``0.0``.
         attn_drop_rate: Attention dropout rate. Defaults to ``0.0``.
         layer_scale_init: LayerScale init value. Defaults to ``1.0``.
-        include_normalization: Whether to prepend
-            image normalization.
-        normalization_mode: Normalization preset.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -99,8 +96,6 @@ class DinoV2Model(BaseModel):
         name="DinoV2Model",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         data_format = keras.config.image_data_format()
         input_shape = standardize_input_shape(image_size, data_format)
         image_size = (

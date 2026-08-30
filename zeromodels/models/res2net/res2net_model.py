@@ -303,14 +303,6 @@ class Res2NetModel(BaseModel):
             Defaults to `4`.
         cardinality: Integer, number of groups for grouped convolution
             inside each scale. Defaults to `1`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'` (default), `'inception'`,
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -366,8 +358,6 @@ class Res2NetModel(BaseModel):
         name="Res2NetModel",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "timm_id"):
             kwargs.pop(k, None)
 
@@ -449,14 +439,6 @@ class Res2NetImageClassify(BaseModel):
             Defaults to `4`.
         cardinality: Integer, number of groups for grouped convolution
             inside each scale. Defaults to `1`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'` (default), `'inception'`,
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -503,8 +485,6 @@ class Res2NetImageClassify(BaseModel):
         name="Res2NetImageClassify",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         data_format = keras.config.image_data_format()

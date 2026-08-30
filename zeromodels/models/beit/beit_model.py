@@ -142,10 +142,6 @@ class BeitModel(BaseModel):
         layer_scale_init_value: Initial layer-scale value. Defaults to 0.1.
         layer_norm_eps: Epsilon of every LayerNorm. Defaults to 1e-12.
         image_size: Square input resolution the model is built for. Defaults to 224.
-        include_normalization: Bake 0.5/0.5 normalization into the graph (raw
-            [0, 255] pixels in). Defaults to True.
-        normalization_mode: Normalization statistics. BEiT uses ``"inception"``
-            (0.5/0.5). Defaults to ``"inception"``.
         input_tensor: Optional pre-existing Keras input tensor. Defaults to None.
         name: Model name. Defaults to ``"BeitModel"``.
     """
@@ -189,8 +185,6 @@ class BeitModel(BaseModel):
         name="BeitModel",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "hf_id"):
             kwargs.pop(k, None)
 
@@ -309,8 +303,6 @@ class BeitImageClassify(BaseModel):
         name="BeitImageClassify",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         kwargs.pop("hf_id", None)
 
         backbone = BeitModel(
@@ -535,8 +527,6 @@ class BeitSemanticSegment(BaseModel):
         name="BeitSemanticSegment",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         kwargs.pop("hf_id", None)
 
         backbone = BeitModel(

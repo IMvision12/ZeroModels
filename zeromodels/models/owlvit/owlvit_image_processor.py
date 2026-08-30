@@ -12,8 +12,8 @@ from zeromodels.base import BaseImageProcessor
 class OwlViTImageProcessor(BaseImageProcessor):
     """Preprocess images for OWL-ViT inference.
 
-    Use this when the model is created with
-    ``include_normalization=False``.
+    The model takes already-normalized input, so run pixels through this processor
+    first.
 
     Args:
         size: Target size as ``{"height": H, "width": W}``.

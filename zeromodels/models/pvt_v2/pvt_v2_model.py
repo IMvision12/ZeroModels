@@ -179,8 +179,9 @@ class PvtV2Model(BaseModel):
 
     Args:
         See :class:`PvtV2Config`. ``as_backbone`` returns the 4-stage pyramid;
-        ``include_normalization`` bakes ImageNet normalization into the graph;
-        ``image_size`` sets the input the model is built for. Defaults describe PVTv2-B0.
+        ``image_size`` sets the input the model is built for. The model takes
+        already-normalized input; :class:`PvtV2ImageProcessor` handles the ImageNet
+        normalization. Defaults describe PVTv2-B0.
     """
 
     BASE_WEIGHT_CONFIG = None
@@ -229,8 +230,6 @@ class PvtV2Model(BaseModel):
         name="PvtV2Model",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         for k in ("num_classes", "classifier_activation", "hf_id"):
             kwargs.pop(k, None)
 
@@ -346,8 +345,6 @@ class PvtV2ImageClassify(BaseModel):
         name="PvtV2ImageClassify",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         kwargs.pop("hf_id", None)
         data_format = keras.config.image_data_format()
 

@@ -232,9 +232,6 @@ class DinoV3ViTModel(BaseModel):
             Defaults to ``"gelu"``.
         mlp_bias: Whether MLP Dense layers use bias. Defaults to ``True``.
         layer_norm_eps: Epsilon for LayerNorm layers. Defaults to ``1e-5``.
-        include_normalization: Whether to prepend
-            image normalization.
-        normalization_mode: Normalization preset.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -304,8 +301,6 @@ class DinoV3ViTModel(BaseModel):
         name="DinoV3ViTModel",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         data_format = keras.config.image_data_format()
         image_size = standardize_input_shape(image_size, data_format)
 
@@ -455,9 +450,6 @@ class DinoV3ConvNeXtModel(BaseModel):
             only the final-stage feature map.
         depths: Per-stage block counts.
         projection_dim: Per-stage channel counts.
-        include_normalization: Whether to prepend
-            image normalization.
-        normalization_mode: Normalization preset.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -498,8 +490,6 @@ class DinoV3ConvNeXtModel(BaseModel):
         name="DinoV3ConvNeXtModel",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         if depths is None:
             depths = [3, 3, 9, 3]
         if projection_dim is None:

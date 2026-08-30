@@ -375,10 +375,6 @@ class MobileNetV4Model(BaseModel):
             ``N x N x 3`` square input), a 2-tuple ``(H, W)`` (assumes 3 channels),
             or a 3-tuple ordered to match the active
             ``keras.config.image_data_format()``. Defaults to `224`.
-        include_normalization: Boolean, whether to prepend image normalization.
-            When True, inputs should be uint8 in ``[0, 255]``. Defaults to `True`.
-        normalization_mode: String, normalization mode (see
-            :func:`normalize_image_for_classify_models`). Defaults to `"imagenet"`.
         input_tensor: Optional Keras tensor as input. Defaults to `None`.
         as_backbone: Boolean, whether to output per-stride intermediate features.
             Defaults to `False`.
@@ -422,8 +418,6 @@ class MobileNetV4Model(BaseModel):
         name="MobileNetV4Model",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         for k in (
             "num_classes",
             "classifier_activation",
@@ -508,9 +502,6 @@ class MobileNetV4ImageClassify(BaseModel):
             `1e-5`.
         image_size: Input image specification (see :class:`MobileNetV4Model`).
             Defaults to `224`.
-        include_normalization: Boolean, whether to prepend image normalization.
-            Defaults to `True`.
-        normalization_mode: String, normalization mode. Defaults to `"imagenet"`.
         input_tensor: Optional Keras tensor as input. Defaults to `None`.
         num_classes: Integer, number of output classes. Defaults to `1000`.
         classifier_activation: String or callable, final Dense activation. Use
@@ -548,8 +539,6 @@ class MobileNetV4ImageClassify(BaseModel):
         name="MobileNetV4ImageClassify",
         **kwargs,
     ):
-        kwargs.pop("include_normalization", None)
-        kwargs.pop("normalization_mode", None)
         kwargs.pop("timm_id", None)
 
         if config not in MOBILENETV4_VARIANTS:
