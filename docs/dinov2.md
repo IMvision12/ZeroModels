@@ -110,9 +110,7 @@ from PIL import Image
 from zeromodels.models.dino_v2 import DinoV2ImageProcessor, DinoV2Model
 
 size, patch = 896, 14
-model = DinoV2Model.from_weights(
-    "zeromodels/dinov2-giant", image_size=size
-)
+model = DinoV2Model.from_weights("zeromodels/dinov2-giant", image_size=size)
 processor = DinoV2ImageProcessor.from_weights(
     "zeromodels/dinov2-giant", resize_size=1024, crop_size=size
 )
@@ -161,9 +159,7 @@ import torch
 from zeromodels.models.dino_v2 import DinoV2ImageProcessor, DinoV2Model
 
 size = 896
-model = DinoV2Model.from_weights(
-    "zeromodels/dinov2-giant", image_size=size
-)
+model = DinoV2Model.from_weights("zeromodels/dinov2-giant", image_size=size)
 processor = DinoV2ImageProcessor.from_weights(
     "zeromodels/dinov2-giant", resize_size=1024, crop_size=size
 )
