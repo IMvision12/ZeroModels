@@ -6,7 +6,7 @@ from keras import ops
 from tests.base.model_test_registry import (
     MODEL_TEST_CONFIGS,
     create_test_input,
-    instantiate_model,
+    get_cached_model,
 )
 
 BACKEND = os.environ.get("KERAS_BACKEND", "torch")
@@ -31,7 +31,7 @@ def _skip_if_incompatible(model_name):
 def test_model_forward_pass(model_name):
     _skip_if_incompatible(model_name)
     config = MODEL_TEST_CONFIGS[model_name]
-    model = instantiate_model(config)
+    model = get_cached_model(config)
     input_data = create_test_input(config, model=model)
     output = model(input_data)
 
@@ -72,7 +72,7 @@ def test_model_forward_pass(model_name):
 def test_model_no_nans(model_name):
     _skip_if_incompatible(model_name)
     config = MODEL_TEST_CONFIGS[model_name]
-    model = instantiate_model(config)
+    model = get_cached_model(config)
     input_data = create_test_input(config, model=model)
     output = model(input_data)
 

@@ -1,21 +1,82 @@
 import gc
+import hashlib
 import os
 
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _release_backend_state():
-    """Release per-test Keras / JAX state to keep CI memory bounded.
+def _node_model_name(node):
+    """The ``model_name`` parametrization of a test node, or None if it has none."""
+    callspec = getattr(node, "callspec", None)
+    if callspec is None:
+        return None
+    return callspec.params.get("model_name")
 
-    Each parametrized model in the integration suite triggers fresh
-    XLA / TF function tracing. Without an explicit teardown the JIT
-    cache, compiled HLO modules, and dead Keras layers accumulate
-    across the 300+ tests and the JAX matrix entry hits the
-    ubuntu-latest runner's 7 GB RAM / 60 min timeout (visible as
-    process SIGTERM, exit code 143).
+
+def _parse_shard(spec):
+    """Parse a ``k/n`` shard spec (1-based k) into a 0-based (index, count)."""
+    k_str, n_str = spec.split("/")
+    k, n = int(k_str), int(n_str)
+    if not 1 <= k <= n:
+        raise pytest.UsageError(f"--shard {spec!r}: need 1 <= k <= n")
+    return k - 1, n
+
+
+def pytest_collection_modifyitems(config, items):
+    """Group every test of a model together, then optionally keep one shard.
+
+    A stable sort by ``model_name`` puts all of one model's tests (across the
+    backend-compat / serialization / saving / data-format files) back to back,
+    so :func:`get_cached_model` can hand out one built model to that model's
+    read-only tests and it can be released in a single teardown when the model
+    changes. Tests with no ``model_name`` keep their original order as one
+    leading group.
+
+    With ``--shard k/n`` the models are round-robin assigned to ``n`` shards and
+    only shard ``k`` is kept. Sharding is BY MODEL (not by test) so a model's
+    whole test group stays on one shard: the per-model build-once reuse holds,
+    and no model is built on more than one CI runner. Non-model tests are
+    distributed by a stable hash of their node id so each runs on exactly one
+    shard. Splitting a backend's models across parallel jobs is what brings the
+    slow JAX / TF legs under the per-job time cap (stacks with the reuse above).
     """
-    yield
+    original = {id(item): i for i, item in enumerate(items)}
+    items.sort(key=lambda item: (_node_model_name(item) or "", original[id(item)]))
+
+    spec = config.getoption("shard")
+    if not spec:
+        return
+    shard_index, shard_count = _parse_shard(spec)
+    if shard_count == 1:
+        return
+    model_names = sorted({n for n in map(_node_model_name, items) if n is not None})
+    model_shard = {name: i % shard_count for i, name in enumerate(model_names)}
+
+    def item_shard(item):
+        name = _node_model_name(item)
+        if name is not None:
+            return model_shard[name]
+        digest = hashlib.md5(item.nodeid.encode()).hexdigest()
+        return int(digest, 16) % shard_count
+
+    selected, deselected = [], []
+    for item in items:
+        (selected if item_shard(item) == shard_index else deselected).append(item)
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = selected
+
+
+_CURRENT_MODEL = ["\x00unset"]
+
+
+def _flush_backend_state():
+    try:
+        from tests.base.model_test_registry import clear_model_cache
+
+        clear_model_cache()
+    except Exception:
+        pass
     try:
         import keras
 
@@ -27,6 +88,34 @@ def _release_backend_state():
     except Exception:
         pass
     gc.collect()
+
+
+@pytest.fixture(autouse=True)
+def _release_backend_state(request):
+    """Release the previous model's build + XLA compilation when the model changes.
+
+    Each parametrized model triggers fresh XLA / TF tracing; the JIT cache,
+    compiled HLO, and dead layers otherwise accumulate across the 300+ tests and
+    the JAX matrix entry hits the ubuntu-latest 7 GB RAM / 60 min cap (SIGTERM,
+    exit 143). The old fix cleared after *every* test, which also threw away the
+    build + compile so each of a model's ~10 tests paid them again (hours on JAX).
+
+    Because tests are now grouped per model, clearing only when the model changes
+    keeps peak memory at ~one model *and* lets that model's build + compile be
+    reused across its tests. Non-model tests (``model_name is None``) clear every
+    time, preserving the original bounded-memory behavior for them.
+    """
+    # ZM_LEGACY_CLEAR=1 restores the old clear-after-every-test behavior, for
+    # A/B timing against the per-model reuse (pair with ZM_NO_MODEL_CACHE=1).
+    if os.environ.get("ZM_LEGACY_CLEAR") == "1":
+        yield
+        _flush_backend_state()
+        return
+    name = _node_model_name(request.node)
+    if name is None or name != _CURRENT_MODEL[0]:
+        _flush_backend_state()
+        _CURRENT_MODEL[0] = name
+    yield
 
 
 def pytest_addoption(parser):
@@ -41,6 +130,17 @@ def pytest_addoption(parser):
         action="store",
         default=None,
         help="Image data format: channels_first, channels_last",
+    )
+    parser.addoption(
+        "--shard",
+        action="store",
+        dest="shard",
+        default=None,
+        help=(
+            "Run only shard k of n (format 'k/n', 1-based), sharded BY MODEL so "
+            "a model's tests stay together. Splits a backend's models across "
+            "parallel CI jobs."
+        ),
     )
 
 

@@ -8,6 +8,7 @@ from keras import ops
 from tests.base.model_test_registry import (
     MODEL_TEST_CONFIGS,
     create_test_input,
+    get_cached_model,
     import_model_class,
 )
 from zeromodels.base import BaseProcessor
@@ -70,18 +71,29 @@ def _adapt_input_shape_for_format(init_kwargs, data_format):
     return kwargs
 
 
+def _is_channels_last_image(key, value):
+    if not (hasattr(value, "shape") and len(value.shape) == 4):
+        return False
+    if int(value.shape[-1]) not in (1, 3, 4):
+        return False
+    return key is None or "pixel" in key or "image" in key
+
+
+def _has_transposable_image(input_data):
+    if isinstance(input_data, dict):
+        return any(_is_channels_last_image(k, v) for k, v in input_data.items())
+    return _is_channels_last_image(None, input_data)
+
+
 def _transpose_input(input_data, data_format):
     if data_format != "channels_first":
         return input_data
     if isinstance(input_data, dict):
-        result = {}
-        for k, v in input_data.items():
-            if k in ("pixel_values", "images") and len(v.shape) == 4:
-                result[k] = ops.transpose(v, (0, 3, 1, 2))
-            else:
-                result[k] = v
-        return result
-    if len(input_data.shape) == 4:
+        return {
+            k: (ops.transpose(v, (0, 3, 1, 2)) if _is_channels_last_image(k, v) else v)
+            for k, v in input_data.items()
+        }
+    if _is_channels_last_image(None, input_data):
         return ops.transpose(input_data, (0, 3, 1, 2))
     return input_data
 
@@ -96,8 +108,7 @@ def test_channels_last(model_name):
     try:
         keras.config.set_image_data_format("channels_last")
         config = MODEL_TEST_CONFIGS[model_name]
-        model_cls = import_model_class(config)
-        model = model_cls(**config["init_kwargs"])
+        model = get_cached_model(config)
         input_data = create_test_input(config, model=model)
         output = model(input_data)
 
@@ -195,22 +206,6 @@ def _output_rel(a, b):
     return min(rels) if rels else None
 
 
-def _has_image_input(config):
-    """True if the model's test input carries a 4D spatial image tensor.
-
-    channels_first only affects models that consume a spatial ``(B, H, W, C)`` /
-    ``(B, C, H, W)`` image. Text LLMs, generative VLMs (pre-patchified /
-    token-id inputs), and ASR have nothing to transpose, so the parity check
-    does not apply to them and they are skipped.
-    """
-    try:
-        x = create_test_input(config)
-    except Exception:
-        return False
-    tensors = list(x.values()) if isinstance(x, dict) else [x]
-    return any(hasattr(t, "shape") and len(t.shape) == 4 for t in tensors)
-
-
 @pytest.mark.data_format
 @pytest.mark.parametrize("model_name", MODEL_IDS)
 def test_channels_first_matches_channels_last(model_name):
@@ -220,20 +215,19 @@ def test_channels_first_matches_channels_last(model_name):
     ``Reshape`` at a token<->grid boundary silently scrambles the data (it stays
     finite and keeps the right shape), so equivalence needs a direct comparison:
     build one model per format with the *same* weights (conv kernels are
-    ``(kh, kw, in, out)`` regardless of format) and assert the outputs match
-    after transposing the channels_first result back to channels_last.
+    ``(kh, kw, in, out)`` regardless of format), feed the same input with its
+    spatial image transposed, and assert the outputs match (transposing a
+    channels_first feature map back to channels_last).
 
-    Scoped to models with a spatial image input (vision backbones, detection,
-    segmentation, depth, DINO, SAM, and the CLIP / SigLIP / MetaCLIP 2 / TIPS
-    dual encoders); text LLMs and generative VLMs are skipped by
-    :func:`_has_image_input`.
+    Covers every model whose *built* input carries a spatial image: vision
+    backbones, detection, segmentation, depth, DINO, SAM, the CLIP / SigLIP /
+    MetaCLIP 2 / TIPS dual encoders, and the raw-image generative VLMs (Gemma 3,
+    Mistral 3, DeepSeek-VL, InternVL, Janus). Text LLMs, ASR, and pre-patchified
+    VLMs (Qwen-VL, GLM-4V, Kimi) have no spatial image to transpose and skip via
+    :func:`_has_transposable_image`.
     """
     if model_name in SKIP_DATA_FORMAT:
         pytest.skip(f"{model_name} doesn't support data format switching")
-
-    config = MODEL_TEST_CONFIGS[model_name]
-    if not _has_image_input(config):
-        pytest.skip(f"{model_name}: no spatial image input; channels_first is a no-op")
 
     if BACKEND == "tensorflow":
         try:
@@ -244,13 +238,31 @@ def test_channels_first_matches_channels_last(model_name):
         except ImportError:
             pytest.skip("TensorFlow not installed")
 
+    config = MODEL_TEST_CONFIGS[model_name]
     original = keras.config.image_data_format()
     try:
         model_cls = import_model_class(config)
 
+        # Start from a clean global layer-name counter. The per-model build cache
+        # leaves a model alive in this group, and keras dedups auto-named layers
+        # against a global counter; without this reset the cl build gets
+        # "_1"-suffixed layer names that the post-clear cf build does not, which
+        # breaks the exact-path weight copy below.
+        keras.backend.clear_session()
         keras.config.set_image_data_format("channels_last")
         model_cl = model_cls(**config["init_kwargs"])
-        input_data = create_test_input(config)
+        # Generative VLM inputs are built from the model's own input signature;
+        # every other model's input comes straight from its config.
+        if config.get("multimodal_vlm"):
+            input_data = create_test_input(config, model=model_cl)
+        else:
+            input_data = create_test_input(config)
+
+        if not _has_transposable_image(input_data):
+            pytest.skip(
+                f"{model_name}: no spatial image input; channels_first is a no-op"
+            )
+
         out_cl = [
             ops.convert_to_numpy(t) for t in _flatten_outputs(model_cl(input_data))
         ]

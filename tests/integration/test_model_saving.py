@@ -5,6 +5,7 @@ from keras import ops
 from tests.base.model_test_registry import (
     MODEL_TEST_CONFIGS,
     create_test_input,
+    get_cached_model,
     instantiate_model,
 )
 
@@ -53,7 +54,7 @@ def test_save_weights_h5_roundtrip(model_name, tmp_path):
     if model_name in SKIP_SAVING:
         pytest.skip(f"{model_name} is subclassed; load_weights needs a built model")
     config = MODEL_TEST_CONFIGS[model_name]
-    model = instantiate_model(config)
+    model = get_cached_model(config)
     input_data = create_test_input(config, model=model)
 
     original_output = model(input_data)
