@@ -36,8 +36,6 @@ BeitImageClassify(
     layer_scale_init_value=0.1,
     layer_norm_eps=1e-12,
     image_size=224,
-    include_normalization=True,
-    normalization_mode="inception",
     num_classes=1000,
     classifier_activation="linear",
     name="BeitImageClassify",
@@ -45,8 +43,8 @@ BeitImageClassify(
 ```
 
 The classifier: the [BeitModel](#beitmodel) backbone plus the mean-pool head (mean of the patch
-tokens, a LayerNorm, then a Dense). `include_normalization=True` takes raw `[0, 255]` pixels and
-applies BEiT's 0.5/0.5 normalization internally (`normalization_mode="inception"`).
+tokens, a LayerNorm, then a Dense). The model takes already-normalized input;
+[`BeitImageProcessor`](#image-processor) applies BEiT's 0.5/0.5 normalization.
 
 **Parameters**
 
@@ -123,19 +121,21 @@ Use `BeitImageClassify` for the classification repos and `BeitSemanticSegment` f
 import keras
 import numpy as np
 from PIL import Image
-from zeromodels.models.beit import BeitImageClassify
+from zeromodels.models.beit import BeitImageClassify, BeitImageProcessor
 
 model = BeitImageClassify.from_weights("zeromodels/beit-base-patch16-224")
+processor = BeitImageProcessor.from_weights("zeromodels/beit-base-patch16-224")
 
-image = Image.open("assets/data/coco_bear.jpg").convert("RGB").resize((224, 224))
-pixels = np.asarray(image, "float32")[None]  # (1, 224, 224, 3), raw [0, 255]
+image = Image.open("assets/data/coco_bear.jpg").convert("RGB")
+pixels = processor(image)  # (1, 224, 224, 3), resized + normalized
 
 logits = model(pixels, training=False)
 top5 = np.argsort(keras.ops.convert_to_numpy(logits)[0])[-5:][::-1]
 print("top-5 ImageNet-1k class ids:", top5.tolist())
 ```
 
-Normalization is inside the model, so pass raw pixels. Map the class ids to the
+Normalization lives in the processor, so run the image through `BeitImageProcessor`
+before the model. Map the class ids to the
 [ImageNet-1k label list](https://huggingface.co/datasets/imagenet-1k) to read names.
 
 ## Semantic Segmentation
@@ -187,34 +187,30 @@ bit-exact to transformers; the resize matches the fast (torchvision) processor t
 (`antialias=True`).
 
 The hosted segmentation repos ship a `zm_preprocessor.json`, so `from_weights` builds a processor
-that matches the model. Because the models bake 0.5/0.5 normalization
-(`include_normalization=True`, raw `[0, 255]` pixels in), the hosted processor only **resizes**
-(its `do_rescale` / `do_normalize` are off) and provides `post_process_semantic_segmentation`:
+that matches the model. The models take already-normalized input, so the hosted processor
+**resizes, rescales, and normalizes** (0.5/0.5) and provides `post_process_semantic_segmentation`:
 
 ```python
 processor = BeitImageProcessor.from_weights(
     "zeromodels/beit-base-finetuned-ade-640-640"
 )
-# do_resize=True (640, bicubic), do_rescale=False, do_normalize=False
+# do_resize=True (640, bicubic), do_rescale=True, do_normalize=True
 ```
 
-Constructed directly, the processor defaults to the HF-faithful settings (`do_rescale=True`,
-`do_normalize=True`), which pair with a model built `include_normalization=False`:
+Constructed directly, the processor defaults to the same HF-faithful settings
+(`do_rescale=True`, `do_normalize=True`):
 
 ```python
 from zeromodels.models.beit import BeitImageProcessor, BeitImageClassify
 
 processor = BeitImageProcessor(size=224, resample="bilinear")  # normalizes (0.5/0.5)
-model = BeitImageClassify.from_weights(
-    "zeromodels/beit-base-patch16-224", include_normalization=False
-)
+model = BeitImageClassify.from_weights("zeromodels/beit-base-patch16-224")
 
 pixels = processor("assets/data/coco_bear.jpg")  # (1, 224, 224, 3), normalized
 logits = model(pixels, training=False)
 ```
 
-Either way the result is identical (the normalization just moves between the processor and the
-model). `post_process_semantic_segmentation(logits, target_sizes=[(H, W)])` upsamples the
+`post_process_semantic_segmentation(logits, target_sizes=[(H, W)])` upsamples the
 quarter-resolution logits (bilinear, then argmax) and returns a list of per-pixel label maps, one
 per image, matching the reference. `BeitImageProcessor.from_hf(preprocessor_config)` builds a
 processor straight from a repo's `preprocessor_config.json`.

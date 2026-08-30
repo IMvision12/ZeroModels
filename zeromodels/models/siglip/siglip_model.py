@@ -2,6 +2,7 @@ import keras
 from keras import initializers, layers, ops
 
 from zeromodels.base import BaseModel
+from zeromodels.base.base_model import strip_functional_graph_keys
 from zeromodels.conversion import copy_weights_by_path_suffix
 from zeromodels.utils import standardize_input_shape
 
@@ -656,7 +657,7 @@ class SigLIPVisionModel(BaseModel):
         self.input_tensor = input_tensor
 
     def get_config(self):
-        config = super().get_config()
+        config = strip_functional_graph_keys(super().get_config())
         config.update(
             {
                 "image_size": self.image_size,
@@ -819,7 +820,7 @@ class SigLIPTextModel(BaseModel):
         self.input_tensor = input_tensor
 
     def get_config(self):
-        config = super().get_config()
+        config = strip_functional_graph_keys(super().get_config())
         config.update(
             {
                 "vocab_size": self.vocab_size,
@@ -1013,7 +1014,7 @@ class SigLIPModel(BaseModel):
         self.input_tensor = input_tensor
 
     def get_config(self):
-        config = super().get_config()
+        config = strip_functional_graph_keys(super().get_config())
         config.update(
             {
                 "image_size": self.image_size,
@@ -1158,7 +1159,7 @@ class SigLIPZeroShotClassify(BaseModel):
         self.input_tensor = input_tensor
 
     def get_config(self):
-        config = super().get_config()
+        config = strip_functional_graph_keys(super().get_config())
         config.update(
             {
                 "image_size": self.image_size,
@@ -1333,7 +1334,7 @@ class SigLIPImageClassify(BaseModel):
         self.input_tensor = input_tensor
 
     def get_config(self):
-        config = super().get_config()
+        config = strip_functional_graph_keys(super().get_config())
         config.update(
             {
                 "num_classes": self.num_classes,

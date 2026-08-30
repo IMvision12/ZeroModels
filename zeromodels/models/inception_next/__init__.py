@@ -6,7 +6,10 @@ from zeromodels.models.inception_next.inception_next_model import (
     InceptionNextModel,
 )
 
+from .inception_next_image_processor import InceptionNextImageProcessor
+
 __all__ = [
+    "InceptionNextImageProcessor",
     "InceptionNextImageClassify",
     "InceptionNextModel",
     "InceptionNextConfig",

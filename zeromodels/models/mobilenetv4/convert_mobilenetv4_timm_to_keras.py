@@ -121,7 +121,6 @@ if __name__ == "__main__":
             config=model_cfg["config"],
             image_size=model_cfg["image_size"],
             num_classes=num_classes,
-            include_normalization=False,
         )
 
         transfer_mobilenetv4_weights(keras_model, state)

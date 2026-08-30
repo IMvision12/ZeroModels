@@ -17,9 +17,8 @@ class BeitImageProcessor(BaseImageProcessor):
 
     Resizes to a square ``size``, optionally center-crops to ``crop_size``, rescales
     to ``[0, 1]``, and normalizes with 0.5/0.5 statistics (``IMAGENET_STANDARD``).
-    Because it normalizes, pair it with a model built with
-    ``include_normalization=False``; the models otherwise normalize internally and
-    take raw ``[0, 255]`` pixels with no processor. Runs entirely on ``keras.ops``.
+    The models take already-normalized input, so run pixels through this processor
+    first. Runs entirely on ``keras.ops``.
 
     Also provides ``post_process_semantic_segmentation``, which upsamples the
     quarter-resolution segmentation logits to the requested sizes and takes the

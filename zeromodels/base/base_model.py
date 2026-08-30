@@ -1,9 +1,37 @@
+import inspect
+
 import keras
 
 from zeromodels.base.base_config import BaseConfig
 from zeromodels.base.base_mixin import WeightLoadingMixin
 
 _KerasModelMeta = type(keras.Model)
+
+
+def _keras_init_kwargs():
+    """Constructor kwargs the keras base legitimately accepts.
+
+    Everything a model forwards to ``super().__init__`` that is not one of these
+    (``inputs`` / ``outputs`` / ``name`` / ``dtype`` / ...) is an unrecognized
+    argument. Introspected from keras so it tracks the installed version.
+    """
+    allowed = {"inputs", "outputs", "name", "trainable", "dtype", "autocast"}
+    for base in (keras.Model, keras.layers.Layer):
+        try:
+            params = inspect.signature(base.__init__).parameters
+        except (TypeError, ValueError):
+            continue
+        for pname, p in params.items():
+            if pname == "self" or p.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                continue
+            allowed.add(pname)
+    return frozenset(allowed)
+
+
+_KERAS_INIT_KWARGS = _keras_init_kwargs()
 
 
 class _ConfigModelMeta(_KerasModelMeta):
@@ -34,6 +62,20 @@ class _ConfigModelMeta(_KerasModelMeta):
             else:
                 obj.config = config_cls.from_dict(kwargs)
         return obj
+
+
+def strip_functional_graph_keys(config):
+    """Drop keras functional-graph keys from a ``get_config`` dict.
+
+    A model whose ``__init__`` takes ``*args`` / ``**kwargs`` trips keras's
+    ``functional_like_constructor`` check, so ``super().get_config()`` returns the
+    functional graph (``layers`` / ``input_layers`` / ``output_layers``) instead of the
+    plain ``name`` / ``dtype`` config. Classes that rebuild via ``cls(**config)`` from
+    their own fields must drop these keys so they never reach ``__init__``.
+    """
+    for key in ("input_layers", "output_layers", "layers"):
+        config.pop(key, None)
+    return config
 
 
 def hf_num_classes(hf_config):
@@ -68,6 +110,15 @@ class BaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
     decode on the task side (a ``BaseGeneration`` mixin) over this functional
     backbone.
     """
+
+    def __init__(self, *args, **kwargs):
+        unexpected = sorted(k for k in kwargs if k not in _KERAS_INIT_KWARGS)
+        if unexpected:
+            raise TypeError(
+                f"{type(self).__name__}() got unexpected keyword argument(s): "
+                f"{', '.join(unexpected)}"
+            )
+        super().__init__(*args, **kwargs)
 
     def get_config(self):
         """Config for keras serialization, carrying any applied quantization.

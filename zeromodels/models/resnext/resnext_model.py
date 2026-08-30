@@ -224,14 +224,6 @@ class ResNeXtImageClassify(ResNetImageClassify):
             each block. Defaults to `False`.
         width_factor: Integer, width scaling factor applied to the
             grouped convolution channels. Defaults to `2`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'` (default), `'inception'`,
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -267,8 +259,6 @@ class ResNeXtImageClassify(ResNetImageClassify):
         senet=False,
         width_factor=2,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
@@ -287,8 +277,6 @@ class ResNeXtImageClassify(ResNetImageClassify):
             senet=senet,
             width_factor=width_factor,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -314,8 +302,6 @@ class ResNeXtImageClassify(ResNetImageClassify):
         self.senet = senet
         self.width_factor = width_factor
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation

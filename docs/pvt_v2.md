@@ -38,8 +38,6 @@ PvtV2ImageClassify(
     mlp_ratios=(8, 8, 4, 4),
     linear_attention=False,
     image_size=224,
-    include_normalization=True,
-    normalization_mode="imagenet",
     num_classes=1000,
     classifier_activation="linear",
     name="PvtV2ImageClassify",
@@ -47,15 +45,14 @@ PvtV2ImageClassify(
 ```
 
 The classifier: the backbone, a global average pool over the last stage, and one dense head.
-`include_normalization=True` means the model takes **raw `[0, 255]` pixels** and applies
-ImageNet mean/std internally, so there is no separate image processor to construct.
+The model takes **already-normalized** input; run pixels through `PvtV2ImageProcessor`
+(resize + ImageNet mean/std) first.
 
 **Parameters**
 
 - **hidden_sizes** / **depths** / **num_attention_heads** / **sr_ratios** / **mlp_ratios** (`tuple`): per-stage width, block count, heads, spatial-reduction ratio, and FFN expansion. `from_weights` fills these from the variant config.
 - **linear_attention** (`bool`, *optional*, defaults to `False`): use the fixed-7x7 pooled linear-attention variant (`b2_linear`).
 - **image_size** (`int`, *optional*, defaults to `224`): resolution the model is built for.
-- **include_normalization** (`bool`, *optional*, defaults to `True`): bake ImageNet normalization into the graph.
 - **num_classes** (`int`, *optional*, defaults to `1000`): classifier outputs.
 
 **Call** `model(pixel_values, training=False)`. **Returns** class logits of shape `(B, num_classes)`.
@@ -66,7 +63,7 @@ The backbone alone. With `as_backbone=True` it returns the four stage feature ma
 (the pyramid) instead of just the last one, for detection or segmentation necks.
 
 ```python
-PvtV2Model(as_backbone=False, hidden_sizes=(32, 64, 160, 256), ..., include_normalization=True)
+PvtV2Model(as_backbone=False, hidden_sizes=(32, 64, 160, 256), ...)
 ```
 
 ### PvtV2Config

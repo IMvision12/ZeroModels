@@ -36,8 +36,6 @@ DinoV2Model(
     drop_rate=0.0,
     attn_drop_rate=0.0,
     layer_scale_init=1.0,
-    include_normalization=True,
-    normalization_mode="imagenet",
     image_size=224,
     input_tensor=None,
     name="DinoV2Model",
@@ -52,15 +50,13 @@ The DINOv2 Vision Transformer. **This is the backbone class.**
 - **patch_size** (`int`, *optional*, defaults to `14`): pixels per patch. DINOv2 uses 14, so a 224 input is a 16x16 grid.
 - **embed_dim** / **depth** / **num_heads** (`int`, *optional*): transformer width, blocks, and heads. Filled in by `from_weights` from the variant config.
 - **layer_scale_init** (`float`, *optional*, defaults to `1.0`): initial LayerScale value, DINOv2's per-branch learned scaling.
-- **include_normalization** (`bool`, *optional*, defaults to `True`): normalize inside the model, so you feed raw `[0, 255]` pixels.
-- **normalization_mode** (`str`, *optional*, defaults to `"imagenet"`): which mean/std to use when normalizing.
 - **image_size** (`int` or `tuple`, *optional*, defaults to `224`): input resolution the model is built for.
 - **input_tensor** (`dict`, *optional*): pre-existing input tensors to build on.
 - **name** (`str`, *optional*, defaults to `"DinoV2Model"`): model name.
 
-**Call** `model(pixel_values, training=False)` with raw `[0, 255]` pixels. **Returns** the
-token sequence `(B, 1 + num_patches, embed_dim)`, the leading token being `[CLS]`. With
-`as_backbone=True`, a list of `depth + 1` such tensors.
+**Call** `model(pixel_values, training=False)` with normalized pixels from
+`DinoV2ImageProcessor`. **Returns** the token sequence `(B, 1 + num_patches, embed_dim)`,
+the leading token being `[CLS]`. With `as_backbone=True`, a list of `depth + 1` such tensors.
 
 ## Preprocessing
 
@@ -71,23 +67,21 @@ defaults. Two matching options:
 - **`DinoV2ImageProcessor`** (matches transformers' `BitImageProcessor` for
   `facebook/dinov2-*`): an aspect-preserving shortest-edge resize to 256 (bicubic, through
   PIL on the raw uint8 image), a center crop to 224, rescale to `[0, 1]`, and
-  ImageNet-standard normalization. Because it already normalizes, load the model with
-  `include_normalization=False`:
+  ImageNet-standard normalization. Run the image through the processor before the model:
 
   ```python
   from zeromodels.models.dino_v2 import DinoV2Model, DinoV2ImageProcessor
 
-  model = DinoV2Model.from_weights("zeromodels/dinov2-base", include_normalization=False)
+  model = DinoV2Model.from_weights("zeromodels/dinov2-base")
   processor = DinoV2ImageProcessor.from_weights("zeromodels/dinov2-base")
 
   pixel_values = processor("bear.jpg")["pixel_values"]  # (1, 224, 224, 3), normalized
   tokens = model(pixel_values, training=False)
   ```
 
-- **Built-in normalization**: `DinoV2Model` defaults to `include_normalization=True`, so
-  you can instead feed **raw `[0, 255]` pixels** (resized to the model's `image_size`) and
-  the ImageNet normalization happens inside. Pass `include_normalization=False` if you have
-  already normalized.
+- **Normalization lives in the processor.** `DinoV2Model` takes *already-normalized* input,
+  so always preprocess with `DinoV2ImageProcessor`: feeding raw `[0, 255]` pixels straight
+  to the model produces wrong features.
 
 ## Model Variants
 
@@ -117,7 +111,7 @@ from zeromodels.models.dino_v2 import DinoV2ImageProcessor, DinoV2Model
 
 size, patch = 896, 14
 model = DinoV2Model.from_weights(
-    "zeromodels/dinov2-giant", image_size=size, include_normalization=False
+    "zeromodels/dinov2-giant", image_size=size
 )
 processor = DinoV2ImageProcessor.from_weights(
     "zeromodels/dinov2-giant", resize_size=1024, crop_size=size
@@ -168,7 +162,7 @@ from zeromodels.models.dino_v2 import DinoV2ImageProcessor, DinoV2Model
 
 size = 896
 model = DinoV2Model.from_weights(
-    "zeromodels/dinov2-giant", image_size=size, include_normalization=False
+    "zeromodels/dinov2-giant", image_size=size
 )
 processor = DinoV2ImageProcessor.from_weights(
     "zeromodels/dinov2-giant", resize_size=1024, crop_size=size

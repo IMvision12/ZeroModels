@@ -54,15 +54,13 @@ segmentation.**
 MobileViTV2ImageClassify(
     multiplier=1.0,
     image_size=256,
-    include_normalization=True,
-    normalization_mode="zero_to_one",
     num_classes=1000,
     name="MobileViTV2ImageClassify",
 )
 ```
 
-The classification head, at 256 (or 384 for the `*_384` variants).
-`include_normalization=True` means the model expects raw `[0, 255]` pixels.
+The classification head, at 256 (or 384 for the `*_384` variants). The model takes
+already-preprocessed input; run pixels through `MobileViTV2ImageProcessor` first.
 
 ### MobileViTV2Model
 

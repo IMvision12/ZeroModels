@@ -36,8 +36,6 @@ DinoViTModel(
     qk_norm=False,
     drop_rate=0.0,
     attn_drop_rate=0.0,
-    include_normalization=True,
-    normalization_mode="imagenet",
     image_size=224,
     input_tensor=None,
     name="DinoViTModel",
@@ -52,15 +50,13 @@ The DINO Vision Transformer. **This is the main backbone class.**
 - **patch_size** (`int`, *optional*, defaults to `16`): pixels per patch. `8` for the `*8` variants. Filled in by `from_weights`.
 - **embed_dim** / **depth** / **num_heads** (`int`, *optional*): transformer width, blocks, and heads. Set from the variant config.
 - **mlp_ratio** / **qkv_bias** / **qk_norm** / **drop_rate** / **attn_drop_rate**: standard ViT block knobs.
-- **include_normalization** (`bool`, *optional*, defaults to `True`): normalize inside the model, so you feed raw `[0, 255]` pixels.
-- **normalization_mode** (`str`, *optional*, defaults to `"imagenet"`): which mean/std to use when normalizing.
 - **image_size** (`int` or `tuple`, *optional*, defaults to `224`): input resolution the model is built for.
 - **input_tensor** (`dict`, *optional*): pre-existing input tensors to build on.
 - **name** (`str`, *optional*, defaults to `"DinoViTModel"`): model name.
 
-**Call** `model(pixel_values, training=False)` with raw `[0, 255]` pixels. **Returns** the
-token sequence `(B, 1 + num_patches, embed_dim)`, the leading token being `[CLS]`. With
-`as_backbone=True`, a list of `depth + 1` such tensors.
+**Call** `model(pixel_values, training=False)` with normalized pixels from
+`DinoImageProcessor`. **Returns** the token sequence `(B, 1 + num_patches, embed_dim)`, the
+leading token being `[CLS]`. With `as_backbone=True`, a list of `depth + 1` such tensors.
 
 ### DinoResNetModel
 
@@ -69,8 +65,6 @@ DinoResNetModel(
     as_backbone=False,
     depths=None,
     filters=None,
-    include_normalization=True,
-    normalization_mode="imagenet",
     image_size=224,
     input_tensor=None,
     name="DinoResNetModel",
@@ -95,12 +89,13 @@ recipe from the repo's `zm_preprocessor.json`, so the right one comes back autom
   eval transform: an aspect-preserving shortest-edge resize to 256 (bicubic), a center
   crop to 224, then the same rescale and normalization.
 
-Because the processor already normalizes, load the model with `include_normalization=False`:
+Normalization lives in the processor, so run the image through `DinoImageProcessor`
+before the model:
 
 ```python
 from zeromodels.models.dino import DinoViTModel, DinoImageProcessor
 
-model = DinoViTModel.from_weights("zeromodels/dino-vitb16", include_normalization=False)
+model = DinoViTModel.from_weights("zeromodels/dino-vitb16")
 processor = DinoImageProcessor.from_weights("zeromodels/dino-vitb16")
 
 pixel_values = processor("bear.jpg")["pixel_values"]  # (1, 224, 224, 3), normalized
@@ -114,19 +109,16 @@ you.
 ```python
 from zeromodels.models.dino import DinoResNetModel, DinoImageProcessor
 
-model = DinoResNetModel.from_weights(
-    "zeromodels/dino-resnet50", include_normalization=False
-)
+model = DinoResNetModel.from_weights("zeromodels/dino-resnet50")
 processor = DinoImageProcessor.from_weights("zeromodels/dino-resnet50")
 
 pixel_values = processor("bear.jpg")["pixel_values"]  # (1, 224, 224, 3), normalized
 features = model(pixel_values, training=False)  # (1, 7, 7, 2048)
 ```
 
-**Built-in normalization**: the models default to `include_normalization=True`, so you can
-instead feed **raw `[0, 255]` pixels** (resized to the model's `image_size`) and the
-ImageNet normalization happens inside. Pass `include_normalization=False` if you have
-already normalized.
+**Normalization lives in the processor.** The models take *already-normalized* input, so
+always run pixels through `DinoImageProcessor` first: feeding raw `[0, 255]` pixels
+straight to the model produces wrong features.
 
 ## Model Variants
 
@@ -157,9 +149,7 @@ from PIL import Image
 from zeromodels.models.dino import DinoImageProcessor, DinoViTModel
 
 size, patch = 896, 16
-model = DinoViTModel.from_weights(
-    "zeromodels/dino-vitb16", image_size=size, include_normalization=False
-)
+model = DinoViTModel.from_weights("zeromodels/dino-vitb16", image_size=size)
 processor = DinoImageProcessor.from_weights(
     "zeromodels/dino-vitb16", image_resolution=size
 )
@@ -208,9 +198,7 @@ import torch
 from zeromodels.models.dino import DinoImageProcessor, DinoViTModel
 
 size = 896
-model = DinoViTModel.from_weights(
-    "zeromodels/dino-vitb16", image_size=size, include_normalization=False
-)
+model = DinoViTModel.from_weights("zeromodels/dino-vitb16", image_size=size)
 processor = DinoImageProcessor.from_weights(
     "zeromodels/dino-vitb16", image_resolution=size
 )

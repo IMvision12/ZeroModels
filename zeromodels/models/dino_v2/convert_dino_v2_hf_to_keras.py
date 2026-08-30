@@ -224,7 +224,6 @@ if __name__ == "__main__":
         keras_model = DinoV2Model(
             **DINOV2_RECIPES[variant],
             image_size=224,
-            include_normalization=False,
         )
 
         transfer_dinov2_weights(keras_model, hf_state_dict)

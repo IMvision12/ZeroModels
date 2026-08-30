@@ -4,4 +4,11 @@ from zeromodels.models.convnext.convnext_model import (
     ConvNeXtModel,
 )
 
-__all__ = ["ConvNeXtImageClassify", "ConvNeXtModel", "ConvNeXtConfig"]
+from .convnext_image_processor import ConvNeXtImageProcessor
+
+__all__ = [
+    "ConvNeXtImageProcessor",
+    "ConvNeXtImageClassify",
+    "ConvNeXtModel",
+    "ConvNeXtConfig",
+]

@@ -33,10 +33,6 @@ class DinoV2Config(BaseConfig):
             Attention dropout rate.
         layer_scale_init (`float`, *optional*, defaults to 1.0):
             LayerScale initialization value (DINOv2 uses per-layer scaling).
-        include_normalization (`bool`, *optional*, defaults to `True`):
-            Whether to prepend in-model image normalization.
-        normalization_mode (`str`, *optional*, defaults to `"imagenet"`):
-            Normalization preset used when `include_normalization` is `True`.
         image_size (`int`, *optional*, defaults to 224):
             Square input resolution the model is built for.
 
@@ -64,6 +60,4 @@ class DinoV2Config(BaseConfig):
     attn_drop_rate: float = 0.0
     layer_scale_init: float = 1.0
     use_swiglu: bool = False
-    include_normalization: bool = True
-    normalization_mode: str = "imagenet"
     image_size: int = 224

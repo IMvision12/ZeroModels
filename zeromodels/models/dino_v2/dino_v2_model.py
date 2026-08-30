@@ -4,7 +4,6 @@ from keras import layers, utils
 from zeromodels.base import BaseModel
 from zeromodels.models.vit.vit_model import vit_backbone_feature
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .dino_v2_config import DinoV2Config
 
@@ -43,9 +42,6 @@ class DinoV2Model(BaseModel):
         drop_rate: Dropout rate. Defaults to ``0.0``.
         attn_drop_rate: Attention dropout rate. Defaults to ``0.0``.
         layer_scale_init: LayerScale init value. Defaults to ``1.0``.
-        include_normalization: Whether to prepend
-            image normalization.
-        normalization_mode: Normalization preset.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -95,8 +91,6 @@ class DinoV2Model(BaseModel):
         attn_drop_rate=0.0,
         layer_scale_init=1.0,
         use_swiglu=False,
-        include_normalization=True,
-        normalization_mode="imagenet",
         image_size=224,
         input_tensor=None,
         name="DinoV2Model",
@@ -115,11 +109,7 @@ class DinoV2Model(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         features = vit_backbone_feature(
             x,
             patch_size=patch_size,
@@ -159,8 +149,6 @@ class DinoV2Model(BaseModel):
         self.attn_drop_rate = attn_drop_rate
         self.layer_scale_init = layer_scale_init
         self.use_swiglu = use_swiglu
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.image_size = image_size
         self.input_tensor = input_tensor
 
@@ -180,8 +168,6 @@ class DinoV2Model(BaseModel):
                 "attn_drop_rate": self.attn_drop_rate,
                 "layer_scale_init": self.layer_scale_init,
                 "use_swiglu": self.use_swiglu,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "image_size": self.image_size,
                 "name": self.name,
             }

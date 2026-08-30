@@ -6,7 +6,10 @@ from zeromodels.models.efficientformer.efficientformer_model import (
     EfficientFormerModel,
 )
 
+from .efficientformer_image_processor import EfficientFormerImageProcessor
+
 __all__ = [
+    "EfficientFormerImageProcessor",
     "EfficientFormerImageClassify",
     "EfficientFormerModel",
     "EfficientFormerConfig",

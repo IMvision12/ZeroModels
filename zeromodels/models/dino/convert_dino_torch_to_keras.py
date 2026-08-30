@@ -153,7 +153,6 @@ if __name__ == "__main__":
         keras_model = DinoViTModel(
             **DINO_VIT_RECIPES[variant],
             image_size=224,
-            include_normalization=False,
         )
 
         transfer_dino_vit_weights(keras_model, torch_state_dict)
@@ -200,7 +199,6 @@ if __name__ == "__main__":
         keras_model = DinoResNetModel(
             **DINO_RESNET_RECIPES[variant],
             image_size=224,
-            include_normalization=False,
         )
 
         transfer_dino_resnet_weights(keras_model, torch_state_dict)

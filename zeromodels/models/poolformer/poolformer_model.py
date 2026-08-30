@@ -4,7 +4,6 @@ from keras import layers, utils
 from zeromodels.base import BaseModel
 from zeromodels.conversion import copy_weights_by_path_suffix
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .poolformer_config import PoolFormerConfig
 
@@ -251,14 +250,6 @@ class PoolFormerModel(BaseModel):
             match the active ``keras.config.image_data_format()``:
             ``(H, W, C)`` for ``channels_last`` or ``(C, H, W)`` for
             ``channels_first``. Defaults to `224`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'` (default), `'inception'`,
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``.
         input_tensor: Optional Keras tensor as input. Useful for
             connecting the model to other Keras components.
             Defaults to `None`.
@@ -305,8 +296,6 @@ class PoolFormerModel(BaseModel):
         drop_path_rate=0.0,
         init_scale=1e-5,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         as_backbone=False,
         name="PoolFormerModel",
@@ -327,11 +316,7 @@ class PoolFormerModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = poolformer_backbone_feature(
             x,
             embed_dim=embed_dim,
@@ -354,8 +339,6 @@ class PoolFormerModel(BaseModel):
         self.drop_path_rate = drop_path_rate
         self.init_scale = init_scale
         self.image_size = image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.as_backbone = as_backbone
 
@@ -370,8 +353,6 @@ class PoolFormerModel(BaseModel):
                 "drop_path_rate": self.drop_path_rate,
                 "init_scale": self.init_scale,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "as_backbone": self.as_backbone,
                 "name": self.name,
@@ -416,14 +397,6 @@ class PoolFormerImageClassify(BaseModel):
             match the active ``keras.config.image_data_format()``:
             ``(H, W, C)`` for ``channels_last`` or ``(C, H, W)`` for
             ``channels_first``. Defaults to `224`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'` (default), `'inception'`,
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``.
         input_tensor: Optional Keras tensor as input. Useful for
             connecting the model to other Keras components.
             Defaults to `None`.
@@ -460,8 +433,6 @@ class PoolFormerImageClassify(BaseModel):
         drop_path_rate=0.0,
         init_scale=1e-5,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
@@ -480,8 +451,6 @@ class PoolFormerImageClassify(BaseModel):
             drop_path_rate=drop_path_rate,
             init_scale=init_scale,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -503,8 +472,6 @@ class PoolFormerImageClassify(BaseModel):
         self.drop_path_rate = drop_path_rate
         self.init_scale = init_scale
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -520,8 +487,6 @@ class PoolFormerImageClassify(BaseModel):
                 "drop_path_rate": self.drop_path_rate,
                 "init_scale": self.init_scale,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,

@@ -145,7 +145,6 @@ if __name__ == "__main__":
         state = download_hf_state_dict(f"timm/{timm_id}")
         keras_model = InceptionResNetV2ImageClassify(
             **INCEPTION_RESNETV2_MODEL_CONFIG[meta["model"]],
-            include_normalization=False,
         )
         transfer_inception_resnet_v2_weights(keras_model, state)
 

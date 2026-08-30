@@ -1,5 +1,6 @@
 import numpy as np
 from keras import ops
+from PIL import Image
 
 from zeromodels.base.base_mixin import PreprocessorMixin
 from zeromodels.utils.image_util import get_data_format, load_image
@@ -58,10 +59,124 @@ class BaseImageProcessor(PreprocessorMixin):
     IMAGENET_INCEPTION_MEAN = (0.5, 0.5, 0.5)
     IMAGENET_INCEPTION_STD = (0.5, 0.5, 0.5)
 
-    def call(self, images):
-        raise NotImplementedError(
-            f"{type(self).__name__} must implement `call(images)`."
+    DEFAULT_SIZE = 224
+    DEFAULT_CROP_SIZE = 224
+    DEFAULT_RESAMPLE = "bicubic"
+    DEFAULT_DO_CENTER_CROP = False
+    DEFAULT_MEAN = IMAGENET_STANDARD_MEAN
+    DEFAULT_STD = IMAGENET_STANDARD_STD
+
+    def __init__(
+        self,
+        size=None,
+        crop_size=None,
+        resample=None,
+        do_resize=True,
+        do_center_crop=None,
+        do_rescale=True,
+        rescale_factor=1 / 255,
+        do_normalize=True,
+        image_mean=None,
+        image_std=None,
+        antialias=True,
+        return_tensor=True,
+        data_format=None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.size = self._as_size(size if size is not None else self.DEFAULT_SIZE)
+        self.crop_size = self._as_size(
+            crop_size if crop_size is not None else self.DEFAULT_CROP_SIZE
         )
+        self.resample = resample if resample is not None else self.DEFAULT_RESAMPLE
+        self.do_resize = do_resize
+        self.do_center_crop = (
+            do_center_crop
+            if do_center_crop is not None
+            else self.DEFAULT_DO_CENTER_CROP
+        )
+        self.do_rescale = do_rescale
+        self.rescale_factor = rescale_factor
+        self.do_normalize = do_normalize
+        self.image_mean = (
+            tuple(image_mean) if image_mean is not None else self.DEFAULT_MEAN
+        )
+        self.image_std = tuple(image_std) if image_std is not None else self.DEFAULT_STD
+        self.antialias = antialias
+        self.return_tensor = return_tensor
+        self.data_format = data_format
+
+    @staticmethod
+    def _as_size(size):
+        """Normalize ``size`` (int or dict) to ``{"height": H, "width": W}``.
+
+        Private so a subclass that defines its own ``as_size`` (e.g. bespoke
+        processors with a different signature) can't shadow the base ``__init__``'s
+        size handling.
+        """
+        if isinstance(size, int):
+            return {"height": size, "width": size}
+        return dict(size)
+
+    def call(self, image):
+        """Generalized classification preprocessing: resize -> optional
+        center-crop -> rescale -> normalize, entirely on ``keras.ops``.
+
+        Accepts a file path, PIL image, ``uint8`` array, or a ``keras``/float pixel
+        tensor (a list gives a batch); returns a ``(B, H, W, C)`` tensor (or numpy
+        if ``return_tensor=False``). Detection / segmentation / multimodal
+        processors override this with their own pipeline.
+        """
+        if isinstance(image, (list, tuple)):
+            batch = ops.concatenate(
+                [ops.convert_to_tensor(self.call(im)) for im in image], axis=0
+            )
+            return ops.convert_to_numpy(batch) if not self.return_tensor else batch
+
+        if isinstance(image, (str, Image.Image)):
+            image = ops.cast(ops.convert_to_tensor(load_image(image)), "float32")
+        else:
+            image = ops.convert_to_tensor(image)
+            if len(image.shape) == 4:
+                image = image[0]
+            image = ops.cast(image, "float32")
+            max_v = float(ops.convert_to_numpy(ops.max(image)))
+            min_v = float(ops.convert_to_numpy(ops.min(image)))
+            if max_v <= 1.0 and min_v >= 0.0:
+                image = image * 255.0
+            elif min_v < 0 or max_v > 255:
+                raise ValueError("Tensor values must be in [0, 1] or [0, 255] range")
+        if len(image.shape) != 3:
+            raise ValueError("Input image must have shape (H, W, C)")
+
+        image = ops.expand_dims(image, axis=0)
+        if self.do_resize:
+            image = ops.image.resize(
+                image,
+                size=(self.size["height"], self.size["width"]),
+                interpolation=self.resample,
+                antialias=self.antialias,
+            )
+        if self.do_center_crop:
+            height, width = image.shape[1], image.shape[2]
+            crop_h, crop_w = self.crop_size["height"], self.crop_size["width"]
+            top, left = (height - crop_h) // 2, (width - crop_w) // 2
+            image = image[:, top : top + crop_h, left : left + crop_w, :]
+        if self.do_rescale:
+            image = image * self.rescale_factor
+        if self.do_normalize:
+            mean = ops.reshape(
+                ops.convert_to_tensor(self.image_mean, "float32"), (1, 1, 1, 3)
+            )
+            std = ops.reshape(
+                ops.convert_to_tensor(self.image_std, "float32"), (1, 1, 1, 3)
+            )
+            image = (image - mean) / std
+        if get_data_format(self.data_format) == "channels_first":
+            image = ops.transpose(image, (0, 3, 1, 2))
+        if not self.return_tensor:
+            image = ops.convert_to_numpy(image)
+        return image
 
     def stack_images(self, images):
         """Preprocess each image and concatenate along the batch axis.

@@ -4,7 +4,6 @@ from keras import layers, utils
 from zeromodels.base import BaseModel
 from zeromodels.conversion import copy_weights_by_path_suffix
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .inception_next_config import InceptionNextConfig
 
@@ -265,14 +264,6 @@ class InceptionNextModel(BaseModel):
             match the active ``keras.config.image_data_format()``:
             ``(H, W, C)`` for ``channels_last`` or ``(C, H, W)`` for
             ``channels_first``. Defaults to `224`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'`, `'inception'` (default),
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``.
         input_tensor: Optional Keras tensor as input. Useful for
             connecting the model to other Keras components.
             Defaults to `None`.
@@ -317,8 +308,6 @@ class InceptionNextModel(BaseModel):
         band_kernel_size=11,
         branch_ratio=0.125,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         as_backbone=False,
         name="InceptionNextModel",
@@ -339,11 +328,7 @@ class InceptionNextModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = inception_next_backbone_feature(
             x,
             depths=depths,
@@ -364,8 +349,6 @@ class InceptionNextModel(BaseModel):
         self.band_kernel_size = band_kernel_size
         self.branch_ratio = branch_ratio
         self.image_size = image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.as_backbone = as_backbone
 
@@ -379,8 +362,6 @@ class InceptionNextModel(BaseModel):
                 "band_kernel_size": self.band_kernel_size,
                 "branch_ratio": self.branch_ratio,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "as_backbone": self.as_backbone,
                 "name": self.name,
@@ -424,14 +405,6 @@ class InceptionNextImageClassify(BaseModel):
             match the active ``keras.config.image_data_format()``:
             ``(H, W, C)`` for ``channels_last`` or ``(C, H, W)`` for
             ``channels_first``. Defaults to `224`.
-        include_normalization: Boolean, whether to prepend an
-            image normalization at the start
-            of the network. When True, input images should be in uint8
-            format with values in `[0, 255]`. Defaults to `True`.
-        normalization_mode: String, specifying the normalization mode to
-            use. Must be one of: `'imagenet'`, `'inception'` (default),
-            `'dpn'`, `'clip'`, `'zero_to_one'`, or `'minus_one_to_one'`.
-            Only used when ``include_normalization=True``.
         input_tensor: Optional Keras tensor as input. Useful for
             connecting the model to other Keras components.
             Defaults to `None`.
@@ -470,8 +443,6 @@ class InceptionNextImageClassify(BaseModel):
         band_kernel_size=11,
         branch_ratio=0.125,
         image_size=224,
-        include_normalization=True,
-        normalization_mode="inception",
         input_tensor=None,
         num_classes=1000,
         classifier_activation="linear",
@@ -489,8 +460,6 @@ class InceptionNextImageClassify(BaseModel):
             band_kernel_size=band_kernel_size,
             branch_ratio=branch_ratio,
             image_size=image_size,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -515,8 +484,6 @@ class InceptionNextImageClassify(BaseModel):
         self.band_kernel_size = band_kernel_size
         self.branch_ratio = branch_ratio
         self.image_size = backbone.image_size
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.classifier_activation = classifier_activation
@@ -531,8 +498,6 @@ class InceptionNextImageClassify(BaseModel):
                 "band_kernel_size": self.band_kernel_size,
                 "branch_ratio": self.branch_ratio,
                 "image_size": self.image_size,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "classifier_activation": self.classifier_activation,

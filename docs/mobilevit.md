@@ -62,15 +62,13 @@ MobileViTImageClassify(
     head_dims=640,
     block_dims=(32, 64, 96, 128, 160),
     image_size=256,
-    include_normalization=True,
-    normalization_mode="zero_to_one",
     num_classes=1000,
     name="MobileViTImageClassify",
 )
 ```
 
-The classification head, at 256. `include_normalization=True` means the model expects
-raw `[0, 255]` pixels and normalizes internally.
+The classification head, at 256. The model takes already-preprocessed input; run pixels
+through `MobileViTImageProcessor` (rescale + BGR reorder) first.
 
 ### MobileViTModel
 

@@ -266,9 +266,7 @@ if __name__ == "__main__":
         print(f"{'=' * 60}")
 
         state = download_hf_state_dict(f"timm/{timm_id}")
-        keras_model = SwinImageClassify(
-            **SWIN_MODEL_CONFIG[meta["model"]], include_normalization=False
-        )
+        keras_model = SwinImageClassify(**SWIN_MODEL_CONFIG[meta["model"]])
         transfer_swin_weights(keras_model, state)
 
         torch_model = timm.create_model(timm_id, pretrained=True).eval()

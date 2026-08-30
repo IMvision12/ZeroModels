@@ -10,7 +10,6 @@ from zeromodels.models.levit.levit_layers import (
     LevitMLP,
 )
 from zeromodels.utils import standardize_input_shape
-from zeromodels.utils.image_util import normalize_image_for_classify_models
 
 from .levit_config import LevitConfig
 
@@ -154,10 +153,6 @@ class LevitModel(BaseModel):
         mlp_ratio: MLP expansion per stage. Defaults to (2, 2, 2).
         attention_ratio: Value-to-key dimension ratio per stage. Defaults to
             (2, 2, 2).
-        include_normalization: Bake ImageNet normalization into the graph (raw
-            [0, 255] pixels in). Defaults to True.
-        normalization_mode: Normalization statistics. LeViT uses ``"imagenet"``.
-            Defaults to ``"imagenet"``.
         input_tensor: Optional pre-existing Keras input tensor. Defaults to None.
         name: Model name. Defaults to ``"LevitModel"``.
     """
@@ -200,8 +195,6 @@ class LevitModel(BaseModel):
         key_dim=(16, 16, 16),
         mlp_ratio=(2, 2, 2),
         attention_ratio=(2, 2, 2),
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         name="LevitModel",
         **kwargs,
@@ -222,11 +215,7 @@ class LevitModel(BaseModel):
         else:
             img_input = input_tensor
 
-        x = (
-            normalize_image_for_classify_models(img_input, normalization_mode)
-            if include_normalization
-            else img_input
-        )
+        x = img_input
         x = levit_backbone_feature(
             x,
             image_size=image_size,
@@ -257,8 +246,6 @@ class LevitModel(BaseModel):
         self.key_dim = tuple(key_dim)
         self.mlp_ratio = tuple(mlp_ratio)
         self.attention_ratio = tuple(attention_ratio)
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
 
     def get_config(self):
@@ -277,8 +264,6 @@ class LevitModel(BaseModel):
                 "key_dim": self.key_dim,
                 "mlp_ratio": self.mlp_ratio,
                 "attention_ratio": self.attention_ratio,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "name": self.name,
             }
@@ -315,8 +300,6 @@ class LevitImageClassify(BaseModel):
             heads' logits. Defaults to True.
         num_classes: Number of classifier outputs. Defaults to 1000.
         classifier_activation: Head activation. Defaults to ``"linear"``.
-        include_normalization: Bake ImageNet normalization into the graph. Defaults
-            to True.
         name: Model name. Defaults to ``"LevitImageClassify"``.
 
     See :class:`LevitModel` for the backbone architecture arguments.
@@ -357,8 +340,6 @@ class LevitImageClassify(BaseModel):
         key_dim=(16, 16, 16),
         mlp_ratio=(2, 2, 2),
         attention_ratio=(2, 2, 2),
-        include_normalization=True,
-        normalization_mode="imagenet",
         input_tensor=None,
         num_classes=1000,
         use_distillation=True,
@@ -381,8 +362,6 @@ class LevitImageClassify(BaseModel):
             key_dim=key_dim,
             mlp_ratio=mlp_ratio,
             attention_ratio=attention_ratio,
-            include_normalization=include_normalization,
-            normalization_mode=normalization_mode,
             input_tensor=input_tensor,
             name=f"{name}_backbone",
         )
@@ -422,8 +401,6 @@ class LevitImageClassify(BaseModel):
         self.key_dim = tuple(key_dim)
         self.mlp_ratio = tuple(mlp_ratio)
         self.attention_ratio = tuple(attention_ratio)
-        self.include_normalization = include_normalization
-        self.normalization_mode = normalization_mode
         self.input_tensor = input_tensor
         self.num_classes = num_classes
         self.use_distillation = use_distillation
@@ -445,8 +422,6 @@ class LevitImageClassify(BaseModel):
                 "key_dim": self.key_dim,
                 "mlp_ratio": self.mlp_ratio,
                 "attention_ratio": self.attention_ratio,
-                "include_normalization": self.include_normalization,
-                "normalization_mode": self.normalization_mode,
                 "input_tensor": self.input_tensor,
                 "num_classes": self.num_classes,
                 "use_distillation": self.use_distillation,

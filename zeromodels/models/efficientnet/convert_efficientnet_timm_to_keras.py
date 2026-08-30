@@ -321,7 +321,7 @@ if __name__ == "__main__":
 
         state = download_hf_state_dict(f"timm/{timm_id}")
         keras_model = EfficientNetImageClassify(
-            **EFFICIENTNET_MODEL_CONFIG[meta["model"]], include_normalization=False
+            **EFFICIENTNET_MODEL_CONFIG[meta["model"]]
         )
         transfer_efficientnet_weights(keras_model, state)
 
