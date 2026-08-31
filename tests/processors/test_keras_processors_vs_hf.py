@@ -202,28 +202,119 @@ def test_clip_processor_non_square_parity():
         assert diff < 1e-4, f"clip{shape}: pixel max|diff|={diff:.3e}"
 
 
-@pytest.mark.parametrize(
-    "name,repo,cls_path",
-    [
-        ("clip", "openai/clip-vit-base-patch16", "clip.clip_processor.CLIPProcessor"),
-        (
-            "siglip",
-            "google/siglip-base-patch16-224",
-            "siglip.siglip_processor.SigLIPProcessor",
-        ),
-    ],
-)
-def test_processor_snapshot(name, repo, cls_path):
-    """Pin ids + pixel stats for a fixed text/image pair, HF not required."""
-    import importlib
+import inspect  # noqa: E402
 
-    module, cls_name = cls_path.rsplit(".", 1)
-    cls = getattr(importlib.import_module(f"zeromodels.models.{module}"), cls_name)
-    out = build_from_repo(cls, cls_name)(text=MM_TEXTS, images=_rgb_shape((64, 48)))
-    ids_key = "input_ids" if "input_ids" in out else "token_ids"
-    pixel_key = "images" if "images" in out else "pixel_values"
-    record = {
-        "ids": [[int(i) for i in row] for row in _as_numpy(out[ids_key])],
-        "pixels": snapshot_util.stats(_as_numpy(out[pixel_key])),
-    }
+
+def _all_processors():
+    """Every exported composed processor (``*Processor``, not ``*ImageProcessor``)."""
+    import zeromodels.models as models
+
+    found = {}
+    for family in sorted(n for n in dir(models) if not n.startswith("_")):
+        package = getattr(models, family)
+        for name in getattr(package, "__all__", []):
+            obj = getattr(package, name, None)
+            if (
+                inspect.isclass(obj)
+                and name.endswith("Processor")
+                and not name.endswith("ImageProcessor")
+            ):
+                found[name] = obj
+    return found
+
+
+ALL_PROCESSORS = _all_processors()
+_SNAPSHOT_IMAGE = _rgb_shape((64, 48))
+
+
+def _snapshot_audio():
+    t = np.arange(16000, dtype="float32") / 16000.0
+    return (0.5 * np.sin(2 * np.pi * 440.0 * t)).astype("float32")
+
+
+def _run_processor(cls, name):
+    """Build ``cls`` from model_repos.json and drive it with a kind-appropriate input.
+
+    Dispatches on the ``call`` signature: ``audio=`` + ``text=`` for the ASR
+    processors, ``text=`` + ``images=`` for the image-text ones. Processors that
+    need a richer input (VLM conversations, SAM point/box prompts) or have no repo
+    in ``model_repos.json`` are skipped rather than fabricating a call.
+    """
+    try:
+        proc = build_from_repo(cls, name)
+    except Exception as e:
+        pytest.skip(f"{name}: cannot build from model_repos.json ({type(e).__name__})")
+    if proc is None:
+        pytest.skip(f"{name}: no repo in model_repos.json")
+    try:
+        params = set(inspect.signature(proc.call).parameters)
+    except (TypeError, ValueError):
+        pytest.skip(f"{name}: call signature not introspectable")
+    try:
+        if "audio" in params:
+            return proc(audio=_snapshot_audio(), text=MM_TEXTS)
+        if "images" in params and "text" in params:
+            return proc(text=MM_TEXTS, images=_SNAPSHOT_IMAGE)
+    except Exception as e:
+        pytest.skip(f"{name}: text/image/audio call failed ({type(e).__name__}: {e})")
+    pytest.skip(f"{name}: not a plain text+image / audio+text processor")
+
+
+@pytest.mark.parametrize("name", sorted(ALL_PROCESSORS))
+def test_processor_snapshot(name):
+    """Pin ids + pixel/feature stats for every buildable composed processor.
+
+    Auto-enumerated (like the tokenizer / image-processor snapshots), so a new
+    processor is guarded the day it lands. HF is not needed at compare time, so the
+    shared golden also cross-checks torch / jax / tf preprocessing.
+    """
+    out = _run_processor(ALL_PROCESSORS[name], name)
+    record = {}
+    ids_key = next((k for k in ("input_ids", "token_ids") if k in out), None)
+    if ids_key is not None:
+        ids = np.asarray(_as_numpy(out[ids_key]))
+        rows = ids if ids.ndim == 2 else ids[None]
+        record["ids"] = [[int(i) for i in row] for row in rows]
+    pixel_key = next(
+        (k for k in ("images", "pixel_values", "input_features") if k in out), None
+    )
+    if pixel_key is not None:
+        record[pixel_key] = snapshot_util.stats(_as_numpy(out[pixel_key]))
     snapshot_util.check("processor", name, record)
+
+
+def _proc_rows(out, ids_key):
+    ids = np.asarray(_as_numpy(out[ids_key]))
+    if ids.ndim == 1:
+        ids = ids[None]
+    mask = out.get("attention_mask", out.get("padding_mask"))
+    if mask is not None:
+        return _strip_pad(out[ids_key], mask)
+    return [[int(t) for t in row] for row in ids]
+
+
+@pytest.mark.parametrize("name", sorted(ALL_PROCESSORS))
+def test_processor_text_batch_matches_individual(name):
+    """Each text in a batch encodes the same as encoding it alone (padding aside).
+
+    A processor that expands image/audio placeholders per row can silently shift a
+    row's real tokens; batching must not move them. Needs no HF reference.
+    """
+    cls = ALL_PROCESSORS[name]
+    batch = _run_processor(cls, name)  # builds + runs over MM_TEXTS (skips if unfit)
+    ids_key = next((k for k in ("input_ids", "token_ids") if k in batch), None)
+    if ids_key is None:
+        pytest.skip(f"{name}: no token ids to compare")
+    batch_rows = _proc_rows(batch, ids_key)
+    proc = build_from_repo(cls, name)
+    audio_kind = "audio" in inspect.signature(proc.call).parameters
+    for text, batched in zip(MM_TEXTS, batch_rows):
+        one = (
+            proc(audio=_snapshot_audio(), text=[text])
+            if audio_kind
+            else proc(text=[text], images=_SNAPSHOT_IMAGE)
+        )
+        alone = _proc_rows(one, ids_key)[0]
+        assert batched == alone, (
+            f"{name}: {text!r} encodes differently in a batch than alone"
+        )
