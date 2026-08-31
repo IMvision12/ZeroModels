@@ -4352,6 +4352,49 @@ def instantiate_model(config):
     return model
 
 
+# Per-model build cache. The integration suite is reordered (see
+# tests/conftest.py) so every test of one model runs consecutively; a READ-ONLY
+# test then reuses the model built here instead of rebuilding it. Building +
+# XLA-compiling a functional model is the dominant per-test cost on the JAX / TF
+# backends (seconds each), and the suite otherwise rebuilds each model ~10x
+# across its tests. The cache is cleared when the model changes, so peak memory
+# stays at ~one model (the CI RAM cap that the per-test teardown protects).
+_MODEL_CACHE = {}
+
+
+def get_cached_model(config):
+    """Return a shared, build-once model for ``config``'s READ-ONLY tests.
+
+    Keyed by (class, active data_format, quantized) so a channels_first build or
+    a quantized variant never aliases the plain one. Use this only for tests that
+    do not mutate the model (forward / shape / NaN / ``get_config`` / ``save*``);
+    a test that assigns weights, builds a different data format, or calls
+    ``clear_session`` must call :func:`instantiate_model` for a fresh instance.
+    """
+    import os
+
+    if os.environ.get("ZM_NO_MODEL_CACHE") == "1":
+        return instantiate_model(config)  # escape hatch: force a fresh build
+
+    import keras
+
+    key = (
+        config["model_cls"],
+        keras.config.image_data_format(),
+        bool(config.get("quantization_config")),
+    )
+    model = _MODEL_CACHE.get(key)
+    if model is None:
+        model = instantiate_model(config)
+        _MODEL_CACHE[key] = model
+    return model
+
+
+def clear_model_cache():
+    """Drop all cached models (called on model change by the conftest teardown)."""
+    _MODEL_CACHE.clear()
+
+
 # Generative VLMs became functional models (#390): text-only factories no longer
 # satisfy their expanded (image + video + mask + position) input signatures, so flag
 # them for the model-driven multimodal builder in create_test_input.

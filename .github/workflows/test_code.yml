@@ -18,13 +18,26 @@ jobs:
       - run: ruff format --check .
 
   test-code:
-    name: Test the code (${{ matrix.backend }})
+    name: Test the code (${{ matrix.backend }} ${{ matrix.shard }})
     needs: lint-and-format
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Shard the model suite BY MODEL across parallel jobs (see the --shard
+      # option in tests/conftest.py). torch is fast enough unsharded; the JAX and
+      # TF legs trace + XLA-compile every model, so they are split to stay under
+      # the per-job time cap. Stacks with the per-model build-once reuse.
       matrix:
-        backend: [torch, tensorflow, jax]
+        include:
+          - { backend: torch, shard: "1/2" }
+          - { backend: torch, shard: "2/2" }
+          - { backend: tensorflow, shard: "1/3" }
+          - { backend: tensorflow, shard: "2/3" }
+          - { backend: tensorflow, shard: "3/3" }
+          - { backend: jax, shard: "1/4" }
+          - { backend: jax, shard: "2/4" }
+          - { backend: jax, shard: "3/4" }
+          - { backend: jax, shard: "4/4" }
     env:
       KERAS_BACKEND: ${{ matrix.backend }}
     steps:
@@ -59,6 +72,7 @@ jobs:
                  tests/integration/test_serialization.py \
                  tests/integration/test_model_saving.py \
                  tests/integration/test_data_formats.py \
+                 --shard ${{ matrix.shard }} \
                  -v --durations=20 --cov=zeromodels --cov-append \
                  -m "not slow and not gpu"
       - name: Generate coverage
