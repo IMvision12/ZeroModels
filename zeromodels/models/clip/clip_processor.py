@@ -19,8 +19,9 @@ class CLIPProcessor(BaseProcessor):
     * ``CLIPProcessor.from_weights("clip_vit_base_16")``: zeromodels release.
     * ``CLIPProcessor.from_weights("hf:openai/clip-vit-base-patch16")``: pulls the
       tokenizer files **and** builds the image processor from the HF repo.
-    * ``CLIPProcessor()``: defaults; or pass pre-built ``tokenizer=`` /
-      ``image_processor=``, or per-component build kwargs (``image_resolution=`` …).
+    * ``CLIPProcessor(variant="clip_vit_base_16")``: build from a zeromodels variant
+      (no default variant); or pass pre-built ``tokenizer=`` / ``image_processor=``,
+      or per-component build kwargs (``image_resolution=`` …).
     """
 
     TOKENIZER_CLS = CLIPTokenizer

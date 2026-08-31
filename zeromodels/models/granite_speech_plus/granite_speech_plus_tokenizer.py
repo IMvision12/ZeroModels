@@ -14,5 +14,3 @@ class GraniteSpeechPlusTokenizer(GraniteSpeechTokenizer):
     100352, eos = 100257). Load by repo id:
     ``GraniteSpeechPlusTokenizer.from_weights("zeromodels/granite_speech_4_1_2b_plus")``.
     """
-
-    DEFAULT_VARIANT = "granite_speech_4_1_2b_plus"

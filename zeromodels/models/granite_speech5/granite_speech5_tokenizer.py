@@ -19,8 +19,6 @@ class GraniteSpeech5Tokenizer(BaseTokenizer):
     ``from_release("hf:ibm-granite/granite-speech-5.0-470m-turboctc")``.
     """
 
-    DEFAULT_VARIANT = "granite-speech-5.0-470m-turboctc"
-
     def __init__(
         self,
         variant: str = None,
@@ -30,9 +28,9 @@ class GraniteSpeech5Tokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         tokenizer_file = self.resolve_tokenizer_json_from_hf(
-            f"zeromodels/{self.variant}", tokenizer_file
+            (f"zeromodels/{self.variant}" if self.variant else None), tokenizer_file
         )
         self.tokenizer_file = tokenizer_file
         self.pad_token = pad_token

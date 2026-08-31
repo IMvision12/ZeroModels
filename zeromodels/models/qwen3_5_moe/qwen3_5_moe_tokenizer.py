@@ -12,5 +12,5 @@ class Qwen3_5MoeTokenizer(Qwen2VLTokenizer):
     its vocabulary differ, so the token ids are resolved from the file.
     """
 
-    def __init__(self, hf_id="Qwen/Qwen3.5-35B-A3B", tokenizer_file=None, **kwargs):
+    def __init__(self, hf_id=None, tokenizer_file=None, **kwargs):
         super().__init__(hf_id=hf_id, tokenizer_file=tokenizer_file, **kwargs)

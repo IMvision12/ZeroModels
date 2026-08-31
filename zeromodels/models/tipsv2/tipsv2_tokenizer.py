@@ -18,8 +18,6 @@ class Tipsv2Tokenizer(BaseTokenizer):
     ``Tipsv2Tokenizer.from_weights("hf:google/tipsv2-b14")`` or by zeromodels repo id.
     """
 
-    DEFAULT_VARIANT = "tipsv2-b14"
-
     def __init__(
         self,
         variant: str = None,
@@ -30,9 +28,9 @@ class Tipsv2Tokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         tokenizer_file = self.resolve_tokenizer_json_from_hf(
-            f"zeromodels/{self.variant}", tokenizer_file
+            (f"zeromodels/{self.variant}" if self.variant else None), tokenizer_file
         )
         self.tokenizer_file = tokenizer_file
         self.max_seq_len = max_seq_len

@@ -17,13 +17,11 @@ class T5Tokenizer(BaseTokenizer):
     ``attention_mask`` dict expected by the T5 models (T5 has no token-type ids).
 
     Args:
-        variant: T5 variant key (default ``"t5_base"``).
+        variant: T5 variant key (no default; pass this or ``tokenizer_file``).
         tokenizer_file: Optional explicit ``tokenizer.json`` path (overrides variant).
         max_seq_len: Truncation length (default 512); batches pad to the longest.
         eos_token / pad_token / unk_token: Special tokens.
     """
-
-    DEFAULT_VARIANT = "t5_base"
 
     def __init__(
         self,
@@ -36,9 +34,9 @@ class T5Tokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         tokenizer_file = self.resolve_tokenizer_json_from_hf(
-            f"zeromodels/{self.variant}", tokenizer_file
+            (f"zeromodels/{self.variant}" if self.variant else None), tokenizer_file
         )
         self.tokenizer_file = tokenizer_file
         self.max_seq_len = max_seq_len

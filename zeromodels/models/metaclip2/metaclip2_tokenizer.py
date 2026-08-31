@@ -35,8 +35,6 @@ class MetaClip2Tokenizer(BaseTokenizer):
         bos_token_id / eos_token_id / pad_token_id / unk_token_id: XLM-R special ids.
     """
 
-    DEFAULT_VARIANT = "metaclip2_worldwide_b16_224"
-
     def __init__(
         self,
         variant: str = None,
@@ -49,9 +47,9 @@ class MetaClip2Tokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         tokenizer_file = self.resolve_tokenizer_json_from_hf(
-            f"zeromodels/{self.variant}", tokenizer_file
+            (f"zeromodels/{self.variant}" if self.variant else None), tokenizer_file
         )
         self.tokenizer_file = tokenizer_file
         self.max_seq_len = max_seq_len

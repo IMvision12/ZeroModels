@@ -16,23 +16,25 @@ class DeepseekVLTokenizer(BaseTokenizer):
     ``DeepseekVLTokenizer.from_weights("zeromodels/deepseek_vl_1.3b_chat")``.
 
     Args:
-        variant: DeepSeek-VL variant key (default ``"deepseek_vl_1.3b_chat"``);
+        variant: DeepSeek-VL variant key (no default; pass this or ``tokenizer_file``);
             resolves to the ``zeromodels/<variant>`` repo's tokenizer.json.
         hf_id: Explicit Hub repo to pull ``tokenizer.json`` from (overrides
-            the variant default).
+            the variant).
         tokenizer_file: Explicit path to a ``tokenizer.json`` (overrides the
             download).
     """
-
-    DEFAULT_VARIANT = "deepseek_vl_1.3b_chat"
 
     def __init__(self, variant=None, hf_id=None, tokenizer_file=None, **kwargs):
         super().__init__(**kwargs)
         from tokenizers import Tokenizer
 
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         self.hf_id = hf_id
-        repo = hf_id if hf_id is not None else f"zeromodels/{self.variant}"
+        repo = (
+            hf_id
+            if hf_id is not None
+            else (f"zeromodels/{self.variant}" if self.variant else None)
+        )
         tokenizer_file = self.resolve_tokenizer_json_from_hf(repo, tokenizer_file)
         self.tokenizer_file = tokenizer_file
         self._tok = Tokenizer.from_file(tokenizer_file)

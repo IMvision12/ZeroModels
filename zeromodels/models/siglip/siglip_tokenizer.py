@@ -22,14 +22,12 @@ class SigLIPTokenizer(BaseTokenizer):
     ``SigLIPTokenizer.from_weights("zeromodels/siglip_base_p16_224")``.
 
     Args:
-        variant: SigLIP variant key (default ``"siglip_base_p16_224"``); resolves to
+        variant: SigLIP variant key (no default; pass this or ``tokenizer_file``); resolves to
             the ``zeromodels/<variant>`` repo's ``tokenizer.json``.
         tokenizer_file: Optional explicit ``tokenizer.json`` path (overrides variant).
         max_seq_len: Fixed sequence length (default 64).
         unk_token / pad_token / eos_token: Special token strings.
     """
-
-    DEFAULT_VARIANT = "siglip_base_p16_224"
 
     def __init__(
         self,
@@ -42,9 +40,9 @@ class SigLIPTokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         tokenizer_file = self.resolve_tokenizer_json_from_hf(
-            f"zeromodels/{self.variant}", tokenizer_file
+            (f"zeromodels/{self.variant}" if self.variant else None), tokenizer_file
         )
         self.tokenizer_file = tokenizer_file
         self.max_seq_len = max_seq_len

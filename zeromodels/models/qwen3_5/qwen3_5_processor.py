@@ -17,7 +17,7 @@ class Qwen3_5Processor(Qwen2VLProcessor):
 
     def __init__(
         self,
-        hf_id="Qwen/Qwen3.5-27B",
+        hf_id=None,
         patch_size=16,
         spatial_merge_size=2,
         temporal_patch_size=2,

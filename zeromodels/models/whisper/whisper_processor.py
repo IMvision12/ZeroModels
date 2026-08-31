@@ -28,7 +28,7 @@ class WhisperProcessor(BaseProcessor):
 
     def __init__(
         self,
-        variant: str = "whisper_tiny",
+        variant: str = None,
         n_mels: int = 80,
         sampling_rate: int = 16000,
         n_fft: int = 400,
