@@ -1,7 +1,7 @@
 from zeromodels import conversion, models, samplers, utils
 from zeromodels.version import version
 
-__version__ = "1.2.7"
+__version__ = "1.2.8"
 
 __all__ = [
     "models",
