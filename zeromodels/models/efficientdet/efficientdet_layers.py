@@ -109,6 +109,14 @@ class EfficientDetResample(layers.Layer):
                 )
         return feat
 
+    def compute_output_spec(self, feat, target_height, target_width, training=False):
+        batch = feat.shape[0]
+        if self.data_format == "channels_first":
+            shape = (batch, self.target_channels, target_height, target_width)
+        else:
+            shape = (batch, target_height, target_width, self.target_channels)
+        return keras.KerasTensor(shape=shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -335,6 +343,18 @@ class FPNCells(layers.Layer):
                         break
         return feats
 
+    def compute_output_spec(self, feats, level_sizes, training=False):
+        batch = feats[0].shape[0]
+        specs = []
+        for lvl in range(self.max_level - self.min_level + 1):
+            th, tw = level_sizes[lvl]
+            if self.data_format == "channels_first":
+                shape = (batch, self.fpn_num_filters, th, tw)
+            else:
+                shape = (batch, th, tw, self.fpn_num_filters)
+            specs.append(keras.KerasTensor(shape=shape, dtype=self.compute_dtype))
+        return specs
+
 
 @keras.saving.register_keras_serializable(package="zeromodels")
 class PredictionHead(layers.Layer):
@@ -546,9 +566,6 @@ class DecodeBoxes(layers.Layer):
         self.built = True
 
     def call(self, box_outputs):
-        # Anchors are a fixed function of the config, so they are baked into the graph
-        # as a constant rather than stored as a weight. This keeps EfficientDetDetect's
-        # weight set identical to EfficientDetModel's, so both load one hosted file.
         return decode_box_outputs(
             box_outputs, ops.cast(self.anchors, box_outputs.dtype)
         )

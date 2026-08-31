@@ -98,6 +98,30 @@ def _transpose_input(input_data, data_format):
     return input_data
 
 
+def _randomize_images(input_data, seed=0):
+    """Replace all-ones image tensors with fixed-seed random pixels for parity.
+
+    ``create_test_input`` feeds ones. A near-uniform image gives normalization
+    layers (GroupNorm / LayerNorm) ~0 variance, so ``1/sqrt(var + eps)`` amplifies
+    the tiny cross-layout float noise (~1e-7) into a false parity failure -- seen
+    on OneFormer under jax, where its pixel-decoder GroupNorm blew a 1e-7 conv
+    difference up to rel ~0.5. Real pixels give the layers real variance, so the
+    check reflects the layout math, not noise amplification. Non-image inputs
+    (token ids, grids, masks) are left untouched.
+    """
+    rng = np.random.RandomState(seed)
+
+    def rnd(v):
+        return ops.convert_to_tensor(rng.standard_normal(v.shape).astype("float32"))
+
+    if isinstance(input_data, dict):
+        return {
+            k: (rnd(v) if _is_channels_last_image(k, v) else v)
+            for k, v in input_data.items()
+        }
+    return rnd(input_data) if _is_channels_last_image(None, input_data) else input_data
+
+
 @pytest.mark.data_format
 @pytest.mark.parametrize("model_name", MODEL_IDS)
 def test_channels_last(model_name):
@@ -257,6 +281,10 @@ def test_channels_first_matches_channels_last(model_name):
             input_data = create_test_input(config, model=model_cl)
         else:
             input_data = create_test_input(config)
+        # Use real (random) pixels, not the ones from create_test_input: a uniform
+        # image gives normalization layers ~0 variance, which amplifies float noise
+        # into a false parity failure (see _randomize_images).
+        input_data = _randomize_images(input_data)
 
         if not _has_transposable_image(input_data):
             pytest.skip(

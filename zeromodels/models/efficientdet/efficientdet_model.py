@@ -190,6 +190,9 @@ class EfficientDetModel(BaseModel):
         )
         for attr in CONFIG_ATTRS:
             setattr(self, attr, locals()[attr])
+        self(
+            keras.ops.zeros((1, *input_shape), dtype=self.compute_dtype), training=False
+        )
 
     def get_config(self):
         config = super().get_config()
@@ -229,9 +232,7 @@ class EfficientDetDetect(BaseModel):
     BASE_WEIGHT_CONFIG = None
     HF_MODEL_TYPE = "efficientdet"
     config_class = EfficientDetConfig
-    # EfficientDetDetect shares its weights with EfficientDetModel (identical backbone,
-    # BiFPN and heads; decoding adds no weights). Hosted repos declare the canonical
-    # EfficientDetModel, and this class loads that same file by copying weights out.
+
     HUB_REPO_SIBLINGS = frozenset({"EfficientDetModel"})
     CHECKPOINT_SOURCE = CheckpointSource("EfficientDetModel")
 
@@ -285,10 +286,6 @@ class EfficientDetDetect(BaseModel):
         class_outputs = base.output["class_outputs"]
         box_outputs = base.output["box_outputs"]
 
-        # Flatten each level's head output to (B, H*W*anchors, last). Under
-        # channels_first the head output is (B, anchors*last, H, W); transpose it to
-        # channels_last first so the anchor ordering (position-major) matches the
-        # anchor grid regardless of data format -> identical outputs either way.
         data_format = get_data_format()
 
         def flatten_levels(tensors, last, name):
