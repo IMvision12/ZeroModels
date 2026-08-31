@@ -14,26 +14,35 @@ on:
         options: [all, torch, jax, tensorflow]
 
 jobs:
+  # Build the shard matrix from the chosen backend. matrix.* is not available in a
+  # job-level `if:`, so filter here and hand the parity job a ready-made include list.
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - id: gen
+        run: |
+          torch='{"backend":"torch","shard":"1/2"},{"backend":"torch","shard":"2/2"}'
+          tf='{"backend":"tensorflow","shard":"1/3"},{"backend":"tensorflow","shard":"2/3"},{"backend":"tensorflow","shard":"3/3"}'
+          jax='{"backend":"jax","shard":"1/4"},{"backend":"jax","shard":"2/4"},{"backend":"jax","shard":"3/4"},{"backend":"jax","shard":"4/4"}'
+          case "${{ inputs.backend }}" in
+            torch) legs="$torch" ;;
+            tensorflow) legs="$tf" ;;
+            jax) legs="$jax" ;;
+            *) legs="$torch,$tf,$jax" ;;
+          esac
+          echo "matrix={\"include\":[$legs]}" >> "$GITHUB_OUTPUT"
+
   parity:
+    needs: setup
     name: Parity (${{ matrix.backend }} ${{ matrix.shard }})
-    # Only run the matrix legs matching the chosen backend (all, or a single one).
-    if: ${{ inputs.backend == 'all' || matrix.backend == inputs.backend }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       # Same shard-by-model split as the main suite (tests/conftest.py --shard): torch
       # is fast, jax and tf trace + compile every model so they are split further.
-      matrix:
-        include:
-          - { backend: torch, shard: "1/2" }
-          - { backend: torch, shard: "2/2" }
-          - { backend: tensorflow, shard: "1/3" }
-          - { backend: tensorflow, shard: "2/3" }
-          - { backend: tensorflow, shard: "3/3" }
-          - { backend: jax, shard: "1/4" }
-          - { backend: jax, shard: "2/4" }
-          - { backend: jax, shard: "3/4" }
-          - { backend: jax, shard: "4/4" }
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     env:
       KERAS_BACKEND: ${{ matrix.backend }}
     steps:
