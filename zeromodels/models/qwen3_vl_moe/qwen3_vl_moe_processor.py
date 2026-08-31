@@ -13,5 +13,5 @@ class Qwen3VLMoeProcessor(Qwen3VLProcessor):
 
     TOKENIZER_CLS = Qwen3VLMoeTokenizer
 
-    def __init__(self, hf_id="Qwen/Qwen3-VL-30B-A3B-Instruct", **kwargs):
+    def __init__(self, hf_id=None, **kwargs):
         super().__init__(hf_id=hf_id, **kwargs)

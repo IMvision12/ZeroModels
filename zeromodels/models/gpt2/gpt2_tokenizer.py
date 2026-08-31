@@ -15,16 +15,14 @@ class GPT2Tokenizer(BaseTokenizer):
     ``GPT2Tokenizer.from_weights("zeromodels/gpt2")``.
 
     Args:
-        variant: GPT-2 variant key (default ``"gpt2"``); resolves to the
+        variant: GPT-2 variant key (no default; pass this or ``tokenizer_file``); resolves to the
             ``zeromodels/<variant>`` repo's tokenizer.json.
         hf_id: Explicit Hub repo to pull ``tokenizer.json`` from (overrides the
-            variant default).
+            variant).
         tokenizer_file: Optional explicit ``tokenizer.json`` path (overrides the
             download).
         eos_token: End-of-text token string (default ``"<|endoftext|>"``).
     """
-
-    DEFAULT_VARIANT = "gpt2"
 
     def __init__(
         self,
@@ -35,9 +33,13 @@ class GPT2Tokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         self.hf_id = hf_id
-        repo = hf_id if hf_id is not None else f"zeromodels/{self.variant}"
+        repo = (
+            hf_id
+            if hf_id is not None
+            else (f"zeromodels/{self.variant}" if self.variant else None)
+        )
         tokenizer_file = self.resolve_tokenizer_json_from_hf(repo, tokenizer_file)
         self.tokenizer_file = tokenizer_file
         self.eos_token = eos_token

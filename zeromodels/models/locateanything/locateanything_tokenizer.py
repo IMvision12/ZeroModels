@@ -17,8 +17,6 @@ class LocateAnythingTokenizer(BaseTokenizer):
     ``post_process_generation`` wraps this with pixel rescaling.
     """
 
-    DEFAULT_VARIANT = "locateanything_3b"
-
     def __init__(self, variant=None, hf_id=None, tokenizer_file=None, **kwargs):
         super().__init__(**kwargs)
         from tokenizers import Tokenizer
@@ -27,7 +25,7 @@ class LocateAnythingTokenizer(BaseTokenizer):
             tokenizer_file = self.resolve_tokenizer_json_from_hf(hf_id, tokenizer_file)
         else:
             tokenizer_file = self.resolve_tokenizer_json_from_hf(
-                f"zeromodels/{variant or self.DEFAULT_VARIANT}", tokenizer_file
+                (f"zeromodels/{variant}" if variant else None), tokenizer_file
             )
         self.variant = variant
         self.hf_id = hf_id

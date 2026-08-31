@@ -5,6 +5,8 @@ import importlib
 import numpy as np
 import pytest
 
+from tests.fixtures.model_repos import build_from_repo
+
 transformers = pytest.importorskip("transformers")
 
 from transformers import AutoTokenizer
@@ -97,7 +99,10 @@ def _build_legs(module, cls_name, repo):
     cls = getattr(importlib.import_module(module), cls_name)
     legs = []
     try:
-        legs.append(("native", cls()))
+        native = build_from_repo(cls, cls_name)
+        if native is None:
+            raise ValueError(f"no zeromodels repo for {cls_name} in model_repos.json")
+        legs.append(("native", native))
     except Exception as e:
         legs.append(("native", e))
     if repo and hasattr(cls, "from_hf"):
@@ -423,11 +428,16 @@ def _any_tokenizer(name):
     """
     cls, family = ALL_TOKENIZERS[name]
     try:
-        tok = cls()
-    except Exception as default_error:
+        tok = build_from_repo(cls, name)
+    except Exception as e:
+        pytest.skip(
+            f"{name}: cannot build from model_repos.json repo ({type(e).__name__})"
+        )
+    if tok is None:
+        # Not in model_repos.json: fall back to the family config's hf_id.
         hf_id = _family_hf_id(family)
-        if not hf_id:
-            pytest.skip(f"{name}: no default and no hf_id in config ({default_error})")
+        if not hf_id or "hf_id" not in inspect.signature(cls.__init__).parameters:
+            pytest.skip(f"{name}: no repo in model_repos.json or config to build from")
         try:
             tok = cls(hf_id=hf_id)
         except Exception as e:

@@ -14,16 +14,14 @@ class GptTokenizer(BaseTokenizer):
     id like weights: ``GptTokenizer.from_weights("zeromodels/gpt")``.
 
     Args:
-        variant: GPT variant key (default ``"gpt"``); resolves to the
+        variant: GPT variant key (no default; pass this or ``tokenizer_file``); resolves to the
             ``zeromodels/<variant>`` repo's tokenizer.json.
         hf_id: Explicit Hub repo to pull ``tokenizer.json`` from (overrides the
-            variant default).
+            variant).
         tokenizer_file: Optional explicit ``tokenizer.json`` path (overrides the
             download).
         unk_token: Unknown-token string (default ``"<unk>"``).
     """
-
-    DEFAULT_VARIANT = "gpt"
 
     def __init__(
         self,
@@ -34,9 +32,13 @@ class GptTokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         self.hf_id = hf_id
-        repo = hf_id if hf_id is not None else f"zeromodels/{self.variant}"
+        repo = (
+            hf_id
+            if hf_id is not None
+            else (f"zeromodels/{self.variant}" if self.variant else None)
+        )
         tokenizer_file = self.resolve_tokenizer_json_from_hf(repo, tokenizer_file)
         self.tokenizer_file = tokenizer_file
         self.unk_token = unk_token

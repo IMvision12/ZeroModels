@@ -20,13 +20,11 @@ class WhisperTokenizer(BaseTokenizer):
     weights: ``WhisperTokenizer.from_weights("zeromodels/whisper_tiny")``.
 
     Args:
-        variant: Whisper variant key (default ``"whisper_tiny"``); resolves to the
+        variant: Whisper variant key (no default; pass this or ``tokenizer_file``); resolves to the
             ``zeromodels/<variant>`` repo's tokenizer.json (v3 has a 51866 vocab).
         tokenizer_file: Optional explicit ``tokenizer.json`` path (overrides variant).
         bos_token_id / eos_token_id / pad_token_id: Whisper special ids (all 50257).
     """
-
-    DEFAULT_VARIANT = "whisper_tiny"
 
     def __init__(
         self,
@@ -38,9 +36,9 @@ class WhisperTokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         tokenizer_file = self.resolve_tokenizer_json_from_hf(
-            f"zeromodels/{self.variant}", tokenizer_file
+            (f"zeromodels/{self.variant}" if self.variant else None), tokenizer_file
         )
         self.tokenizer_file = tokenizer_file
         self.bos_token_id = bos_token_id

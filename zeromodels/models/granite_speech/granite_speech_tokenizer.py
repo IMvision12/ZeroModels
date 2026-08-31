@@ -14,13 +14,11 @@ class GraniteSpeechTokenizer(BaseTokenizer):
     ``GraniteSpeechTokenizer.from_weights("zeromodels/granite_speech_3_3_2b")``.
 
     Args:
-        variant: Granite Speech variant key (default ``"granite_speech_3_3_2b"``);
+        variant: Granite Speech variant key (no default; pass this or ``tokenizer_file``);
             resolves to the ``zeromodels/<variant>`` repo's ``tokenizer.json``.
         tokenizer_file: Optional explicit ``tokenizer.json`` path (overrides variant).
         audio_token: The audio placeholder token string.
     """
-
-    DEFAULT_VARIANT = "granite_speech_3_3_2b"
 
     def __init__(
         self, variant=None, tokenizer_file=None, audio_token="<|audio|>", **kwargs
@@ -28,9 +26,9 @@ class GraniteSpeechTokenizer(BaseTokenizer):
         super().__init__(**kwargs)
         from tokenizers import Tokenizer
 
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         tokenizer_file = self.resolve_tokenizer_json_from_hf(
-            f"zeromodels/{self.variant}", tokenizer_file
+            (f"zeromodels/{self.variant}" if self.variant else None), tokenizer_file
         )
         self.tokenizer_file = tokenizer_file
         self._tok = Tokenizer.from_file(tokenizer_file)

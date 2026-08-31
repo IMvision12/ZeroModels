@@ -12,7 +12,5 @@ class Qwen3VLMoeTokenizer(Qwen2VLTokenizer):
     resolved from the file.
     """
 
-    def __init__(
-        self, hf_id="Qwen/Qwen3-VL-30B-A3B-Instruct", tokenizer_file=None, **kwargs
-    ):
+    def __init__(self, hf_id=None, tokenizer_file=None, **kwargs):
         super().__init__(hf_id=hf_id, tokenizer_file=tokenizer_file, **kwargs)

@@ -320,7 +320,7 @@ class SAM3Processor(BaseProcessor):
 
     def __init__(
         self,
-        hf_id="zeromodels/sam3",
+        hf_id=None,
         tokenizer=None,
         image_processor=None,
         target_size=None,

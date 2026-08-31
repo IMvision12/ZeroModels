@@ -16,23 +16,25 @@ class JanusTokenizer(BaseTokenizer):
     id like weights: ``JanusTokenizer.from_weights("zeromodels/janus_pro_1b")``.
 
     Args:
-        variant: Janus variant key (default ``"janus_pro_1b"``); resolves to the
+        variant: Janus variant key (no default; pass this or ``tokenizer_file``); resolves to the
             ``zeromodels/<variant>`` repo's tokenizer.json.
         hf_id: Explicit Hub repo to pull ``tokenizer.json`` from (overrides
-            the variant default).
+            the variant).
         tokenizer_file: Explicit path to a ``tokenizer.json`` (overrides the
             download).
     """
-
-    DEFAULT_VARIANT = "janus_pro_1b"
 
     def __init__(self, variant=None, hf_id=None, tokenizer_file=None, **kwargs):
         super().__init__(**kwargs)
         from tokenizers import Tokenizer
 
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         self.hf_id = hf_id
-        repo = hf_id if hf_id is not None else f"zeromodels/{self.variant}"
+        repo = (
+            hf_id
+            if hf_id is not None
+            else (f"zeromodels/{self.variant}" if self.variant else None)
+        )
         tokenizer_file = self.resolve_tokenizer_json_from_hf(repo, tokenizer_file)
         self.tokenizer_file = tokenizer_file
         self._tok = Tokenizer.from_file(tokenizer_file)

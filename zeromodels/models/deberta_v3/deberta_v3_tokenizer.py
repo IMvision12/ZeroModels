@@ -11,5 +11,3 @@ class DebertaV3Tokenizer(DebertaV2Tokenizer):
     ``tokenizer.json`` (a different SentencePiece vocab) differs. The inherited
     ``__init__`` resolves it from the ``zeromodels/<variant>`` Hub repo.
     """
-
-    DEFAULT_VARIANT = "deberta_v3_base"

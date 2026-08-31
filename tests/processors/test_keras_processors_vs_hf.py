@@ -5,6 +5,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from tests.fixtures.model_repos import build_from_repo
+
 transformers = pytest.importorskip("transformers")
 
 from transformers import AutoProcessor
@@ -61,7 +63,10 @@ def _auto_processor(repo):
 
 
 def _legs(cls, repo):
-    return [("native", cls()), ("from_hf", cls.from_weights(f"hf:{repo}"))]
+    return [
+        ("native", build_from_repo(cls, cls.__name__)),
+        ("from_hf", cls.from_weights(f"hf:{repo}")),
+    ]
 
 
 def test_clip_processor_three_way():
@@ -191,7 +196,8 @@ def test_clip_processor_non_square_parity():
                 "pixel_values"
             ]
         )
-        ours = _as_numpy(CLIPProcessor()(text=["x"], images=img)["images"])
+        clip = build_from_repo(CLIPProcessor, "CLIPProcessor")
+        ours = _as_numpy(clip(text=["x"], images=img)["images"])
         diff = _max_diff(ours, ref)
         assert diff < 1e-4, f"clip{shape}: pixel max|diff|={diff:.3e}"
 
@@ -213,7 +219,7 @@ def test_processor_snapshot(name, repo, cls_path):
 
     module, cls_name = cls_path.rsplit(".", 1)
     cls = getattr(importlib.import_module(f"zeromodels.models.{module}"), cls_name)
-    out = cls()(text=MM_TEXTS, images=_rgb_shape((64, 48)))
+    out = build_from_repo(cls, cls_name)(text=MM_TEXTS, images=_rgb_shape((64, 48)))
     ids_key = "input_ids" if "input_ids" in out else "token_ids"
     pixel_key = "images" if "images" in out else "pixel_values"
     record = {

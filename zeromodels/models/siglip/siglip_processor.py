@@ -20,9 +20,10 @@ class SigLIPProcessor(BaseProcessor):
     * ``SigLIPProcessor.from_weights("siglip_base_p16_224")``: zeromodels release.
     * ``SigLIPProcessor.from_weights("hf:google/siglip-base-patch16-224")``: pulls the
       SentencePiece tokenizer **and** builds the image processor from the HF repo.
-    * ``SigLIPProcessor()``: defaults; or pass pre-built ``tokenizer=`` /
+    * ``SigLIPProcessor(variant="siglip_base_p16_224")``: build from a zeromodels
+      variant (no default variant); or pass pre-built ``tokenizer=`` /
       ``image_processor=``, or per-component build kwargs. Set ``multilingual=True``
-      for the multilingual checkpoints when building from defaults.
+      for the multilingual checkpoints.
     """
 
     TOKENIZER_CLS = SigLIPTokenizer

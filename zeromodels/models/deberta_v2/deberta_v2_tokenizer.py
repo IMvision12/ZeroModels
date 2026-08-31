@@ -18,13 +18,11 @@ class DebertaV2Tokenizer(BaseTokenizer):
     by :class:`DebertaV2Model`.
 
     Args:
-        variant: DeBERTa-v2 variant key (default ``"deberta_v2_xlarge"``).
+        variant: DeBERTa-v2 variant key (no default; pass this or ``tokenizer_file``).
         tokenizer_file: Optional explicit ``tokenizer.json`` path (overrides variant).
         max_seq_len: Truncation length (default 512); batches pad to the longest.
         cls_token / sep_token / pad_token / unk_token / mask_token: Special tokens.
     """
-
-    DEFAULT_VARIANT = "deberta_v2_xlarge"
 
     def __init__(
         self,
@@ -39,9 +37,9 @@ class DebertaV2Tokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         tokenizer_file = self.resolve_tokenizer_json_from_hf(
-            f"zeromodels/{self.variant}", tokenizer_file
+            (f"zeromodels/{self.variant}" if self.variant else None), tokenizer_file
         )
         self.tokenizer_file = tokenizer_file
         self.max_seq_len = max_seq_len

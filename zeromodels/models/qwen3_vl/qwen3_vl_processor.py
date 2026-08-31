@@ -10,7 +10,7 @@ class Qwen3VLProcessor(Qwen2VLProcessor):
 
     def __init__(
         self,
-        hf_id="Qwen/Qwen3-VL-2B-Instruct",
+        hf_id=None,
         patch_size=16,
         spatial_merge_size=2,
         temporal_patch_size=2,

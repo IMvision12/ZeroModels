@@ -24,7 +24,7 @@ class SAM3CLIPTokenizer(BaseTokenizer):
     ``max_seq_len`` (32) is re-enabled on load.
 
     Args:
-        hf_id: HF repo to pull ``tokenizer.json`` from (default ``"zeromodels/sam3"``).
+        hf_id: HF repo to pull ``tokenizer.json`` from (no default; pass this or ``tokenizer_file``).
         tokenizer_file: Optional explicit ``tokenizer.json`` path (overrides hf_id).
         max_seq_len: Max sequence length (default 32 for SAM3).
 

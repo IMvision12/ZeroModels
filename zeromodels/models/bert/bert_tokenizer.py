@@ -18,13 +18,11 @@ class BertTokenizer(BaseTokenizer):
     ``token_type_ids`` dict expected by :class:`BertModel`.
 
     Args:
-        variant: BERT variant key (default ``"bert_base_uncased"``).
+        variant: BERT variant key (no default; pass this or ``tokenizer_file``).
         tokenizer_file: Optional explicit ``tokenizer.json`` path (overrides variant).
         max_seq_len: Truncation length (default 512); batches pad to the longest.
         unk_token / sep_token / pad_token / cls_token / mask_token: Special tokens.
     """
-
-    DEFAULT_VARIANT = "bert_base_uncased"
 
     def __init__(
         self,
@@ -39,9 +37,9 @@ class BertTokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.variant = variant or self.DEFAULT_VARIANT
+        self.variant = variant
         tokenizer_file = self.resolve_tokenizer_json_from_hf(
-            f"zeromodels/{self.variant}", tokenizer_file
+            (f"zeromodels/{self.variant}" if self.variant else None), tokenizer_file
         )
         self.tokenizer_file = tokenizer_file
         self.max_seq_len = max_seq_len
