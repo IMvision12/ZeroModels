@@ -49,6 +49,12 @@ def read_model_type(identifier):
         from huggingface_hub import hf_hub_download
 
         repo = identifier[len(_HF_PREFIX) :]
+        if "/" not in repo:
+            raise ValueError(
+                f"'{identifier}': the 'hf:' prefix expects a Hugging Face repo id of the "
+                f"form 'hf:org/name' (e.g. 'hf:openai/clip-vit-base-patch16'), but got "
+                f"{repo!r} with no '/'."
+            )
         token = os.environ.get("HF_TOKEN")
         with open(
             hf_hub_download(repo, "config.json", token=token), encoding="utf-8"

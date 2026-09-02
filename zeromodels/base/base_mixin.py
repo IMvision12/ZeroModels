@@ -314,25 +314,11 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                 )
             base_attention.ATTN_IMPLEMENTATION = attn_implementation
 
-        # Resolve the build precision, highest priority first (mirrors the
-        # ``dtype="auto"`` resolution in transformers: the repo's own record wins
-        # over any library-side default):
-        #   1. an explicit ``load_dtype=`` from the caller,
-        #   2. the ``weight_dtype`` a zeromodels Hub repo records in its
-        #      zm_config.json -- the checkpoint's actual dtype, so a repo saved in a
-        #      precision other than its family default (a bf16 fine-tune of an fp32
-        #      family, say) still loads natively instead of being cast,
-        #   3. ``cls.default_load_dtype``, the family's native precision, for the
-        #      variant / ``hf:`` paths and for repos predating ``weight_dtype``.
-        # ``load_dtype="float32"`` forces fp32.
         if load_dtype is None:
             load_dtype = cls.hub_repo_weight_dtype(identifier)
         if load_dtype is None:
             load_dtype = cls.default_load_dtype
 
-        # Converted-model cache: on a hit, rebuild from the local cache and skip
-        # the download + conversion entirely. Only when loading weights (an
-        # arch-only build has nothing to cache) and for cacheable model types.
         cache_directory = None
         if cache_converted and load_weights:
             from zeromodels.conversion import converted_cache
@@ -348,13 +334,17 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                     if cached is not None:
                         return cached
 
-        # Build (and transfer) under the requested dtype policy so the device
-        # model is allocated in e.g. bf16; post-hoc quantize runs outside it.
-        # ``inference_scope`` keeps the load-time forwards graph-free on torch so
-        # an MXFP4 build does not retain each layer's dequantized experts.
         with inference_scope(), build_dtype_scope(load_dtype):
             if identifier.startswith(_HF_PREFIX):
                 hf_id = identifier[len(_HF_PREFIX) :]
+                if "/" not in hf_id:
+                    raise ValueError(
+                        f"{cls.__name__}.from_weights('hf:{hf_id}'): the 'hf:' prefix "
+                        f"expects a Hugging Face repo id of the form 'org/name' (e.g. "
+                        f"'hf:openai/clip-vit-base-patch16'), but got {hf_id!r} with no "
+                        f"'/'. If {hf_id!r} is a zeromodels release variant, drop the "
+                        f"'hf:' prefix: {cls.__name__}.from_weights({hf_id!r})."
+                    )
                 model = cls.from_hf(
                     hf_id,
                     load_weights=load_weights,
@@ -363,10 +353,6 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                     **kwargs,
                 )
             elif "/" in identifier:
-                # A bare Hub repo id ("zeromodels/detr-resnet-50"): rebuild from
-                # the repo's own zm_config.json and load its weights, no variant
-                # hardcoded in the package. Quantization / caching still run in the
-                # post-build steps below, exactly as for the variant path.
                 model = cls.from_hub_repo(
                     identifier,
                     load_weights=load_weights,
