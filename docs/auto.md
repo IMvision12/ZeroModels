@@ -7,8 +7,8 @@ so you never have to remember whether a checkpoint is a `BertModel` or a `DETRDe
 ```python
 from zeromodels import AutoZModel, AutoZMTokenizer
 
-model = AutoZModel.from_weights("zeromodels/bert-base-uncased")      # -> BertModel
-tok   = AutoZMTokenizer.from_weights("zeromodels/bert-base-uncased")
+model = AutoZModel.from_weights("zeromodels/bert-base-uncased")  # -> BertModel
+tok = AutoZMTokenizer.from_weights("zeromodels/bert-base-uncased")
 ```
 
 This is the `transformers` `AutoModel` idea, ZeroModels flavored. The classes are named
@@ -31,7 +31,7 @@ Every hosted checkpoint records a `model_type`, and that string is the whole key
 ```python
 from zeromodels.auto import AutoZMDetect
 
-AutoZMDetect.from_weights("zeromodels/detr-resnet-50")   # ZeroModels repo -> DETRDetect
+AutoZMDetect.from_weights("zeromodels/detr-resnet-50")  # ZeroModels repo -> DETRDetect
 AutoZMDetect.from_weights("hf:facebook/detr-resnet-50")  # raw HF repo     -> DETRDetect
 ```
 
@@ -92,10 +92,10 @@ from zeromodels import (
     AutoZMImageProcessor,
 )
 
-repo  = "zeromodels/clip_vit_base_16"
-model = AutoZModel.from_weights(repo)           # -> CLIPModel
-cfg   = AutoZMConfig.from_weights(repo)         # -> CLIPConfig (built from zm_config.json)
-proc  = AutoZMProcessor.from_weights(repo)      # -> CLIPProcessor
+repo = "zeromodels/clip_vit_base_16"
+model = AutoZModel.from_weights(repo)  # -> CLIPModel
+cfg = AutoZMConfig.from_weights(repo)  # -> CLIPConfig (built from zm_config.json)
+proc = AutoZMProcessor.from_weights(repo)  # -> CLIPProcessor
 ```
 
 | Auto class | Returns |
@@ -110,8 +110,8 @@ proc  = AutoZMProcessor.from_weights(repo)      # -> CLIPProcessor
 Each Auto exposes its live `model_type -> class` table, which is handy for discovery:
 
 ```python
-AutoZModel.mapping()["bert"]           # <class 'BertModel'>
-sorted(AutoZMDetect.mapping())         # every detector's model_type
+AutoZModel.mapping()["bert"]  # <class 'BertModel'>
+sorted(AutoZMDetect.mapping())  # every detector's model_type
 ```
 
 The tables themselves are the explicit, hand-maintained mappings in
@@ -120,6 +120,7 @@ To point a `model_type` at a different class for the current session, use `regis
 
 ```python
 from zeromodels.auto import AutoZMDetect
+
 AutoZMDetect.register("my_detector", MyDetectClass)
 ```
 
