@@ -233,6 +233,10 @@ nav:
 
   - Loading Weights: loading_weights.md
 
+  # The AutoZM* loaders sit next to Loading Weights: they are the shortcut that reads a
+  # repo's model_type and picks the class for you.
+  - Auto Classes: auto.md
+
   - Quantization:
       - Overview: quantization.md
       - int8: quantization_int8.md

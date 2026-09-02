@@ -180,8 +180,19 @@ class BeitImageProcessor(BaseImageProcessor):
         return beit_post_process_semantic_segmentation(outputs, target_sizes)
 
     @classmethod
-    def from_hf(cls, hf_preprocessor_config: Dict):
-        c = hf_preprocessor_config
+    def from_hf(cls, repo, **kwargs):
+        # Matches the base contract: take a Hub repo id, fetch its
+        # preprocessor_config.json, then map it. (Callers pass a repo id, e.g. via
+        # `from_weights("hf:...")` / AutoZMImageProcessor, not a pre-parsed dict.)
+        import json
+
+        from huggingface_hub import hf_hub_download
+
+        with open(
+            hf_hub_download(repo, "preprocessor_config.json"), encoding="utf-8"
+        ) as f:
+            c = json.load(f)
+        c.update(kwargs)
         resample = c.get("resample", 3)
         return cls(
             size=c.get("size"),

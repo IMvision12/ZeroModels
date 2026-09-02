@@ -185,7 +185,17 @@ class BeitModel(BaseModel):
         name="BeitModel",
         **kwargs,
     ):
-        for k in ("num_classes", "classifier_activation", "hf_id"):
+        # Pop shared-BeitConfig fields the backbone does not consume: the head-only
+        # num_classes / classifier_activation, and the segmentation-only out_indices /
+        # pool_scales / num_channels (BEiT is RGB, channels come from image_size).
+        for k in (
+            "num_classes",
+            "classifier_activation",
+            "hf_id",
+            "out_indices",
+            "pool_scales",
+            "num_channels",
+        ):
             kwargs.pop(k, None)
 
         data_format = keras.config.image_data_format()
@@ -303,7 +313,10 @@ class BeitImageClassify(BaseModel):
         name="BeitImageClassify",
         **kwargs,
     ):
-        kwargs.pop("hf_id", None)
+        # Segmentation-only / backbone-only BeitConfig fields the classifier head does not
+        # take (out_indices / pool_scales feed the UPerNet decoder; num_channels is RGB).
+        for k in ("hf_id", "out_indices", "pool_scales", "num_channels"):
+            kwargs.pop(k, None)
 
         backbone = BeitModel(
             hidden_size=hidden_size,
