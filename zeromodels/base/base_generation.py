@@ -152,6 +152,31 @@ class BaseGeneration:
             if attention_mask is None
             else ops.cast(ops.convert_to_tensor(attention_mask), "int32")
         )
+        if padding_mask is not None:
+            real_lens = np.asarray(ops.convert_to_numpy(padding_mask)).sum(axis=1)
+            real_lens = real_lens.astype("int64")
+            if len(set(real_lens.tolist())) > 1:
+                ids_np = np.asarray(ops.convert_to_numpy(input_ids))
+                out = np.zeros((batch, max_new_tokens), dtype="int32")
+                for length in sorted(set(real_lens.tolist())):
+                    rows = np.nonzero(real_lens == length)[0]
+                    group_ids = ops.convert_to_tensor(ids_np[rows][:, :length])
+                    row_index = ops.convert_to_tensor(rows)
+                    group_prefill = {
+                        k: ops.take(v, row_index, axis=0)
+                        for k, v in prefill_inputs.items()
+                    }
+                    group_out = self.generate(
+                        group_ids,
+                        attention_mask=None,
+                        max_new_tokens=max_new_tokens,
+                        eos_token_id=eos,
+                        sampler=sampler,
+                        seed=seed,
+                        **group_prefill,
+                    )
+                    out[rows] = np.asarray(ops.convert_to_numpy(group_out))
+                return ops.convert_to_tensor(out)
         noise = self.draw_noise(sampler, max_new_tokens, batch, seed)
         if prefill_inputs:
             prompt_len = int(input_ids.shape[1])
