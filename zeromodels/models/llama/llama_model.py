@@ -329,6 +329,7 @@ class LlamaTextGenerate(LlamaModel, BaseGeneration):
     # generate() args override this.
     eos_token_id = (128001, 128008, 128009)
     output_logits = True
+    SUPPORTS_PADDED_DECODE = True
 
     def project(self, hidden):
         if self.lm_head is not None:
@@ -342,19 +343,20 @@ class LlamaTextGenerate(LlamaModel, BaseGeneration):
         batch = int(token_ids.shape[0])
         prompt_len = int(token_ids.shape[1])
         hd, nkv = self.head_dim, self.num_kv_heads
-        if padding_mask is not None:
-            am = ops.cast(padding_mask, "int32")
-            position_ids = ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
-        else:
-            position_ids = ops.broadcast_to(ops.arange(prompt_len), (batch, prompt_len))
+        position_ids = ops.broadcast_to(ops.arange(prompt_len), (batch, prompt_len))
         cos, sin = self.rope_tables(position_ids)
         qi = ops.arange(prompt_len)[:, None]
         ki = ops.arange(prompt_len)[None, :]
-        causal = ops.cast(ops.where(ki <= qi, 0.0, MASK_NEG), "float32")[None, None]
+        causal_ok = ki <= qi
         if padding_mask is not None:
-            causal = (
-                causal + (1.0 - ops.cast(am, "float32"))[:, None, None, :] * MASK_NEG
-            )
+            am = ops.cast(padding_mask, "bool")
+            key_ok = ops.logical_and(causal_ok[None], am[:, None, :])
+            key_ok = ops.logical_or(key_ok, ops.cast(ops.eye(prompt_len), "bool")[None])
+            causal = ops.cast(ops.where(key_ok, 0.0, MASK_NEG), "float32")[:, None]
+        else:
+            causal = ops.cast(ops.where(causal_ok, 0.0, MASK_NEG), "float32")[
+                None, None
+            ]
         hidden = self.token_embedding(token_ids)
         layer_caches = []
         for layer in self.decoder_layers:
@@ -372,10 +374,7 @@ class LlamaTextGenerate(LlamaModel, BaseGeneration):
         logits = self.project(self.final_norm(hidden)[:, -1, :])
         return cache, logits
 
-    def call_with_cache(self, token_ids, cache, cache_update_index):
-        # One decode step: embed the single token, run every layer
-        # reading/writing its cache slice at ``cache_update_index``, return
-        # (logits, updated cache).
+    def call_with_cache(self, token_ids, cache, cache_update_index, key_padding=None):
         batch = int(token_ids.shape[0])
         max_len = int(cache.shape[4])
         pos = cache_update_index
@@ -384,6 +383,11 @@ class LlamaTextGenerate(LlamaModel, BaseGeneration):
         key_mask = ops.cast(
             ops.where(ops.arange(max_len) <= pos, 0.0, MASK_NEG), "float32"
         )[None, None, None, :]
+        if key_padding is not None:
+            pad_block = ops.cast(
+                ops.where(ops.cast(key_padding, "bool"), 0.0, MASK_NEG), "float32"
+            )[:, None, None, :]
+            key_mask = key_mask + pad_block
         h = self.token_embedding(token_ids)
         layer_caches = []
         for i, layer in enumerate(self.decoder_layers):

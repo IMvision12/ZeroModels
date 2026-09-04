@@ -24,8 +24,21 @@ class BaseGeneration:
     - ``build_cache(token_ids, padding_mask, max_len) -> (cache, logits)`` -- the
       parallel prefill: populate a pre-allocated fixed-size KV cache (any opaque tensor
       the model defines) and return it plus the last-token logits.
-    - ``call_with_cache(token_ids, cache, cache_update_index) -> (logits, cache)`` --
-      one decode step that reads/writes the cache at the given index.
+    - ``call_with_cache(token_ids, cache, cache_update_index[, key_padding]) ->
+      (logits, cache)`` -- one decode step that reads/writes the cache at the given
+      index. ``key_padding`` is optional and passed only by the padding-aware path.
+
+    Ragged (padded) batches: a mixed-length batch is generated correctly either way.
+    By default (``SUPPORTS_PADDED_DECODE = False``) ``generate`` **buckets** the batch
+    by real length and runs each equal-length group unpadded. A model that opts in with
+    ``SUPPORTS_PADDED_DECODE = True`` is instead handed a **left-aligned** prompt (pads
+    moved to the front, all rows' last real token flush at the right edge) and runs the
+    whole batch as one call; it must then (1) use arange positions in ``build_cache``
+    (correct under left-padding because RoPE is shift-invariant) and keep the diagonal
+    of the prefill mask open so a leading-pad query row is never fully masked, and (2)
+    accept a ``key_padding`` (``(batch, max_len)``, 1 = real / 0 = leading pad) in
+    ``call_with_cache`` and add it to its decode key mask. Multimodal prefill keeps
+    bucketing regardless (its per-row extra inputs are not realigned).
 
     Performance comes from a single fused decode loop (``keras.ops.while_loop`` over a
     constant-shape cache) wrapped in a per-backend compiled function -- ``jax.jit`` with
@@ -41,13 +54,14 @@ class BaseGeneration:
 
     eos_token_id = ()
     _generate_cache_maxsize = 8
+    SUPPORTS_PADDED_DECODE = False
 
     def build_cache(self, token_ids, padding_mask, max_len):
         raise NotImplementedError(
             f"{type(self).__name__} must implement build_cache()."
         )
 
-    def call_with_cache(self, token_ids, cache, cache_update_index):
+    def call_with_cache(self, token_ids, cache, cache_update_index, key_padding=None):
         raise NotImplementedError(
             f"{type(self).__name__} must implement call_with_cache()."
         )
@@ -155,33 +169,39 @@ class BaseGeneration:
         if padding_mask is not None:
             real_lens = np.asarray(ops.convert_to_numpy(padding_mask)).sum(axis=1)
             real_lens = real_lens.astype("int64")
-            if len(set(real_lens.tolist())) > 1:
-                ids_np = np.asarray(ops.convert_to_numpy(input_ids))
-                out = np.zeros((batch, max_new_tokens), dtype="int32")
-                for length in sorted(set(real_lens.tolist())):
-                    rows = np.nonzero(real_lens == length)[0]
-                    group_ids = ops.convert_to_tensor(ids_np[rows][:, :length])
-                    row_index = ops.convert_to_tensor(rows)
-                    group_prefill = {
-                        k: ops.take(v, row_index, axis=0)
-                        for k, v in prefill_inputs.items()
-                    }
-                    group_out = self.generate(
-                        group_ids,
-                        attention_mask=None,
-                        max_new_tokens=max_new_tokens,
-                        eos_token_id=eos,
-                        sampler=sampler,
-                        seed=seed,
-                        **group_prefill,
+            if int(real_lens.min()) < int(input_ids.shape[1]):
+                if (
+                    getattr(self, "SUPPORTS_PADDED_DECODE", False)
+                    and not prefill_inputs
+                ):
+                    input_ids, padding_mask = self.left_align_prompts(
+                        input_ids, padding_mask, real_lens
                     )
-                    out[rows] = np.asarray(ops.convert_to_numpy(group_out))
-                return ops.convert_to_tensor(out)
+                else:
+                    ids_np = np.asarray(ops.convert_to_numpy(input_ids))
+                    out = np.zeros((batch, max_new_tokens), dtype="int32")
+                    for length in sorted(set(real_lens.tolist())):
+                        rows = np.nonzero(real_lens == length)[0]
+                        group_ids = ops.convert_to_tensor(ids_np[rows][:, :length])
+                        row_index = ops.convert_to_tensor(rows)
+                        group_prefill = {
+                            k: ops.take(v, row_index, axis=0)
+                            for k, v in prefill_inputs.items()
+                        }
+                        group_out = self.generate(
+                            group_ids,
+                            attention_mask=None,
+                            max_new_tokens=max_new_tokens,
+                            eos_token_id=eos,
+                            sampler=sampler,
+                            seed=seed,
+                            **group_prefill,
+                        )
+                        out[rows] = np.asarray(ops.convert_to_numpy(group_out))
+                    return ops.convert_to_tensor(out)
         noise = self.draw_noise(sampler, max_new_tokens, batch, seed)
         if prefill_inputs:
             prompt_len = int(input_ids.shape[1])
-            # Prefill is inference-only; keep it graph-free on torch (run_decode
-            # already guards the decode loop).
             with inference_scope():
                 cache, logits = self.build_cache(
                     input_ids,
@@ -201,20 +221,54 @@ class BaseGeneration:
         fn = self.cached_generate_function(cache_key, max_new_tokens, eos, sampler)
         return self.run_compiled(fn, (input_ids, padding_mask), noise)
 
+    def left_align_prompts(self, input_ids, padding_mask, real_lens):
+        ids = np.asarray(ops.convert_to_numpy(input_ids))
+        mask = np.asarray(ops.convert_to_numpy(padding_mask))
+        width = ids.shape[1]
+        out_ids = np.zeros_like(ids)
+        out_mask = np.zeros((ids.shape[0], width), dtype="int32")
+        for i in range(ids.shape[0]):
+            real = ids[i][mask[i] != 0]
+            r = int(real.shape[0])
+            if r:
+                out_ids[i, width - r :] = real
+                out_mask[i, width - r :] = 1
+        return (
+            ops.cast(ops.convert_to_tensor(out_ids), "int32"),
+            ops.cast(ops.convert_to_tensor(out_mask), "int32"),
+        )
+
     def generate_step(
         self, token_ids, padding_mask, noise, max_new_tokens, eos, sampler
     ):
         token_ids = ops.cast(ops.convert_to_tensor(token_ids), "int32")
         prompt_len = int(token_ids.shape[1])
-        cache, logits = self.build_cache(
-            token_ids, padding_mask, prompt_len + max_new_tokens
-        )
+        max_len = prompt_len + max_new_tokens
+        cache, logits = self.build_cache(token_ids, padding_mask, max_len)
+        key_padding = None
+        if padding_mask is not None and getattr(self, "SUPPORTS_PADDED_DECODE", False):
+            # Carry the (left-aligned) prompt mask across the whole cache so decode
+            # keeps holding the leading pads out; generated slots (>= prompt_len) are
+            # always real.
+            batch = int(token_ids.shape[0])
+            tail = ops.ones((batch, max_len - prompt_len), dtype="int32")
+            key_padding = ops.concatenate(
+                [ops.cast(padding_mask, "int32"), tail], axis=1
+            )
         return self.decode_loop(
-            cache, logits, prompt_len, noise, max_new_tokens, eos, sampler
+            cache, logits, prompt_len, noise, max_new_tokens, eos, sampler, key_padding
         )
 
     def decode_loop(
-        self, cache, logits, prompt_len, noise, max_new_tokens, eos, sampler
+        self,
+        cache,
+        logits,
+        prompt_len,
+        noise,
+        max_new_tokens,
+        eos,
+        sampler,
+        key_padding=None,
     ):
         batch = int(logits.shape[0])
         first_tok = ops.cast(
@@ -234,7 +288,10 @@ class BaseGeneration:
             return ops.logical_and(i < steps, ops.logical_not(ops.all(done)))
 
         def body(i, tok, cache, pos, done, buf):
-            logits, cache = self.call_with_cache(tok, cache, pos)
+            if key_padding is None:
+                logits, cache = self.call_with_cache(tok, cache, pos)
+            else:
+                logits, cache = self.call_with_cache(tok, cache, pos, key_padding)
             step_noise = ops.take(noise, i + 1, axis=0)
             nxt = ops.cast(sampler.sample(logits, step_noise), "int32")[:, None]
             nxt = ops.cast(ops.where(done[:, None], first_eos, nxt), "int32")
