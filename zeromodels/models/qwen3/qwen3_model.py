@@ -232,6 +232,9 @@ class Qwen3TextGenerate(Qwen3Model, BaseGeneration):
     # carries no model-specific eos). Explicit generate() args override this.
     eos_token_id = (151645,)
     output_logits = True
+    # Ragged batches decode as one true batch (left-aligned + key_padding) rather
+    # than being bucketed by length; see BaseGeneration.
+    SUPPORTS_PADDED_DECODE = True
 
     def project(self, hidden):
         if self.lm_head is not None:
@@ -245,19 +248,28 @@ class Qwen3TextGenerate(Qwen3Model, BaseGeneration):
         batch = int(token_ids.shape[0])
         prompt_len = int(token_ids.shape[1])
         hd, nkv = self.head_dim, self.num_kv_heads
-        if padding_mask is not None:
-            am = ops.cast(padding_mask, "int32")
-            position_ids = ops.where(am == 0, 1, ops.cumsum(am, axis=-1) - 1)
-        else:
-            position_ids = ops.broadcast_to(ops.arange(prompt_len), (batch, prompt_len))
+        # Positions are the slot indices (arange): any padding_mask here is
+        # LEFT-aligned (generate() left-aligns before prefill), so the real tokens
+        # sit flush against the right edge and arange gives them correct relative
+        # geometry (RoPE is shift-invariant) while lining every row's last real
+        # token up at prompt_len - 1 for a single shared decode position.
+        position_ids = ops.broadcast_to(ops.arange(prompt_len), (batch, prompt_len))
         cos_p, sin_p = self.rope_tables(position_ids)
         qi = ops.arange(prompt_len)[:, None]
         ki = ops.arange(prompt_len)[None, :]
-        causal = ops.cast(ops.where(ki <= qi, 0.0, MASK_NEG), "float32")[None, None]
+        causal_ok = ki <= qi
         if padding_mask is not None:
-            causal = (
-                causal + (1.0 - ops.cast(am, "float32"))[:, None, None, :] * MASK_NEG
-            )
+            am = ops.cast(padding_mask, "bool")
+            # A query may attend a causal key only if that key is real; keep the
+            # diagonal open so a leading-pad query row is never fully masked (an
+            # all-masked softmax is NaN, which would poison the cached pad K/V).
+            key_ok = ops.logical_and(causal_ok[None], am[:, None, :])
+            key_ok = ops.logical_or(key_ok, ops.cast(ops.eye(prompt_len), "bool")[None])
+            causal = ops.cast(ops.where(key_ok, 0.0, MASK_NEG), "float32")[:, None]
+        else:
+            causal = ops.cast(ops.where(causal_ok, 0.0, MASK_NEG), "float32")[
+                None, None
+            ]
         hidden = self.token_embedding(token_ids)
         layer_caches = []
         for layer in self.decoder_layers:
@@ -275,7 +287,7 @@ class Qwen3TextGenerate(Qwen3Model, BaseGeneration):
         logits = self.project(self.final_norm(hidden)[:, -1, :])
         return cache, logits
 
-    def call_with_cache(self, token_ids, cache, cache_update_index):
+    def call_with_cache(self, token_ids, cache, cache_update_index, key_padding=None):
         # One decode step: embed the single token, run every layer reading/writing
         # its cache slice at ``cache_update_index``, return (logits, updated cache).
         batch = int(token_ids.shape[0])
@@ -286,6 +298,14 @@ class Qwen3TextGenerate(Qwen3Model, BaseGeneration):
         key_mask = ops.cast(
             ops.where(ops.arange(max_len) <= pos, 0.0, MASK_NEG), "float32"
         )[None, None, None, :]
+        if key_padding is not None:
+            # Hold the leading prompt pads (key_padding == 0) out of attention.
+            key_mask = (
+                key_mask
+                + ops.cast(
+                    ops.where(ops.cast(key_padding, "bool"), 0.0, MASK_NEG), "float32"
+                )[:, None, None, :]
+            )
         h = self.token_embedding(token_ids)
         layer_caches = []
         for i, layer in enumerate(self.decoder_layers):
