@@ -1,6 +1,6 @@
 from keras import ops
 
-from zeromodels.samplers.sampler import NEG_INF, Sampler, gumbel
+from zeromodels.samplers.sampler import NEG_INF, Sampler, categorical
 
 
 class TopKSampler(Sampler):
@@ -8,7 +8,7 @@ class TopKSampler(Sampler):
 
     Matches Hugging Face's ``TopKLogitsWarper``: keep the ``k`` largest logits
     (``k`` clamped to the vocabulary size), push the rest to ``NEG_INF``, then draw
-    with the Gumbel-max trick on the pre-supplied noise.
+    with an inverse-CDF categorical draw on the pre-supplied per-row noise.
     """
 
     stochastic = True
@@ -24,8 +24,7 @@ class TopKSampler(Sampler):
 
     def sample(self, logits, noise):
         logits = ops.cast(logits, "float32") / self.temperature
-        masked = self.filter_logits(logits)
-        return ops.cast(ops.argmax(masked + gumbel(noise), axis=-1), "int32")
+        return categorical(self.filter_logits(logits), noise)
 
     def get_config(self):
         return {"k": self.k, "temperature": self.temperature}

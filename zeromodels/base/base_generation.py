@@ -46,7 +46,8 @@ class BaseGeneration:
     TensorFlow, eager on Torch -- cached on the instance. Decoding strategy is a
     pluggable :class:`~zeromodels.samplers.Sampler` (greedy by default); for
     stochastic samplers the random noise is drawn once *outside* the loop (via a
-    ``SeedGenerator``) and consumed with the Gumbel-max trick. Pass an explicit
+    ``SeedGenerator``) and consumed as a per-row inverse-CDF categorical draw, so the
+    noise is only ``(steps, batch)`` and no RNG runs in the fused loop. Pass an explicit
     ``seed`` for a reproducible result (the same tokens every call on a given
     backend); with no ``seed`` each call draws fresh noise, so stochastic sampling
     varies from call to call. (``keras.random`` is backend-dependent, so a seeded
@@ -384,8 +385,11 @@ class BaseGeneration:
         return int(max_new_tokens), eos, sampler, (None if seed is None else int(seed))
 
     def draw_noise(self, sampler, max_new_tokens, batch, seed):
+        # One uniform per row per step: the inverse-CDF categorical draw needs only
+        # that, so the whole-decode noise is (steps, batch), not (steps, batch, vocab)
+        # -- for a large vocab the latter is ~vocab x larger for no benefit.
         if not sampler.stochastic:
-            return ops.zeros((max_new_tokens, batch, 1), dtype="float32")
+            return ops.zeros((max_new_tokens, batch), dtype="float32")
         # No seed -> a fresh random SeedGenerator each call, so repeated stochastic
         # generation varies (the usual do_sample behavior). An explicit seed -> the
         # same noise every call (reproducible on a given backend; keras.random is
@@ -395,9 +399,7 @@ class BaseGeneration:
             if seed is None
             else keras.random.SeedGenerator(int(seed))
         )
-        return keras.random.uniform(
-            (max_new_tokens, batch, int(self.vocab_size)), seed=generator
-        )
+        return keras.random.uniform((max_new_tokens, batch), seed=generator)
 
     def cached_generate_function(self, cache_key, max_new_tokens, eos, sampler):
         fns = self.__dict__.get("_generate_functions")
