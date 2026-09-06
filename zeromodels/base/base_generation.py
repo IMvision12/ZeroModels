@@ -46,8 +46,13 @@ class BaseGeneration:
     TensorFlow, eager on Torch -- cached on the instance. Decoding strategy is a
     pluggable :class:`~zeromodels.samplers.Sampler` (greedy by default); for
     stochastic samplers the random noise is drawn once *outside* the loop (via a
-    ``SeedGenerator``) and consumed with the Gumbel-max trick, so generation stays
-    identical across backends. Output is a fixed ``(batch, max_new_tokens)`` padded with
+    ``SeedGenerator``) and consumed with the Gumbel-max trick. Pass an explicit
+    ``seed`` for a reproducible result (the same tokens every call on a given
+    backend); with no ``seed`` each call draws fresh noise, so stochastic sampling
+    varies from call to call. (``keras.random`` is backend-dependent, so a seeded
+    stochastic run is reproducible per backend, not identical across torch/jax/tf;
+    greedy is deterministic everywhere.) Output is a fixed ``(batch, max_new_tokens)``
+    padded with
     the eos id after a sequence finishes. A model may set the ``eos_token_id`` class
     attr for its default stop token(s); explicit ``generate`` arguments win over it.
     """
@@ -365,8 +370,6 @@ class BaseGeneration:
             eos_token_id = self.eos_token_id
         if sampler is None:
             sampler = GreedySampler()
-        if seed is None:
-            seed = 0
         eos = tuple(
             int(e)
             for e in (
@@ -375,15 +378,26 @@ class BaseGeneration:
                 else [eos_token_id]
             )
         )
-        return int(max_new_tokens), eos, sampler, int(seed)
+        # seed stays None when the caller gave none, so draw_noise can draw a fresh
+        # random seed per call (variety by default); an explicit seed is kept for a
+        # result reproducible on a given backend.
+        return int(max_new_tokens), eos, sampler, (None if seed is None else int(seed))
 
     def draw_noise(self, sampler, max_new_tokens, batch, seed):
-        if sampler.stochastic:
-            return keras.random.uniform(
-                (max_new_tokens, batch, int(self.vocab_size)),
-                seed=keras.random.SeedGenerator(int(seed)),
-            )
-        return ops.zeros((max_new_tokens, batch, 1), dtype="float32")
+        if not sampler.stochastic:
+            return ops.zeros((max_new_tokens, batch, 1), dtype="float32")
+        # No seed -> a fresh random SeedGenerator each call, so repeated stochastic
+        # generation varies (the usual do_sample behavior). An explicit seed -> the
+        # same noise every call (reproducible on a given backend; keras.random is
+        # backend-dependent, so a seed is not identical across torch/jax/tf).
+        generator = (
+            keras.random.SeedGenerator()
+            if seed is None
+            else keras.random.SeedGenerator(int(seed))
+        )
+        return keras.random.uniform(
+            (max_new_tokens, batch, int(self.vocab_size)), seed=generator
+        )
 
     def cached_generate_function(self, cache_key, max_new_tokens, eos, sampler):
         fns = self.__dict__.get("_generate_functions")
