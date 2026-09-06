@@ -57,6 +57,7 @@ Documentation sources are also available in [`docs/`](docs/).
     | DeBERTa-v2 | [DeBERTa: Decoding-enhanced BERT with Disentangled Attention](https://arxiv.org/abs/2006.03654) | `transformers` |
     | DeBERTa-v3 | [DeBERTaV3: Improving DeBERTa using ELECTRA-Style Pre-Training with Gradient-Disentangled Embedding Sharing](https://arxiv.org/abs/2111.09543) | `transformers` |
     | T5 | [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer](https://arxiv.org/abs/1910.10683) | `transformers` |
+    | BART | [BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension](https://arxiv.org/abs/1910.13461) | `transformers` |
 
 - Text LLMs (text → text)
 

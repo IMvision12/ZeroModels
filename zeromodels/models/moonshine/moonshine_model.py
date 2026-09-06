@@ -602,7 +602,7 @@ class MoonshineConditionalGenerate(MoonshineModel, BaseSeq2SeqGeneration):
             blk["cross_attn"].project(encoder_hidden_states) for blk in self._dec_blocks
         ]
 
-    def decode_forward(self, ids, cache, start_pos):
+    def decode_forward(self, ids, cache, start_pos, cross_mask=None):
         self._ensure_decode_layers()
         x = self._dec_embed(ids)
         n = ids.shape[1]
@@ -626,7 +626,9 @@ class MoonshineConditionalGenerate(MoonshineModel, BaseSeq2SeqGeneration):
 
             residual = x
             h = blk["cross_ln"](x)
-            h = self.cached_cross_attention(blk["cross_attn"], h, cross_k, cross_v)
+            h = self.cached_cross_attention(
+                blk["cross_attn"], h, cross_k, cross_v, cross_mask
+            )
             x = residual + h
 
             residual = x

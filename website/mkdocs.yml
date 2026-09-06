@@ -133,6 +133,7 @@ nav:
   - Models:
       - models.md
       - Text models:
+          - BART: bart.md
           - BERT: bert.md
           - DeBERTa: deberta.md
           - DeepSeek-V2: deepseek_v2.md
