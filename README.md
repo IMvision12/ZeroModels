@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/34764a5a-5959-4c76-b5b8-3fc1fd3b52c5" width="100">
-</p>
 <h1 align="center">ZeroModels</h1>
 
 <div align="center">
