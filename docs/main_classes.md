@@ -198,6 +198,22 @@ model.generate(prompt_ids, sampler=TopKSampler(k=50))            # sampled, vari
 model.generate(prompt_ids, sampler=TopKSampler(k=50), seed=42)   # sampled, reproducible
 ```
 
+### Samplers
+
+The samplers live in `zeromodels.samplers`:
+
+- **`GreedySampler`** — deterministic `argmax`; ignores the noise. Used when `sampler` is
+  omitted.
+- **`TopKSampler(k=50, temperature=1.0)`** — keep the `k` highest-logit tokens. `k` is
+  clamped to `[1, vocab_size]`, so `k <= 0` falls back to greedy.
+- **`TopPSampler(p=0.9, temperature=1.0, min_tokens_to_keep=1)`** — nucleus sampling: the
+  smallest set of top tokens whose cumulative probability reaches `p`. At least
+  `min_tokens_to_keep` top tokens are always kept, so `p <= 0` falls back to greedy.
+
+`temperature` must be **strictly positive** — both stochastic samplers raise `ValueError`
+on `temperature <= 0` (use `GreedySampler` for greedy decoding). Stochastic samplers draw
+each token with an inverse-CDF categorical step from the pre-drawn `(steps, batch)` noise.
+
 ### BaseSeq2SeqGeneration
 
 ```python
