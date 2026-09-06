@@ -85,9 +85,9 @@ dev = [
 zeromodels-test = "tests._test_runner:main"
 
 [project.urls]
-homepage = "https://imvision12.github.io/ZeroModels/"
-documentation = "https://imvision12.github.io/ZeroModels/"
-repository = "https://github.com/IMvision12/ZeroModels.git"
+homepage = "https://zeroaix.github.io/ZeroModels/"
+documentation = "https://zeroaix.github.io/ZeroModels/"
+repository = "https://github.com/ZeroAIx/ZeroModels.git"
 
 [tool.setuptools.packages]
 find = { include = ["zeromodels*"] }

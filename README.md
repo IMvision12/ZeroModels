@@ -26,16 +26,16 @@ pip install -U zeromodels
 From Source
 
 ```shell
-pip install -U git+https://github.com/IMvision12/ZeroModels
+pip install -U git+https://github.com/ZeroAIx/ZeroModels
 ```
 
 ## 📑 Documentation
 
-**[ZeroModels Documentation](https://imvision12.github.io/ZeroModels/)**
+**[ZeroModels Documentation](https://zeroaix.github.io/ZeroModels/)**
 
 Detailed guides are available for all supported tasks, with architecture notes, usage examples, pretrained weights, and real model outputs.
 
-Classification backbones share a single [documentation page](https://imvision12.github.io/ZeroModels/classification_backbones/), while other model families have dedicated pages.
+Classification backbones share a single [documentation page](https://zeroaix.github.io/ZeroModels/classification_backbones/), while other model families have dedicated pages.
 
 Documentation sources are also available in [`docs/`](docs/).
 
@@ -290,5 +290,5 @@ This project leverages [timm](https://github.com/huggingface/pytorch-image-model
   year = {2025},
   publisher = {GitHub},
   journal = {GitHub repository},
-  howpublished = {\url{https://github.com/IMvision12/ZeroModels}}
+  howpublished = {\url{https://github.com/ZeroAIx/ZeroModels}}
 ```
