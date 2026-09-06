@@ -193,9 +193,9 @@ or audio features, ride along in `**prefill_inputs`, which is why a VLM call loo
 ```python
 from zeromodels.samplers import TopKSampler
 
-model.generate(prompt_ids, max_new_tokens=64)                     # greedy, deterministic
-model.generate(prompt_ids, sampler=TopKSampler(k=50))            # sampled, varies each call
-model.generate(prompt_ids, sampler=TopKSampler(k=50), seed=42)   # sampled, reproducible
+model.generate(prompt_ids, max_new_tokens=64)  # greedy, deterministic
+model.generate(prompt_ids, sampler=TopKSampler(k=50))  # sampled, varies each call
+model.generate(prompt_ids, sampler=TopKSampler(k=50), seed=42)  # sampled, reproducible
 ```
 
 ### Samplers
