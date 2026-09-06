@@ -1,6 +1,6 @@
 from keras import ops
 
-from zeromodels.samplers.sampler import NEG_INF, Sampler, gumbel
+from zeromodels.samplers.sampler import NEG_INF, Sampler, categorical
 
 
 class TopPSampler(Sampler):
@@ -10,7 +10,7 @@ class TopPSampler(Sampler):
     ``min_tokens_to_keep=1``): sort by probability, keep tokens while the prefix
     *before* them holds less than ``p`` of the mass, which always retains the
     top-1 and the token that crosses ``p``: push the rest to ``NEG_INF``, then
-    draw with the Gumbel-max trick on the pre-supplied noise.
+    draw with an inverse-CDF categorical draw on the pre-supplied per-row noise.
     """
 
     stochastic = True
@@ -31,8 +31,7 @@ class TopPSampler(Sampler):
 
     def sample(self, logits, noise):
         logits = ops.cast(logits, "float32") / self.temperature
-        masked = self.filter_logits(logits)
-        return ops.cast(ops.argmax(masked + gumbel(noise), axis=-1), "int32")
+        return categorical(self.filter_logits(logits), noise)
 
     def get_config(self):
         return {"p": self.p, "temperature": self.temperature}
