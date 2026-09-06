@@ -26,9 +26,14 @@ class BaseSeq2SeqGeneration(BaseGeneration):
     * ``encode(encoder_inputs) -> encoder_hidden_states``.
     * ``decode_cross_kv(encoder_hidden_states) -> [(cross_k, cross_v), ...]`` -- the static,
       head-split cross-attention K/V, one pair per decoder layer.
-    * ``decode_forward(ids, cache, start_pos) -> (logits, new_cache)`` -- its block forward
-      (embedding + positions + per-layer self/cross/FFN), using the two cache primitives.
+    * ``decode_forward(ids, cache, start_pos, cross_mask=None) -> (logits, new_cache)`` -- its
+      block forward (embedding + positions + per-layer self/cross/FFN), using the two cache
+      primitives; passes ``cross_mask`` to ``cached_cross_attention``.
     * ``decode_num_heads`` / ``decode_head_dim`` attributes (self-cache buffer shape).
+
+    A model with a padded (variable-length) source batch also overrides
+    ``cross_attention_mask(encoder_inputs)`` to return the additive encoder-padding mask
+    (see that method); the default returns ``None`` (no cross-attention masking).
 
     Speech2Text is wired onto this. :meth:`greedy_decode` is the **cacheless** fallback
     (O(n^2), uncompiled) that Whisper + Moonshine still use until they implement the hooks
@@ -78,7 +83,7 @@ class BaseSeq2SeqGeneration(BaseGeneration):
             f"{type(self).__name__} must implement decode_cross_kv()."
         )
 
-    def decode_forward(self, ids, cache, start_pos):
+    def decode_forward(self, ids, cache, start_pos, cross_mask=None):
         raise NotImplementedError(
             f"{type(self).__name__} must implement decode_forward()."
         )
@@ -102,10 +107,22 @@ class BaseSeq2SeqGeneration(BaseGeneration):
         return attn.attend(q, cache_k, cache_v, mask), cache_k, cache_v
 
     @staticmethod
-    def cached_cross_attention(attn, hidden_states, cross_k, cross_v):
-        return attn.attend(attn.query(hidden_states), cross_k, cross_v, None)
+    def cached_cross_attention(attn, hidden_states, cross_k, cross_v, mask=None):
+        return attn.attend(attn.query(hidden_states), cross_k, cross_v, mask)
 
-    def build_cache(self, decoder_start_ids, encoder_hidden_states, max_len):
+    def cross_attention_mask(self, encoder_inputs):
+        # Additive (batch, 1, 1, source_len) mask (0 keep / -1e9 block) applied to the
+        # decoder's cross-attention every step, so a padded (variable-length) source
+        # batch never attends to its own padding. None here means no masking: correct
+        # for a single sequence or an equal-length batch, and the safe default for
+        # encoders that subsample the source (Speech2Text / Whisper conv stacks), whose
+        # attention-mask length does not match the encoder output length. A model whose
+        # encoder preserves the source length (BART) overrides this to build the mask.
+        return None
+
+    def build_cache(
+        self, decoder_start_ids, encoder_hidden_states, max_len, cross_mask=None
+    ):
         batch = decoder_start_ids.shape[0]
         heads = self.decode_num_heads
         head_dim = self.decode_head_dim
@@ -118,11 +135,13 @@ class BaseSeq2SeqGeneration(BaseGeneration):
             )
             for cross_k, cross_v in self.decode_cross_kv(encoder_hidden_states)
         )
-        logits, cache = self.decode_forward(decoder_start_ids, cache, 0)
+        logits, cache = self.decode_forward(decoder_start_ids, cache, 0, cross_mask)
         return cache, logits[:, -1, :]
 
-    def call_with_cache(self, token_ids, cache, cache_update_index):
-        logits, cache = self.decode_forward(token_ids, cache, cache_update_index)
+    def call_with_cache(self, token_ids, cache, cache_update_index, cross_mask=None):
+        logits, cache = self.decode_forward(
+            token_ids, cache, cache_update_index, cross_mask
+        )
         return logits[:, -1, :], cache
 
     def generate_step(
@@ -131,11 +150,22 @@ class BaseSeq2SeqGeneration(BaseGeneration):
         decoder_start_ids = ops.cast(ops.convert_to_tensor(decoder_start_ids), "int32")
         prompt_len = int(decoder_start_ids.shape[1])
         encoder_hidden_states = self.encode(encoder_inputs)
+        cross_mask = self.cross_attention_mask(encoder_inputs)
         cache, logits = self.build_cache(
-            decoder_start_ids, encoder_hidden_states, prompt_len + max_new_tokens
+            decoder_start_ids,
+            encoder_hidden_states,
+            prompt_len + max_new_tokens,
+            cross_mask,
         )
         return self.decode_loop(
-            cache, logits, prompt_len, noise, max_new_tokens, eos, sampler
+            cache,
+            logits,
+            prompt_len,
+            noise,
+            max_new_tokens,
+            eos,
+            sampler,
+            cross_mask=cross_mask,
         )
 
     def generate(

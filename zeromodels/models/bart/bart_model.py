@@ -1,7 +1,7 @@
 import keras
 from keras import layers, ops
 
-from zeromodels.base import BaseModel, BaseSeq2SeqGeneration
+from zeromodels.base import BaseModel, BaseSeq2SeqGeneration, CheckpointSource
 from zeromodels.base.base_mixin import inference_scope
 
 from .bart_config import BartConfig
@@ -60,15 +60,16 @@ def resolve_activation(name):
 
 def additive_pad_mask(attention_mask):
     """``(B, T)`` 1/0 mask -> additive ``(B, 1, 1, T)`` (0 keep, -1e9 block)."""
-    m = ops.cast(attention_mask, "float32")
-    return (1.0 - m)[:, None, None, :] * MASK_NEG
+    m = (1.0 - ops.cast(attention_mask, "float32")) * MASK_NEG
+    return ops.expand_dims(ops.expand_dims(m, 1), 1)
 
 
 def make_causal_mask(ids):
     seq_len = ops.shape(ids)[1]
-    i = ops.arange(seq_len)[:, None]
-    j = ops.arange(seq_len)[None, :]
-    return (ops.cast(j > i, "float32") * MASK_NEG)[None, None]
+    i = ops.expand_dims(ops.arange(seq_len), 1)
+    j = ops.expand_dims(ops.arange(seq_len), 0)
+    m = ops.cast(j > i, "float32") * MASK_NEG
+    return ops.expand_dims(ops.expand_dims(m, 0), 0)
 
 
 def shift_right_ids(input_ids, decoder_start_token_id):
@@ -78,10 +79,24 @@ def shift_right_ids(input_ids, decoder_start_token_id):
     return ops.concatenate([start, input_ids[:, :-1]], axis=1)
 
 
+def eos_pool(hidden_states, input_ids, eos_token_id):
+    """Decoder hidden state at the last ``</s>`` (eos) token of ``input_ids``."""
+    seq = ops.shape(input_ids)[1]
+    depth = ops.shape(hidden_states)[-1]
+    is_eos = ops.equal(input_ids, eos_token_id)
+    pos = ops.expand_dims(ops.arange(seq), 0)
+    scored = ops.where(is_eos, pos, ops.zeros_like(pos) - 1)
+    last = ops.maximum(ops.max(scored, axis=-1), 0)
+    idx = ops.broadcast_to(
+        ops.reshape(last, (-1, 1, 1)), (ops.shape(hidden_states)[0], 1, depth)
+    )
+    return ops.squeeze(ops.take_along_axis(hidden_states, idx, axis=1), axis=1)
+
+
 def pad_mask_layer(attn_mask):
-    return layers.Lambda(
-        additive_pad_mask, output_shape=lambda s: (s[0], 1, 1, s[1])
-    )(attn_mask)
+    return layers.Lambda(additive_pad_mask, output_shape=lambda s: (s[0], 1, 1, s[1]))(
+        attn_mask
+    )
 
 
 def causal_mask_layer(ids):
@@ -136,8 +151,12 @@ def make_backbone(cfg):
             epsilon=eps, name="encoder_layernorm_embedding"
         ),
         "enc_blocks": make_blocks(
-            "encoder", hd, cfg["encoder_num_layers"],
-            cfg["encoder_attention_heads"], cfg["encoder_ffn_dim"], eps,
+            "encoder",
+            hd,
+            cfg["encoder_num_layers"],
+            cfg["encoder_attention_heads"],
+            cfg["encoder_ffn_dim"],
+            eps,
         ),
         "dec_pos": BartLearnedPositionalEmbedding(
             cfg["max_position_embeddings"], hd, name="decoder_embed_positions"
@@ -146,8 +165,12 @@ def make_backbone(cfg):
             epsilon=eps, name="decoder_layernorm_embedding"
         ),
         "dec_blocks": make_blocks(
-            "decoder", hd, cfg["decoder_num_layers"],
-            cfg["decoder_attention_heads"], cfg["decoder_ffn_dim"], eps,
+            "decoder",
+            hd,
+            cfg["decoder_num_layers"],
+            cfg["decoder_attention_heads"],
+            cfg["decoder_ffn_dim"],
+            eps,
         ),
         "tied_head": None,  # created lazily by heads that need it
         "embed_scale": float(hd) ** 0.5 if cfg["scale_embedding"] else 1.0,
@@ -228,31 +251,6 @@ class BartTiedHead(layers.Layer):
     def get_config(self):
         config = super().get_config()
         config.update({"vocab_size": self.vocab_size})
-        return config
-
-
-@keras.saving.register_keras_serializable(package="zeromodels")
-class BartEosPool(layers.Layer):
-    """Pool the decoder hidden state at the last ``</s>`` (eos) token of ``input_ids``."""
-
-    def __init__(self, eos_token_id, **kwargs):
-        super().__init__(**kwargs)
-        self.eos_token_id = eos_token_id
-
-    def call(self, hidden_states, input_ids):
-        seq = ops.shape(input_ids)[1]
-        is_eos = ops.cast(ops.equal(input_ids, self.eos_token_id), "int32")
-        positions = ops.arange(seq)[None]
-        last_eos = ops.argmax(is_eos * (positions + 1), axis=-1)  # last eos per row
-        onehot = ops.cast(ops.one_hot(last_eos, seq), hidden_states.dtype)
-        return ops.sum(hidden_states * onehot[..., None], axis=1)
-
-    def compute_output_shape(self, hidden_states_shape, input_ids_shape):
-        return (hidden_states_shape[0], hidden_states_shape[-1])
-
-    def get_config(self):
-        config = super().get_config()
-        config.update({"eos_token_id": self.eos_token_id})
         return config
 
 
@@ -342,6 +340,12 @@ class BartModel(_BartBackboneMixin, BaseModel):
     BASE_WEIGHT_CONFIG = None
     config_class = BartConfig
     HUB_REPO_SIBLINGS = BART_HUB_SIBLINGS
+    # Every head shares one hosted checkpoint: the full BartConditionalGenerate
+    # (backbone + tied LM head). A head copies its backbone subset out by path suffix
+    # (BartConditionalGenerate loads the file directly); task heads absent from the
+    # checkpoint (classification / QA) start random, ready for fine-tuning. Inherited
+    # by all four heads. Fine-tuned task checkpoints load via the ``hf:`` prefix.
+    CHECKPOINT_SOURCE = CheckpointSource("BartConditionalGenerate")
     generate_args = {"max_new_tokens": 128}
     output_logits = False
 
@@ -452,7 +456,18 @@ class BartConditionalGenerate(BartModel, BaseSeq2SeqGeneration):
             b["cross_attn"].project(encoder_hidden_states) for b in self.decoder_blocks
         ]
 
-    def decode_forward(self, ids, cache, start_pos):
+    def cross_attention_mask(self, encoder_inputs):
+        # BART's text encoder preserves the source length, so the token-level padding
+        # mask maps one-to-one onto encoder positions: build the additive cross mask
+        # so a padded (variable-length) source batch does not cross-attend to its pad.
+        if not isinstance(encoder_inputs, dict):
+            return None
+        attention_mask = encoder_inputs.get("attention_mask")
+        if attention_mask is None:
+            return None
+        return additive_pad_mask(attention_mask)
+
+    def decode_forward(self, ids, cache, start_pos, cross_mask=None):
         x = self.shared(ids)
         if self.embed_scale != 1.0:
             x = x * self.embed_scale
@@ -473,7 +488,9 @@ class BartConditionalGenerate(BartModel, BaseSeq2SeqGeneration):
             x = b["self_ln"](residual + h)
 
             residual = x
-            h = self.cached_cross_attention(b["cross_attn"], x, cross_k, cross_v)
+            h = self.cached_cross_attention(
+                b["cross_attn"], x, cross_k, cross_v, cross_mask
+            )
             x = b["cross_ln"](residual + h)
 
             residual = x
@@ -509,9 +526,12 @@ class BartSequenceClassify(BartModel):
         dec_ids = shift_right_layer(input_ids, cfg["decoder_start_token_id"])
         cmask = causal_mask_layer(dec_ids)
         decoder_hidden = decode_features(dec_ids, encoder_hidden, pad_mask, cmask, bb)
-        pooled = BartEosPool(cfg["eos_token_id"], name="eos_pool")(
-            decoder_hidden, input_ids
-        )
+        eos_id = cfg["eos_token_id"]
+        pooled = layers.Lambda(
+            lambda t: eos_pool(t[0], t[1], eos_id),
+            output_shape=lambda s: (s[0][0], s[0][2]),
+            name="eos_pool",
+        )([decoder_hidden, input_ids])
         logits = out_proj(ops.tanh(dense(pooled)))
 
         super(BartModel, self).__init__(

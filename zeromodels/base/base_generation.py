@@ -275,8 +275,10 @@ class BaseGeneration:
         eos,
         sampler,
         key_padding=None,
+        cross_mask=None,
     ):
         batch = int(logits.shape[0])
+        step_context = key_padding if key_padding is not None else cross_mask
         first_tok = ops.cast(
             sampler.sample(logits, ops.take(noise, 0, axis=0)), "int32"
         )[:, None]
@@ -294,10 +296,10 @@ class BaseGeneration:
             return ops.logical_and(i < steps, ops.logical_not(ops.all(done)))
 
         def body(i, tok, cache, pos, done, buf):
-            if key_padding is None:
+            if step_context is None:
                 logits, cache = self.call_with_cache(tok, cache, pos)
             else:
-                logits, cache = self.call_with_cache(tok, cache, pos, key_padding)
+                logits, cache = self.call_with_cache(tok, cache, pos, step_context)
             step_noise = ops.take(noise, i + 1, axis=0)
             nxt = ops.cast(sampler.sample(logits, step_noise), "int32")[:, None]
             nxt = ops.cast(ops.where(done[:, None], first_eos, nxt), "int32")

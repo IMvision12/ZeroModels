@@ -5,6 +5,7 @@ from .bart_model import (
     BartQnA,
     BartSequenceClassify,
 )
+from .bart_tokenizer import BartTokenizer
 
 __all__ = [
     "BartConfig",
@@ -12,4 +13,5 @@ __all__ = [
     "BartConditionalGenerate",
     "BartSequenceClassify",
     "BartQnA",
+    "BartTokenizer",
 ]
