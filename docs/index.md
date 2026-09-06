@@ -27,7 +27,7 @@ template: home.html
   </p>
   <div class="kf-actions">
     <a class="kf-btn kf-btn--primary" href="getting_started/">Get started</a>
-    <a class="kf-btn kf-btn--ghost" href="https://github.com/ZeroAIx/ZeroModels">GitHub</a>
+    <a class="kf-btn kf-btn--ghost" href="https://github.com/IMvision12/ZeroModels">GitHub</a>
   </div>
 </div>
 

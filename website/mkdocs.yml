@@ -1,8 +1,8 @@
 site_name: ZeroModels
 site_description: Pretrained transformer models in pure Keras 3, runnable on JAX, PyTorch and TensorFlow.
-site_url: https://zeroaix.github.io/ZeroModels/
-repo_url: https://github.com/ZeroAIx/ZeroModels
-repo_name: ZeroAIx/ZeroModels
+site_url: https://imvision12.github.io/ZeroModels/
+repo_url: https://github.com/IMvision12/ZeroModels
+repo_name: IMvision12/ZeroModels
 edit_uri: edit/main/docs/
 
 # This config lives in website/, while the pages and media stay at the repo root.

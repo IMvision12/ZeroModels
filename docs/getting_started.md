@@ -132,4 +132,4 @@ import keras
 keras.config.set_image_data_format("channels_first")
 ```
 
-Source and issues: [github.com/ZeroAIx/ZeroModels](https://github.com/ZeroAIx/ZeroModels).
+Source and issues: [github.com/IMvision12/ZeroModels](https://github.com/IMvision12/ZeroModels).
