@@ -63,3 +63,14 @@ def categorical(masked_logits, noise):
     u = ops.clip(ops.cast(noise, "float32"), 1e-9, 1.0)[..., None]
     idx = ops.sum(ops.cast(cdf < u, "int32"), axis=-1)
     return ops.cast(ops.minimum(idx, masked_logits.shape[-1] - 1), "int32")
+
+
+def validate_temperature(temperature):
+    # A non-positive temperature turns logits into +/-inf (and 0/0 -> NaN), which
+    # would silently corrupt the draw; reject it up front like HF's
+    # TemperatureLogitsWarper. NaN fails ``> 0`` too.
+    if not (float(temperature) > 0.0):
+        raise ValueError(
+            f"temperature must be a strictly positive float, got {temperature!r}. "
+            "For greedy decoding use GreedySampler()."
+        )

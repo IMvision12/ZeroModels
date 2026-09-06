@@ -180,8 +180,23 @@ or audio features, ride along in `**prefill_inputs`, which is why a VLM call loo
 - **attention_mask** (*optional*): padding mask for batched prompts.
 - **max_new_tokens** (`int`, *optional*): decode budget.
 - **eos_token_id** (`int`, *optional*): stop token, defaulting to the model's own.
-- **sampler** (*optional*): a sampler from `zeromodels.samplers`; greedy if omitted.
-- **seed** (`int`, *optional*): seed for stochastic samplers.
+- **sampler** (*optional*): a sampler from `zeromodels.samplers` (`GreedySampler`,
+  `TopKSampler`, `TopPSampler`); greedy (deterministic `argmax`) if omitted. Stochastic
+  samplers draw with an inverse-CDF categorical step.
+- **seed** (`int`, *optional*): only affects stochastic samplers. With **no seed** each
+  call draws fresh noise, so sampling **varies from call to call** (the usual `do_sample`
+  behavior). Pass an explicit `seed` for a **reproducible** run (the same tokens every call
+  on a given backend). `keras.random` is backend-specific, so a seeded stochastic run is
+  reproducible per backend, not identical across torch / jax / tf; greedy is deterministic
+  everywhere.
+
+```python
+from zeromodels.samplers import TopKSampler
+
+model.generate(prompt_ids, max_new_tokens=64)                     # greedy, deterministic
+model.generate(prompt_ids, sampler=TopKSampler(k=50))            # sampled, varies each call
+model.generate(prompt_ids, sampler=TopKSampler(k=50), seed=42)   # sampled, reproducible
+```
 
 ### BaseSeq2SeqGeneration
 
