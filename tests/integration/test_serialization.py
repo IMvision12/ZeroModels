@@ -289,14 +289,22 @@ def test_dequantize_rebuilds_experts_with_correct_activation():
     bank = Gemma4Experts(e, h, i)
     bank.build(None)
     for w in bank.weights:
-        w.assign(np.random.default_rng(0).standard_normal(w.shape).astype("float32") * 0.1)
+        w.assign(
+            np.random.default_rng(0).standard_normal(w.shape).astype("float32") * 0.1
+        )
     q = QuantizedExperts.from_experts(bank, "int8", 32, "gelu")
     revived = q.to_experts()
     assert type(revived).__name__ == "Gemma4Experts"
     # same int weights on both sides -> a mismatched (exact-erf) gelu would diverge
     x = np.random.default_rng(1).standard_normal((5, h)).astype("float32")
     rw = np.abs(np.random.default_rng(2).standard_normal((5, e)).astype("float32"))
-    diff = float(np.max(np.abs(ops.convert_to_numpy(q(x, rw)) - ops.convert_to_numpy(revived(x, rw)))))
+    diff = float(
+        np.max(
+            np.abs(
+                ops.convert_to_numpy(q(x, rw)) - ops.convert_to_numpy(revived(x, rw))
+            )
+        )
+    )
     assert diff < 1e-4, diff
 
 

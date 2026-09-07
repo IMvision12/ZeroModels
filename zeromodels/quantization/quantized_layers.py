@@ -79,7 +79,13 @@ class QuantizedDense(layers.Layer):
     """
 
     def __init__(
-        self, units, mode="int8", use_bias=True, group_size=32, activation=None, **kwargs
+        self,
+        units,
+        mode="int8",
+        use_bias=True,
+        group_size=32,
+        activation=None,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.units = int(units)
