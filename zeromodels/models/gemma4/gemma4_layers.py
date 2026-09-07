@@ -846,7 +846,7 @@ class Gemma4VisionAttention(layers.Layer):
         # scaling is 1.0 in Gemma4 vision (baked into the q/k norms)
         attn = ops.matmul(q, ops.transpose(k, (0, 1, 3, 2)))
         if attention_mask is not None:
-            attn = attn + attention_mask
+            attn = attn + ops.cast(attention_mask, attn.dtype)
         attn = ops.cast(ops.softmax(ops.cast(attn, "float32"), axis=-1), q.dtype)
         out = ops.matmul(attn, v)
         out = ops.reshape(

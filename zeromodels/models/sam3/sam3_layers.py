@@ -482,7 +482,7 @@ class SAM3MultiHeadAttention(layers.Layer):
         attn_weights = ops.matmul(q, ops.transpose(k, (0, 1, 3, 2))) * self.scale
 
         if attention_mask is not None:
-            attn_weights = attn_weights + attention_mask
+            attn_weights = attn_weights + ops.cast(attention_mask, attn_weights.dtype)
 
         attn_weights = ops.softmax(attn_weights, axis=-1)
         attn_weights = self.attn_dropout(attn_weights, training=training)
@@ -1135,7 +1135,7 @@ class SAM3CLIPAttention(layers.Layer):
 
         attn_weights = ops.matmul(q, ops.transpose(k, (0, 1, 3, 2))) * self.scale
         if attention_mask is not None:
-            attn_weights = attn_weights + attention_mask
+            attn_weights = attn_weights + ops.cast(attention_mask, attn_weights.dtype)
         attn_weights = ops.softmax(attn_weights, axis=-1)
 
         attn_output = ops.matmul(attn_weights, v)

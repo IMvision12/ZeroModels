@@ -241,7 +241,7 @@ class MiniMaxAttention(layers.Layer):
             v = ops.repeat(v, self.num_kv_groups, axis=1)
         attn = ops.matmul(q, ops.transpose(k, (0, 1, 3, 2))) * self.scaling
         if attention_mask is not None:
-            attn = attn + attention_mask
+            attn = attn + ops.cast(attention_mask, attn.dtype)
         attn = ops.cast(ops.softmax(ops.cast(attn, "float32"), axis=-1), q.dtype)
         out = ops.matmul(attn, v)
         out = ops.reshape(
