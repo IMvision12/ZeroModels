@@ -164,8 +164,29 @@ def test_collision_defaults(auto_name, model_type, expected_cls):
 
 def test_hf_alias_resolves_and_ambiguous_raises():
     assert zm.AutoZModel._resolve("xlm-roberta", "hf").__name__ == "XLMRobertaModel"
-    with pytest.raises(ValueError, match="ambiguous"):
-        zm.AutoZModel._resolve("deberta-v2", "hf")
+    # Genuinely-ambiguous HF model_types (no single class loads either checkpoint) must
+    # raise "load the concrete class", not silently pick one.
+    for ambiguous in ("deberta-v2", "gemma4", "qwen3_5"):
+        with pytest.raises(ValueError, match="ambiguous"):
+            zm.AutoZModel._resolve(ambiguous, "hf")
+
+
+def test_no_key_in_both_single_and_ambiguous():
+    """A model_type belongs in EXACTLY ONE of a task's single table (an unambiguous
+    default) or AMBIGUOUS_HF_TYPES (raise). In both, `_resolve` returns the single entry
+    FIRST and the ambiguity raise is dead code -- the trap behind the silent wrong-class
+    loads (llama loaded as Llama 2; gemma4/qwen3_5 as their multimodal sibling)."""
+    dead = []
+    for task, ambiguous in names.AMBIGUOUS_HF_TYPES.items():
+        single = names.MODEL_TASK_MAPPING_NAMES.get(task, {})
+        for model_type in ambiguous:
+            if model_type in single:
+                dead.append(f"{task}/{model_type} (single -> {single[model_type]})")
+    assert not dead, (
+        "model_type(s) in BOTH the single table and AMBIGUOUS_HF_TYPES for a task; the "
+        "single entry shadows the ambiguity raise (dead guard). Put it in exactly one: "
+        f"{dead}"
+    )
 
 
 def test_preprocessor_and_config_registries():
@@ -214,12 +235,17 @@ def test_every_table_value_resolves_and_matches_its_task():
 
 
 _COVERAGE_EXEMPT = {
-    # Collision losers: a family sharing one config model_type -- the table holds the newer
-    # sibling, the older is loadable via its own class.
+    # Collision losers: a family sharing one config model_type where ONE committed class
+    # loads either checkpoint -- the table holds it, the other is loadable via its own class.
     "Llama2Model",
     "Llama2TextGenerate",
     "DepthAnythingV1Model",
     "DepthAnythingV1DepthEstimation",
+    # Genuinely-ambiguous multimodal siblings: their shared HF model_type ("gemma4",
+    # "qwen3_5") is AMBIGUOUS-only and RAISES (a text checkpoint can't load into the vision
+    # tower and vice versa), so neither is a table default; load them via the concrete class.
+    "Gemma4MultimodalModel",
+    "Qwen3_5VLModel",
     # Redundant transformers-named alias whose model_type ("grounding-dino") already maps to
     # the zeromodels-convention sibling GroundingDinoDetect.
     "GroundingDinoForObjectDetection",
