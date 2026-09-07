@@ -64,7 +64,7 @@ class SigLIP2VisionModel(SigLIPVisionModel):
     config_class = Siglip2Config
     HUB_REPO_SIBLINGS = SIGLIP2_HUB_SIBLINGS
 
-    HF_MODEL_TYPE = "siglip"
+    HF_MODEL_TYPE = "siglip2"
 
     @classmethod
     def _release_warm_start_cls(cls):
@@ -111,7 +111,7 @@ class SigLIP2TextModel(SigLIPTextModel):
     config_class = Siglip2Config
     HUB_REPO_SIBLINGS = SIGLIP2_HUB_SIBLINGS
 
-    HF_MODEL_TYPE = "siglip"
+    HF_MODEL_TYPE = "siglip2"
 
     @classmethod
     def _release_warm_start_cls(cls):
@@ -159,7 +159,7 @@ class SigLIP2Model(SigLIPModel):
     config_class = Siglip2Config
     HUB_REPO_SIBLINGS = SIGLIP2_HUB_SIBLINGS
 
-    HF_MODEL_TYPE = "siglip"
+    HF_MODEL_TYPE = "siglip2"
 
     def __init__(self, *args, name="SigLIP2Model", **kwargs):
         super().__init__(*args, name=name, **kwargs)
@@ -203,7 +203,7 @@ class SigLIP2ZeroShotClassify(BaseModel):
     config_class = Siglip2Config
     HUB_REPO_SIBLINGS = SIGLIP2_HUB_SIBLINGS
 
-    HF_MODEL_TYPE = "siglip"
+    HF_MODEL_TYPE = "siglip2"
 
     @classmethod
     def config_from_hf(cls, hf_config):
@@ -338,7 +338,7 @@ class SigLIP2ImageClassify(SigLIPImageClassify):
     config_class = Siglip2Config
     HUB_REPO_SIBLINGS = SIGLIP2_HUB_SIBLINGS
 
-    HF_MODEL_TYPE = "siglip"
+    HF_MODEL_TYPE = "siglip2"
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("name", "SigLIP2ImageClassify")
