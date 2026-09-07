@@ -80,15 +80,16 @@ Either tower on its own.
 ### Owlv2Processor
 
 ```python
-Owlv2Processor(size=None, resample="bicubic", do_rescale=True,
-               rescale_factor=1/255, do_pad=True, do_normalize=True,
-               image_mean=(0.48145466, 0.4578275, 0.40821073),
-               image_std=(0.26862954, 0.26130258, 0.27577711), ...)
+Owlv2Processor(hf_id="zeromodels/owlv2-base-patch16")
+# or load both components by repo id:
+Owlv2Processor.from_weights("zeromodels/owlv2-base-patch16")
 ```
 
-Tokenizer and image processor behind one callable. **Call**
-`processor(text=..., images=...)`, where `text` is a list of query lists, one per image.
-**Returns** a `dict` with **input_ids**, **attention_mask**, and **pixel_values**.
+Tokenizer and image processor behind one callable, loaded by Hub repo id (`hf_id`):
+the repo's `tokenizer.json` and `zm_preprocessor.json`. Pass pre-built `tokenizer=` /
+`image_processor=` to override a component. **Call** `processor(text=..., images=...)`,
+where `text` is a list of query lists, one per image. **Returns** a `dict` with
+**input_ids**, **attention_mask**, and **pixel_values**.
 
 ### Owlv2ImageProcessor
 
@@ -357,10 +358,15 @@ model = Owlv2Detect.from_weights("zeromodels/owlv2-base-patch16", load_weights=F
 ```
 
 No shape arguments are needed. The architecture is read from the repo's `config.json`.
-All five model classes accept `hf:`, as do `Owlv2Processor` and `Owlv2ImageProcessor`:
+All five model classes accept `hf:`.
+
+The **processor** loads from a repo that ships a fast `tokenizer.json` (the zeromodels
+repos do; the upstream `google/*` repos ship slow tokenizer files only, so
+`hf:google/...` works for the model but not the processor's tokenizer). Load it from
+the model's own repo:
 
 ```python
-processor = Owlv2Processor.from_weights("hf:google/owlv2-base-patch16")
+processor = Owlv2Processor.from_weights("zeromodels/owlv2-base-patch16")
 ```
 
 Loading `hf:google/owlv2-base-patch16` and the `zeromodels/owlv2-base-patch16` Hub variant

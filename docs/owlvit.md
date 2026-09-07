@@ -84,15 +84,16 @@ Either tower on its own, when you only need one side.
 ### OwlViTProcessor
 
 ```python
-OwlViTProcessor(size=None, resample="bicubic", do_rescale=True,
-                rescale_factor=1/255, do_normalize=True,
-                image_mean=(0.48145466, 0.4578275, 0.40821073),
-                image_std=(0.26862954, 0.26130258, 0.27577711), ...)
+OwlViTProcessor(hf_id="zeromodels/owlvit-base-patch32")
+# or load both components by repo id:
+OwlViTProcessor.from_weights("zeromodels/owlvit-base-patch32")
 ```
 
-Tokenizer and image processor behind one callable. **Call**
-`processor(text=..., images=...)`, where `text` is a list of query lists, one per image.
-**Returns** a `dict` with **input_ids**, **attention_mask**, and **pixel_values**.
+Tokenizer and image processor behind one callable, loaded by Hub repo id (`hf_id`):
+the repo's `tokenizer.json` and `zm_preprocessor.json`. Pass pre-built `tokenizer=` /
+`image_processor=` to override a component. **Call** `processor(text=..., images=...)`,
+where `text` is a list of query lists, one per image. **Returns** a `dict` with
+**input_ids**, **attention_mask**, and **pixel_values**.
 
 ### OwlViTImageProcessor
 
@@ -332,11 +333,15 @@ model = OwlViTDetect.from_weights("zeromodels/owlvit-base-patch32", load_weights
 ```
 
 No shape arguments are needed. The architecture is read from the repo's `config.json`.
-All five model classes accept `hf:`, as do `OwlViTProcessor` and
-`OwlViTImageProcessor`:
+All five model classes accept `hf:`.
+
+The **processor** loads from a repo that ships a fast `tokenizer.json` (the zeromodels
+repos do; the upstream `google/*` repos ship slow tokenizer files only, so
+`hf:google/...` works for the model but not the processor's tokenizer). Load it from
+the model's own repo:
 
 ```python
-processor = OwlViTProcessor.from_weights("hf:google/owlvit-base-patch32")
+processor = OwlViTProcessor.from_weights("zeromodels/owlvit-base-patch32")
 ```
 
 Loading `hf:google/owlvit-base-patch32` and the `zeromodels/owlvit-base-patch32` Hub variant

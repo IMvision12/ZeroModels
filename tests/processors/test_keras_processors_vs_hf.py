@@ -114,15 +114,28 @@ def test_siglip_processor_three_way():
         print(f"[{leg:>7} siglip processor    ] ids ok, pixel max|diff|={diff:.3e}")
 
 
+def _owl_legs(cls, name, zm_repo):
+    # OWL is special: the upstream google repos ship slow tokenizer files only (no
+    # tokenizer.json), so our tokenizer can only load from the zeromodels repo,
+    # whose BPE is byte-identical to google's. Both legs build from that repo (the
+    # native leg via class defaults + its tokenizer.json, the from_hub leg via its
+    # zm_preprocessor.json) and are compared against the google HF reference.
+    return [
+        ("native", build_from_repo(cls, name)),
+        ("from_hub", cls.from_weights(zm_repo)),
+    ]
+
+
 def test_owlvit_processor_three_way():
     from zeromodels.models.owlvit.owlvit_processor import OwlViTProcessor
 
-    repo = "google/owlvit-base-patch32"
-    hf = _auto_processor(repo)
+    hf = _auto_processor("google/owlvit-base-patch32")
     img = _rgb(768)
     queries = [["a photo of a cat", "a photo of a dog"]]
     h = hf(text=queries, images=Image.fromarray(img), return_tensors="np")
-    for leg, ours in _legs(OwlViTProcessor, repo):
+    for leg, ours in _owl_legs(
+        OwlViTProcessor, "OwlViTProcessor", "zeromodels/owlvit-base-patch32"
+    ):
         o = ours(text=queries, images=img)
         # Both pad to the fixed query length (16) with the "!" pad id.
         assert np.array_equal(np.asarray(_as_numpy(o["input_ids"])), h["input_ids"]), (
@@ -131,6 +144,25 @@ def test_owlvit_processor_three_way():
         diff = _max_diff(_as_numpy(o["pixel_values"]), h["pixel_values"])
         assert diff < 1e-4, f"owlvit[{leg}]: pixel max|diff|={diff:.3e}"
         print(f"[{leg:>7} owlvit processor    ] ids ok, pixel max|diff|={diff:.3e}")
+
+
+def test_owlv2_processor_three_way():
+    from zeromodels.models.owlv2.owlv2_processor import Owlv2Processor
+
+    hf = _auto_processor("google/owlv2-base-patch16")
+    img = _rgb(960)  # OWLv2 target size; square, so pad-to-square is a no-op
+    queries = [["a photo of a cat", "a photo of a dog"]]
+    h = hf(text=queries, images=Image.fromarray(img), return_tensors="np")
+    for leg, ours in _owl_legs(
+        Owlv2Processor, "Owlv2Processor", "zeromodels/owlv2-base-patch16"
+    ):
+        o = ours(text=queries, images=img)
+        assert np.array_equal(np.asarray(_as_numpy(o["input_ids"])), h["input_ids"]), (
+            f"owlv2[{leg}]: input_ids differ from HF"
+        )
+        diff = _max_diff(_as_numpy(o["pixel_values"]), h["pixel_values"])
+        assert diff < 1e-4, f"owlv2[{leg}]: pixel max|diff|={diff:.3e}"
+        print(f"[{leg:>7} owlv2 processor     ] ids ok, pixel max|diff|={diff:.3e}")
 
 
 def test_whisper_processor_three_way():
