@@ -277,3 +277,54 @@ def test_every_autodetectable_model_class_appears_in_a_table():
         "zeromodels/auto/auto_mapping_names.py; add a row to the matching task table: "
         f"{missing}"
     )
+
+
+# Classes whose zm config model_type DELIBERATELY differs from the HF checkpoint's
+# model_type (not the "rejects its own repo" bug): HF DeBERTa-v3 checkpoints carry the
+# "deberta-v2" config type; the MiT backbone is HF's SegFormer encoder ("segformer"); the
+# Gemma 4 unified text head loads the "gemma4_unified" repo.
+_HF_TYPE_CROSSNAME_EXEMPT = {
+    "DebertaV3Model",
+    "DebertaV3MaskedLM",
+    "DebertaV3SequenceClassify",
+    "DebertaV3TokenClassify",
+    "DebertaV3QnA",
+    "DebertaV3MultipleChoice",
+    "MiTModel",
+    "MiTImageClassify",
+    "Gemma4UnifiedTextGenerate",
+}
+
+
+def _hf_type_variants(model_type):
+    # a config model_type, normalized (HF uses hyphens, zm uses underscores) plus its base
+    # after dropping a head suffix (a "<base>_text" head loads the "<base>" HF repo).
+    yield model_type.replace("-", "_")
+    for suffix in ("_text", "_vision"):
+        if model_type.endswith(suffix):
+            yield model_type[: -len(suffix)].replace("-", "_")
+
+
+def test_class_accepts_its_own_config_model_type():
+    """A class's HF_MODEL_TYPE must accept its own config_class.model_type (up to
+    hyphen/underscore and a head suffix), so `from_weights("hf:...")` on the very repo the
+    docstring names is not rejected by assert_hf_model_type. SigLIP2 shipped
+    HF_MODEL_TYPE "siglip" while its config is "siglip2", so it rejected every siglip2
+    checkpoint (AUTO-3)."""
+    bad = []
+    for name, cls in _iter_model_classes():
+        if name in _HF_TYPE_CROSSNAME_EXEMPT:
+            continue
+        hf = getattr(cls, "HF_MODEL_TYPE", None)
+        config_cls = getattr(cls, "config_class", None)
+        model_type = getattr(config_cls, "model_type", None) if config_cls else None
+        if hf is None or model_type is None:
+            continue
+        accepted = {h.replace("-", "_") for h in ((hf,) if isinstance(hf, str) else hf)}
+        if not (set(_hf_type_variants(model_type)) & accepted):
+            bad.append(f"{name}: config model_type {model_type!r} not in HF_MODEL_TYPE {hf!r}")
+    assert not bad, (
+        "class(es) whose HF_MODEL_TYPE rejects their own config_class.model_type -- "
+        "from_weights('hf:...') on their own checkpoint fails assert_hf_model_type; fix "
+        f"HF_MODEL_TYPE (or add a documented cross-name exemption): {bad}"
+    )
