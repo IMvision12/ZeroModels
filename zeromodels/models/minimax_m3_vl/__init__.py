@@ -1,3 +1,4 @@
+from zeromodels.models.minimax_m3_vl.minimax_m3_vl_config import MiniMaxM3VLConfig
 from zeromodels.models.minimax_m3_vl.minimax_m3_vl_image_processor import (
     MiniMaxM3VLImageProcessor,
 )
@@ -12,6 +13,7 @@ from zeromodels.models.minimax_m3_vl.minimax_m3_vl_processor import (
 )
 
 __all__ = [
+    "MiniMaxM3VLConfig",
     "MiniMaxM3VLModel",
     "MiniMaxM3VLConditionalGenerate",
     "MiniMaxM3VLVisionModel",

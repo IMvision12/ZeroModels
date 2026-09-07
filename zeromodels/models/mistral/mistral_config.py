@@ -1,3 +1,24 @@
+from zeromodels.base import BaseConfig
+
+
+class MistralConfig(BaseConfig):
+    """Typed config for the Mistral family."""
+
+    model_type = "mistral"
+
+    vocab_size: int = 32000
+    embed_dim: int = 4096
+    mlp_dim: int = 14336
+    num_layers: int = 32
+    num_heads: int = 32
+    num_kv_heads: int = 8
+    head_dim: int = None
+    norm_eps: float = 1e-5
+    rope_theta: float = 10000.0
+    sliding_window: int = None
+    tie_embeddings: bool = False
+
+
 MISTRAL_CONFIG = {
     "mistral-7b-v0.1": {
         "vocab_size": 32000,

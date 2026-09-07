@@ -7,7 +7,11 @@ from keras import layers, ops
 from zeromodels.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 from zeromodels.base.base_mixin import inference_scope
 
-from .deepseek_v4_config import DEEPSEEK_V4_CONFIG, DEEPSEEK_V4_WEIGHTS_URLS
+from .deepseek_v4_config import (
+    DEEPSEEK_V4_CONFIG,
+    DEEPSEEK_V4_WEIGHTS_URLS,
+    DeepseekV4Config,
+)
 from .deepseek_v4_layers import (
     MASK_NEG,
     DeepseekV4DecoderLayer,
@@ -130,6 +134,7 @@ class DeepseekV4Model(BaseModel):
     HF_MODEL_TYPE = "deepseek_v4"
     BASE_MODEL_CONFIG = DEEPSEEK_V4_CONFIG
     BASE_WEIGHT_CONFIG = DEEPSEEK_V4_WEIGHTS_URLS
+    config_class = DeepseekV4Config
     output_logits = False
 
     def __init__(

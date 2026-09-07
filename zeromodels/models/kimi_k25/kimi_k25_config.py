@@ -1,3 +1,53 @@
+from zeromodels.base import BaseConfig
+
+
+class KimiK25Config(BaseConfig):
+    """Typed config for Kimi K2.5/2.6/2.7 (DeepSeek-V3-shaped MoE text + MoonViT vision)."""
+
+    model_type = "kimi_k25"
+
+    vocab_size: int = 163840
+    embed_dim: int = 7168
+    num_layers: int = 61
+    num_heads: int = 64
+    mlp_dim: int = 18432
+    moe_mlp_dim: int = 2048
+    num_experts: int = 384
+    num_experts_per_tok: int = 8
+    n_shared_experts: int = 1
+    n_group: int = 1
+    topk_group: int = 1
+    norm_topk_prob: bool = True
+    routed_scaling_factor: float = 2.827
+    first_k_dense: int = 1
+    q_lora_rank: int = 1536
+    kv_lora_rank: int = 512
+    qk_nope_head_dim: int = 128
+    qk_rope_head_dim: int = 64
+    v_head_dim: int = 128
+    rope_theta: float = 50000.0
+    rope_scaling: dict = None
+    norm_eps: float = 1e-5
+    max_position_embeddings: int = 262144
+    tie_embeddings: bool = False
+    vision_embed_dim: int = 1152
+    vision_depth: int = 27
+    vision_num_heads: int = 16
+    vision_mlp_dim: int = 4304
+    vision_patch_size: int = 14
+    pos_emb_height: int = 64
+    pos_emb_width: int = 64
+    pos_emb_time: int = 4
+    merge_kernel: tuple = (2, 2)
+    vision_rope_theta: float = 10000.0
+    projection_hidden_size: int = 1152
+    projection_norm_eps: float = 1e-5
+    image_token_id: int = 163605
+    video_token_id: int = 163840
+    vision_start_token_id: int = 163602
+    vision_end_token_id: int = 163604
+
+
 # K2.5 / K2.6 / K2.7-Code are the same architecture (all ship model_type
 # "kimi_k25") and differ only in which checkpoint is pulled.
 KIMI_K25_COMMON = {

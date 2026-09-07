@@ -1,3 +1,39 @@
+from zeromodels.base import BaseConfig
+
+
+class Glm5MoeConfig(BaseConfig):
+    """Typed config for GLM-5 MoE (MLA + DSA + DeepSeekMoE)."""
+
+    model_type = "glm5_moe"
+
+    vocab_size: int = 154880
+    embed_dim: int = 6144
+    num_layers: int = 78
+    num_heads: int = 64
+    mlp_dim: int = 12288
+    moe_mlp_dim: int = 2048
+    num_experts: int = 256
+    num_experts_per_tok: int = 8
+    n_shared_experts: int = 1
+    n_group: int = 1
+    topk_group: int = 1
+    norm_topk_prob: bool = True
+    routed_scaling_factor: float = 2.5
+    first_k_dense: int = 3
+    q_lora_rank: int = 2048
+    kv_lora_rank: int = 512
+    qk_nope_head_dim: int = 192
+    qk_rope_head_dim: int = 64
+    v_head_dim: int = 256
+    index_n_heads: int = 32
+    index_head_dim: int = 128
+    index_topk: int = 2048
+    norm_eps: float = 1e-5
+    rope_theta: float = 1000000.0
+    attention_bias: bool = False
+    tie_embeddings: bool = False
+
+
 GLM5_MOE_COMMON = {
     "vocab_size": 154880,
     "embed_dim": 6144,

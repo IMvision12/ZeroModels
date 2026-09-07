@@ -3,7 +3,11 @@ from keras import layers, ops
 
 from zeromodels.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
-from .minimax_m2_config import MINIMAX_M2_CONFIG, MINIMAX_M2_WEIGHTS_URLS
+from .minimax_m2_config import (
+    MINIMAX_M2_CONFIG,
+    MINIMAX_M2_WEIGHTS_URLS,
+    MiniMaxM2Config,
+)
 from .minimax_m2_layers import MiniMaxM2DecoderLayer, MiniMaxM2RMSNorm
 
 MASK_NEG = -1e9
@@ -71,6 +75,7 @@ class MiniMaxM2Model(BaseModel):
     HF_MODEL_TYPE = "minimax_m2"
     BASE_MODEL_CONFIG = MINIMAX_M2_CONFIG
     BASE_WEIGHT_CONFIG = MINIMAX_M2_WEIGHTS_URLS
+    config_class = MiniMaxM2Config
     output_logits = False
 
     def __init__(

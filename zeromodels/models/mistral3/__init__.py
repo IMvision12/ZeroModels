@@ -1,3 +1,4 @@
+from zeromodels.models.mistral3.mistral3_config import Mistral3Config
 from zeromodels.models.mistral3.mistral3_image_processor import (
     Mistral3ImageProcessor,
 )
@@ -11,6 +12,7 @@ from zeromodels.models.mistral3.mistral3_processor import Mistral3Processor
 from zeromodels.models.mistral3.mistral3_tokenizer import Mistral3Tokenizer
 
 __all__ = [
+    "Mistral3Config",
     "Mistral3Model",
     "Mistral3ConditionalGenerate",
     "Mistral3TextModel",

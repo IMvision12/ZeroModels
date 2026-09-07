@@ -11,7 +11,7 @@ from zeromodels.base import (
 )
 from zeromodels.base.base_mixin import inference_scope
 
-from .mistral3_config import MISTRAL3_CONFIG, MISTRAL3_WEIGHTS_URLS
+from .mistral3_config import MISTRAL3_CONFIG, MISTRAL3_WEIGHTS_URLS, Mistral3Config
 from .mistral3_layers import (
     Mistral3DecoderLayer,
     Mistral3MultiModalProjector,
@@ -412,6 +412,7 @@ class Mistral3Model(BaseModel):
 
     HF_MODEL_TYPE = "mistral3"
     BASE_MODEL_CONFIG = MISTRAL3_CONFIG
+    config_class = Mistral3Config
     BASE_WEIGHT_CONFIG = MISTRAL3_WEIGHTS_URLS
     output_logits = False
 

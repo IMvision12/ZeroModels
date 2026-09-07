@@ -3,7 +3,11 @@ from keras import layers, ops
 
 from zeromodels.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
-from .deepseek_v2_config import DEEPSEEK_V2_CONFIG, DEEPSEEK_V2_WEIGHTS_URLS
+from .deepseek_v2_config import (
+    DEEPSEEK_V2_CONFIG,
+    DEEPSEEK_V2_WEIGHTS_URLS,
+    DeepseekV2Config,
+)
 from .deepseek_v2_layers import (
     DeepseekV2DecoderLayer,
     DeepseekV2RMSNorm,
@@ -77,6 +81,7 @@ class DeepseekV2Model(BaseModel):
     HF_MODEL_TYPE = "deepseek_v2"
     BASE_MODEL_CONFIG = DEEPSEEK_V2_CONFIG
     BASE_WEIGHT_CONFIG = DEEPSEEK_V2_WEIGHTS_URLS
+    config_class = DeepseekV2Config
     output_logits = False
 
     def __init__(

@@ -1,3 +1,37 @@
+from zeromodels.base import BaseConfig
+
+
+class Llama4Config(BaseConfig):
+    """Typed config for Llama 4 (interleaved-RoPE, sigmoid-MoE decoder; text tower)."""
+
+    model_type = "llama4"
+
+    vocab_size: int = 202048
+    embed_dim: int = 5120
+    mlp_dim: int = 8192
+    dense_mlp_dim: int = 16384
+    num_layers: int = 48
+    num_heads: int = 40
+    num_kv_heads: int = 8
+    head_dim: int = 128
+    num_experts: int = 16
+    num_experts_per_tok: int = 1
+    interleave_moe_layer_step: int = 1
+    no_rope_layer_interval: int = 4
+    attention_chunk_size: int = 8192
+    use_qk_norm: bool = True
+    attn_temperature_tuning: bool = True
+    floor_scale: float = 8192.0
+    attn_scale: float = 0.1
+    norm_eps: float = 1e-5
+    rope_theta: float = 500000.0
+    rope_factor: float = 16.0
+    rope_low_freq_factor: float = 1.0
+    rope_high_freq_factor: float = 1.0
+    rope_original_max_pos: int = 8192
+    tie_embeddings: bool = False
+
+
 LLAMA4_CONFIG = {
     "llama4-scout-17b-16e": {
         "vocab_size": 202048,
