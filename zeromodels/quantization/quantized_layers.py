@@ -78,12 +78,21 @@ class QuantizedDense(layers.Layer):
     Backend-agnostic; built from a trained ``Dense`` via :meth:`from_dense`.
     """
 
-    def __init__(self, units, mode="int8", use_bias=True, group_size=32, **kwargs):
+    def __init__(
+        self,
+        units,
+        mode="int8",
+        use_bias=True,
+        group_size=32,
+        activation=None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.units = int(units)
         self.mode = mode
         self.use_bias = use_bias
         self.group_size = group_size
+        self.activation = keras.activations.get(activation)
         self.quantizer = get_quantizer(mode, group_size)
         self._loading = False
         self._loaded = False
@@ -120,7 +129,7 @@ class QuantizedDense(layers.Layer):
         y = ops.matmul(inputs, kernel)
         if self.use_bias:
             y = y + ops.cast(self.bias, y.dtype)
-        return y
+        return self.activation(y)
 
     def assign_float_weight(self, value):
         """Quantize a float kernel into this layer's int storage (no-float load)."""
@@ -148,6 +157,7 @@ class QuantizedDense(layers.Layer):
             mode=mode,
             use_bias=dense.use_bias,
             group_size=group_size,
+            activation=dense.activation,
             name=dense.name,
         )
         layer.build((None, int(dense.kernel.shape[0])))
@@ -161,7 +171,12 @@ class QuantizedDense(layers.Layer):
     def to_dense(self):
         """Reconstruct a float ``keras.layers.Dense`` from the quantized weights."""
         kernel = self.quantizer.dequantize(self.kernel, self.scale, axis=0)
-        dense = layers.Dense(self.units, use_bias=self.use_bias, name=self.name)
+        dense = layers.Dense(
+            self.units,
+            use_bias=self.use_bias,
+            activation=self.activation,
+            name=self.name,
+        )
         dense.build((None, int(ops.shape(kernel)[0])))
         dense.kernel.assign(ops.cast(kernel, dense.kernel.dtype))
         if self.use_bias:
@@ -176,6 +191,7 @@ class QuantizedDense(layers.Layer):
                 "mode": self.mode,
                 "use_bias": self.use_bias,
                 "group_size": self.group_size,
+                "activation": keras.activations.serialize(self.activation),
             }
         )
         return config
@@ -201,6 +217,7 @@ class QuantizedEinsumDense(layers.Layer):
         bias_axes=None,
         bias_shape=None,
         group_size=32,
+        activation=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -211,6 +228,7 @@ class QuantizedEinsumDense(layers.Layer):
         self.bias_axes = bias_axes
         self.bias_shape = tuple(bias_shape) if bias_shape is not None else None
         self.group_size = group_size
+        self.activation = keras.activations.get(activation)
         self.quantizer = get_quantizer(mode, group_size)
         self.axis = einsum_contracting_axes(equation)
 
@@ -250,7 +268,7 @@ class QuantizedEinsumDense(layers.Layer):
         y = ops.einsum(self.equation, inputs, kernel)
         if self.bias is not None:
             y = y + ops.cast(self.bias, y.dtype)
-        return y
+        return self.activation(y)
 
     @classmethod
     def from_einsum_dense(cls, einsum_dense, mode, group_size=32):
@@ -263,6 +281,7 @@ class QuantizedEinsumDense(layers.Layer):
             bias_axes=einsum_dense.bias_axes,
             bias_shape=tuple(bias.shape) if bias is not None else None,
             group_size=group_size,
+            activation=getattr(einsum_dense, "activation", None),
             name=einsum_dense.name,
         )
         layer.build()
@@ -272,6 +291,28 @@ class QuantizedEinsumDense(layers.Layer):
         if bias is not None:
             layer.bias.assign(bias)
         return layer
+
+    def to_einsum_dense(self):
+        """Reconstruct a float ``keras.layers.EinsumDense`` from the quantized kernel."""
+        kernel = self.quantizer.dequantize(self.kernel, self.scale, axis=self.axis)
+        dense = layers.EinsumDense(
+            self.equation,
+            output_shape=self.partial_output_shape,
+            bias_axes=self.bias_axes,
+            activation=self.activation,
+            name=self.name,
+        )
+        # EinsumDense.build derives its kernel shape from the input shape; recover a
+        # compatible input shape from the equation (each input label's dim is the
+        # kernel dim it shares, batch labels free/None) so the rebuilt kernel matches.
+        eq = self.equation.replace(" ", "")
+        input_spec, kernel_spec = eq.split("->")[0].split(",")
+        kdims = {ch: int(d) for ch, d in zip(kernel_spec, self.kernel_shape)}
+        dense.build(tuple(kdims.get(ch) for ch in input_spec))
+        dense.kernel.assign(ops.cast(kernel, dense.kernel.dtype))
+        if self.bias is not None:
+            dense.bias.assign(ops.cast(self.bias, dense.bias.dtype))
+        return dense
 
     def get_config(self):
         config = super().get_config()
@@ -284,6 +325,7 @@ class QuantizedEinsumDense(layers.Layer):
                 "bias_axes": self.bias_axes,
                 "bias_shape": list(self.bias_shape) if self.bias_shape else None,
                 "group_size": self.group_size,
+                "activation": keras.activations.serialize(self.activation),
             }
         )
         return config
@@ -409,6 +451,7 @@ class QuantizedExperts(layers.Layer):
         mode="int8",
         group_size=32,
         activation="silu",
+        source_class=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -423,6 +466,10 @@ class QuantizedExperts(layers.Layer):
         self.mode = mode
         self.group_size = group_size
         self.activation = activation
+        # Registered name of the float bank this replaced (e.g.
+        # "zeromodels>Qwen3MoeExperts"), so dequantize_model can rebuild the
+        # original class. None when quantized from an unregistered class.
+        self.source_class = source_class
         self.quantizer = get_quantizer(mode, group_size)
         self._loading = False
         self._loaded = False
@@ -464,17 +511,23 @@ class QuantizedExperts(layers.Layer):
         self.built = True
 
     def call(self, hidden_states, routing_weights):
-        act = ops.gelu if self.activation == "gelu" else ops.silu
         gate_up_w = self.quantizer.dequantize(
             self.gate_up_q, self.gate_up_scale, axis=-1, dtype=hidden_states.dtype
         )
         gate_up = ops.einsum("th,eoh->teo", hidden_states, gate_up_w)
         gate = gate_up[..., : self.mlp_dim]
         up = gate_up[..., self.mlp_dim :]
+        # "gelu" here means Gemma's GeGLU, which is gelu_pytorch_tanh (the tanh
+        # approximation), so it must pass approximate=True to match the float bank
+        # (exact erf-GELU would diverge). All other banks use SiLU.
+        if self.activation == "gelu":
+            gated = ops.gelu(gate, approximate=True) * up
+        else:
+            gated = ops.silu(gate) * up
         down_w = self.quantizer.dequantize(
             self.down_q, self.down_scale, axis=-1, dtype=hidden_states.dtype
         )
-        expert_out = ops.einsum("tei,ehi->teh", act(gate) * up, down_w)
+        expert_out = ops.einsum("tei,ehi->teh", gated, down_w)
         return ops.einsum("te,teh->th", routing_weights, expert_out)
 
     def assign_gate_up(self, value):
@@ -523,6 +576,7 @@ class QuantizedExperts(layers.Layer):
             mode=mode,
             group_size=group_size,
             activation=activation,
+            source_class=keras.saving.get_registered_name(type(experts)),
             name=experts.name,
         )
         layer.build()
@@ -536,6 +590,29 @@ class QuantizedExperts(layers.Layer):
         layer.down_scale.assign(down_scale)
         return layer
 
+    def to_experts(self):
+        """Reconstruct the original float expert bank, or None if it can't be.
+
+        Rebuilds the class named by ``source_class`` (the float ``...Experts`` this
+        replaced) and assigns the dequantized ``gate_up_proj`` / ``down_proj``.
+        Returns None when the source class is unknown or unregistered, so the caller
+        can leave the layer quantized (it still runs correctly).
+        """
+        cls = (
+            keras.saving.get_registered_object(self.source_class)
+            if self.source_class
+            else None
+        )
+        if cls is None:
+            return None
+        bank = cls(self.num_experts, self.embed_dim, self.mlp_dim, name=self.name)
+        bank.build(None)
+        gate_up = self.quantizer.dequantize(self.gate_up_q, self.gate_up_scale, axis=-1)
+        down = self.quantizer.dequantize(self.down_q, self.down_scale, axis=-1)
+        bank.gate_up_proj.assign(ops.cast(gate_up, bank.gate_up_proj.dtype))
+        bank.down_proj.assign(ops.cast(down, bank.down_proj.dtype))
+        return bank
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -546,6 +623,7 @@ class QuantizedExperts(layers.Layer):
                 "mode": self.mode,
                 "group_size": self.group_size,
                 "activation": self.activation,
+                "source_class": self.source_class,
             }
         )
         return config

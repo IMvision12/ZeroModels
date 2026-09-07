@@ -146,5 +146,7 @@ class BaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
         if quantization_config:
             from zeromodels.quantization import get_zm_quantizer
 
-            get_zm_quantizer(quantization_config).preprocess_model(model)
+            # preprocess_model can return a NEW object (the weight-only quantizer
+            # clones a functional graph), so bind the result, don't discard it.
+            model = get_zm_quantizer(quantization_config).preprocess_model(model)
         return model

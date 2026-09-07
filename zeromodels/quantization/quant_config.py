@@ -109,10 +109,15 @@ def resolve_config(spec, group_size=32):
     if isinstance(spec, QuantizationConfig):
         return spec
     if isinstance(spec, str):
-        if spec in SCHEMES:
-            return SCHEMES[spec]
+        # Bare mode first, so an explicit group_size is honored (a bare mode is
+        # also a SCHEMES key, and the scheme's baked group_size would otherwise
+        # win). Named schemes (e.g. "int4-g128") return a fresh COPY, never the
+        # shared module-level singleton, so two quantized models never end up
+        # aliasing one mutable config object via model._quantization_config.
         if spec in ("int8", "int4", "fp8", "mxfp4"):
             return QuantizationConfig(spec, group_size=group_size)
+        if spec in SCHEMES:
+            return QuantizationConfig(**SCHEMES[spec].get_config())
         raise ValueError(
             f"Unknown quantization spec {spec!r}. Use a QuantizationConfig, a mode "
             f"('int8'/'int4'/'fp8'/'mxfp4'), or a scheme {sorted(SCHEMES)}."

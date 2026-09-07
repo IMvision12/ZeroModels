@@ -1,3 +1,5 @@
+import warnings
+
 import keras
 from keras import ops
 
@@ -51,8 +53,25 @@ class Int4Quantizer(BaseQuantizer):
 
     def storage_spec(self, weight_shape, axis=0):
         axis = single_axis(axis, len(weight_shape))
-        k = weight_shape[axis]
+        k = int(weight_shape[axis])
+        # Reject an odd contracting dim HERE (at build), not later mid-quantize:
+        # storage would otherwise allocate a floor(k/2) kernel that _quant_last
+        # then refuses, desyncing a checkpoint stream partway through.
+        if k % 2:
+            raise ValueError(
+                f"int4 needs an even contracting dim to pack two-per-byte, got {k} "
+                f"(axis {axis} of {tuple(weight_shape)}). Exclude this layer with a "
+                f"QuantizationConfig skip pattern, or use int8."
+            )
         eff = effective_group_size(k, self.group_size)
+        if eff != self.group_size:
+            warnings.warn(
+                f"int4 group_size={self.group_size} does not divide the contracting "
+                f"dim {k}; falling back to block size {eff} ({k // eff} scale groups "
+                f"instead of {-(-k // self.group_size)}). Pick a group_size that "
+                f"divides {k} for the intended compression.",
+                stacklevel=2,
+            )
         kernel_shape = tuple(
             k // 2 if i == axis else d for i, d in enumerate(weight_shape)
         )

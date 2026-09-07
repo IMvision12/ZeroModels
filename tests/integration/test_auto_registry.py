@@ -327,7 +327,9 @@ def test_class_accepts_its_own_config_model_type():
             continue
         accepted = {h.replace("-", "_") for h in ((hf,) if isinstance(hf, str) else hf)}
         if not (set(_hf_type_variants(model_type)) & accepted):
-            bad.append(f"{name}: config model_type {model_type!r} not in HF_MODEL_TYPE {hf!r}")
+            bad.append(
+                f"{name}: config model_type {model_type!r} not in HF_MODEL_TYPE {hf!r}"
+            )
     assert not bad, (
         "class(es) whose HF_MODEL_TYPE rejects their own config_class.model_type -- "
         "from_weights('hf:...') on their own checkpoint fails assert_hf_model_type; fix "
