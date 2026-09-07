@@ -44,7 +44,7 @@ class Owlv2Processor(BaseProcessor):
     @classmethod
     def from_hf(cls, repo, **kwargs):
         return cls(hf_id=repo, **kwargs)
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({"hf_id": self.hf_id})
