@@ -182,7 +182,6 @@ MODEL_TASK_MAPPING_NAMES = {
         "gemma2": "Gemma2Model",
         "gemma3": "Gemma3Model",
         "gemma3n": "Gemma3nModel",
-        "gemma4": "Gemma4MultimodalModel",
         "gemma4_text": "Gemma4Model",
         "gemma4_unified": "Gemma4UnifiedModel",
         "glm": "GlmModel",
@@ -243,7 +242,6 @@ MODEL_TASK_MAPPING_NAMES = {
         "qwen2_moe": "Qwen2MoeModel",
         "qwen2_vl": "Qwen2VLModel",
         "qwen3": "Qwen3Model",
-        "qwen3_5": "Qwen3_5VLModel",
         "qwen3_5_moe": "Qwen3_5MoeModel",
         "qwen3_5_moe_text": "Qwen3_5MoeModel",
         "qwen3_5_text": "Qwen3_5Model",
@@ -438,21 +436,22 @@ MODEL_MAPPING_NAMES = MODEL_TASK_MAPPING_NAMES["Model"]
 # these candidates instead of guessing; resolve by loading the concrete class. (A zeromodels
 # repo is unaffected: its zm_config records a distinct model_type, e.g. 'deberta_v3'.)
 AMBIGUOUS_HF_TYPES = {
-    "DepthEstimation": {
-        "depth_anything": [
-            "DepthAnythingV1DepthEstimation",
-            "DepthAnythingV2DepthEstimation",
-        ],
-    },
     "MaskedLM": {
         "deberta-v2": ["DebertaV2MaskedLM", "DebertaV3MaskedLM"],
     },
     "Model": {
         "deberta-v2": ["DebertaV2Model", "DebertaV3Model"],
-        "depth_anything": ["DepthAnythingV1Model", "DepthAnythingV2Model"],
+        # gemma4 / qwen3_5: HF reuses one model_type for a text model AND a
+        # multimodal one; the multimodal class has a vision tower the text checkpoint
+        # lacks, so neither can load the other -- genuinely ambiguous, raise. (The
+        # text variants also carry a distinct "gemma4_text"/"qwen3_5_text" type that
+        # resolves unambiguously.) NOT here: depth_anything and segformer, where one
+        # committed class loads either checkpoint correctly (V2 reuses V1's
+        # architecture; SegFormerModel is the MiT backbone), so they stay a single
+        # default -- an entry belongs in EXACTLY ONE of this table or the single table
+        # (test_no_key_in_both_single_and_ambiguous enforces it).
         "gemma4": ["Gemma4Model", "Gemma4MultimodalModel"],
         "qwen3_5": ["Qwen3_5Model", "Qwen3_5VLModel"],
-        "segformer": ["MiTModel", "SegFormerModel"],
     },
     "MultipleChoice": {
         "deberta-v2": ["DebertaV2MultipleChoice", "DebertaV3MultipleChoice"],
