@@ -4348,7 +4348,10 @@ def instantiate_model(config):
     if quantization_config:
         from zeromodels.quantization import get_zm_quantizer
 
-        get_zm_quantizer(quantization_config).preprocess_model(model)
+        # Bind the result: the weight-only quantizer clones a functional graph and
+        # returns a new object (the mxfp4 expert swap mutates in place, but this
+        # path must be correct for both).
+        model = get_zm_quantizer(quantization_config).preprocess_model(model)
     return model
 
 

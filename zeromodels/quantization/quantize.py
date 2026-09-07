@@ -113,6 +113,7 @@ def _skeleton_layer(layer, config, path):
                         mode=mode,
                         group_size=config.group_size,
                         activation=_expert_activation(value),
+                        source_class=keras.saving.get_registered_name(type(value)),
                         name=value.name,
                     ),
                 )
@@ -201,11 +202,14 @@ def quantize_and_load(model, config, transfer_fn, state_dict, group_size=32):
 
 
 def dequantize_model(model):
-    """Revert a quantized model back to float ``Dense`` / ``Embedding`` layers.
+    """Revert a quantized model back to float layers.
 
-    Subclassed models are reverted in place; functional models return a NEW
-    cloned model. (Quantized MoE experts in subclassed models stay quantized:
-    they still run correctly via ``QuantizedExperts``.)
+    Reverses ``QuantizedDense`` / ``QuantizedEinsumDense`` / ``QuantizedEmbedding``
+    and rebuilds a fused-expert bank as its original ``...Experts`` class (via the
+    ``source_class`` recorded at quantization time). Subclassed models are reverted
+    in place; functional models return a NEW cloned model. An expert bank whose
+    source class can't be resolved is left quantized (it still runs correctly) with
+    a warning.
     """
     if _is_functional(model):
         return _dequantize_functional(model)
@@ -229,25 +233,55 @@ def _child_path(path, value, name):
 
 
 def _is_fused_experts(layer):
-    return (
+    # A BUILT fused-expert bank whose layout QuantizedExperts actually replicates:
+    # gate_up_proj (E, 2I, H) with CONTIGUOUS gate|up halves, down_proj (E, H, I),
+    # no per-expert bias, and a call(hidden_states, routing_weights) signature
+    # (Qwen/Mixtral/Gemma/DeepSeek/GLM/MiniMax). The shape check is decisive: it
+    # rejects GPT-OSS ((E, H, 2I) / (E, I, H), interleaved + clamped SiLU + biases:
+    # use the mxfp4 GptOssMXFP4Experts swap instead) and Llama4 (same transposed
+    # layout, and its call(scaled_inputs) scales the input, not the output). A
+    # mismatched bank is left float rather than silently mis-quantized.
+    if not (
         hasattr(layer, "gate_up_proj")
         and hasattr(layer, "down_proj")
         and hasattr(layer, "num_experts")
         and getattr(layer, "built", False)
-    )
+    ):
+        return False
+    if not _has_routed_experts_call(layer):
+        return False
+    e, i, h = layer.num_experts, layer.mlp_dim, layer.embed_dim
+    gate_up = tuple(int(d) for d in layer.gate_up_proj.shape)
+    down = tuple(int(d) for d in layer.down_proj.shape)
+    return gate_up == (e, 2 * i, h) and down == (e, h, i)
+
+
+def _has_routed_experts_call(layer):
+    # QuantizedExperts.call(hidden_states, routing_weights). A bank without a
+    # ``routing_weights`` parameter (Llama4's call(scaled_inputs), or a clamped
+    # gated-SiLU bank carrying per-expert biases like GPT-OSS) is not replicated.
+    if not (
+        hasattr(layer, "num_experts")
+        and hasattr(layer, "embed_dim")
+        and hasattr(layer, "mlp_dim")
+    ):
+        return False
+    if hasattr(layer, "gate_up_proj_bias") or hasattr(layer, "down_proj_bias"):
+        return False  # biased banks (GPT-OSS) use the dedicated mxfp4 expert swap
+    return "routing_weights" in inspect.signature(layer.call).parameters
 
 
 def _is_experts_skeleton(layer):
-    # An *unbuilt* fused-experts bank: gate_up_proj / down_proj don't exist yet,
-    # so detect by the routed-experts call signature. Excludes the MoE wrapper
-    # (its call is ``call(hidden_states)``, no ``routing_weights``) and an
-    # already-quantized bank.
+    # The UNBUILT counterpart of _is_fused_experts: gate_up_proj / down_proj don't
+    # exist yet, so the (E, 2I, H) shape can't be checked; gate on the same call
+    # signature + no-bias markers, which already exclude Llama4 (no routing_weights)
+    # and GPT-OSS (carries gate_up_proj_bias / down_proj_bias, and its clamped
+    # gated-SiLU is set up in __init__ via self.limit). Also excludes the MoE
+    # wrapper (call(hidden_states), no routing_weights) and an already-quantized bank.
     return (
         not isinstance(layer, QuantizedExperts)
-        and hasattr(layer, "num_experts")
-        and hasattr(layer, "embed_dim")
-        and hasattr(layer, "mlp_dim")
-        and "routing_weights" in inspect.signature(layer.call).parameters
+        and not hasattr(layer, "limit")
+        and _has_routed_experts_call(layer)
     )
 
 
@@ -387,6 +421,19 @@ def _dequantize_layer(layer):
             _swap(layer, name, value, value.to_dense())
         elif isinstance(value, QuantizedEmbedding):
             _swap(layer, name, value, value.to_embedding())
+        elif isinstance(value, QuantizedEinsumDense):
+            _swap(layer, name, value, value.to_einsum_dense())
+        elif isinstance(value, QuantizedExperts):
+            revived = value.to_experts()
+            if revived is not None:
+                _swap(layer, name, value, revived)
+            else:
+                warnings.warn(
+                    f"Left expert bank '{value.name}' quantized on dequantize: its "
+                    f"source class ({value.source_class!r}) is unknown, so the float "
+                    f"bank can't be rebuilt. It still runs correctly as-is.",
+                    stacklevel=2,
+                )
         elif isinstance(value, layers.Layer):
             _dequantize_layer(value)
         elif isinstance(value, (list, tuple)):
@@ -448,10 +495,19 @@ def quantize_functional(model, config="int8", group_size=32):
         if _is_functional(layer):
             # Nested Functional sub-model (e.g. encoder / decoder): recurse so its
             # own graph (and its nested blocks) get quantized too. If it can't be
-            # cloned (e.g. a weight-capturing `Lambda` lm_head), keep it float.
+            # quantized (an un-cloneable weight-capturing `Lambda` lm_head, or a
+            # scheme constraint like MXFP4's multiple-of-32 contracting dim), keep
+            # it float, but WARN, so partial quantization is never reported as
+            # complete silently.
             try:
                 return quantize_functional(layer, config)
-            except Exception:
+            except Exception as e:
+                warnings.warn(
+                    f"Left sub-model '{getattr(layer, 'name', layer)}' in float: "
+                    f"could not quantize it ({type(e).__name__}: {str(e)[:200]}). "
+                    f"The rest of the model is still quantized.",
+                    stacklevel=2,
+                )
                 return layer
         if isinstance(layer, layers.Dense) and layer.built:
             mode = config.mode_for(layer.name)
@@ -503,11 +559,29 @@ def quantize_functional(model, config="int8", group_size=32):
 
 def _dequantize_functional(model):
     def clone_fn(layer):
+        if _is_functional(layer):
+            # Nested Functional sub-model: recurse so its quantized layers revert
+            # too (mirrors quantize_functional). Keep it as-is if it can't clone.
+            try:
+                return _dequantize_functional(layer)
+            except Exception:
+                return layer
         if isinstance(layer, QuantizedDense):
             return layer.to_dense()
         if isinstance(layer, QuantizedEmbedding):
             return layer.to_embedding()
-        return layer.__class__.from_config(layer.get_config())
+        if isinstance(layer, QuantizedEinsumDense):
+            return layer.to_einsum_dense()
+        if isinstance(layer, QuantizedExperts):
+            revived = layer.to_experts()
+            return revived if revived is not None else layer
+        try:
+            return layer.__class__.from_config(layer.get_config())
+        except Exception:
+            # Un-cloneable layer (e.g. a python-lambda Lambda for an activation /
+            # scale / mask): reuse the original instance, as quantize_functional
+            # does. Without this, dequantizing a model that quantized fine crashes.
+            return layer
 
     clone = keras.models.clone_model(model, clone_function=clone_fn)
     _transfer_unquantized(model, clone)

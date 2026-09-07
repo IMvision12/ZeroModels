@@ -99,9 +99,14 @@ class WeightOnlyZmQuantizer(ZmQuantizer):
     """
 
     def _process_model_before_weight_loading(self, model, **kwargs):
+        from zeromodels.quantization.quant_config import QuantizationConfig
         from zeromodels.quantization.quantize import quantize_model
 
-        return quantize_model(model, self.quantization_config["quant_method"])
+        # Carry the whole recipe from the repo's quantization_config (group_size,
+        # skip_modules, quantize_embeddings, overrides), not just the method name,
+        # so a repo asking for e.g. int4 group_size=128 with custom skips is honored.
+        config = QuantizationConfig.from_dict(self.quantization_config)
+        return quantize_model(model, config)
 
 
 # quant_method -> ZmQuantizer. mxfp4 is the GPT-OSS native packed-expert swap; the
