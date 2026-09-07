@@ -1,3 +1,26 @@
+from zeromodels.base import BaseConfig
+
+
+class MixtralConfig(BaseConfig):
+    """Typed config for the Mixtral sparse-MoE family."""
+
+    model_type = "mixtral"
+
+    vocab_size: int = 32000
+    embed_dim: int = 4096
+    mlp_dim: int = 14336
+    num_layers: int = 32
+    num_heads: int = 32
+    num_kv_heads: int = 8
+    head_dim: int = None
+    num_experts: int = 8
+    num_experts_per_tok: int = 2
+    norm_eps: float = 1e-5
+    rope_theta: float = 1000000.0
+    sliding_window: int = None
+    tie_embeddings: bool = False
+
+
 MIXTRAL_CONFIG = {
     "mixtral-8x7b": {
         "vocab_size": 32000,

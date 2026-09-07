@@ -1,6 +1,7 @@
 from zeromodels.models.kimi_k25.kimi_k25_config import (
     KIMI_K25_CONFIG,
     KIMI_K25_WEIGHTS_URLS,
+    KimiK25Config,
 )
 from zeromodels.models.kimi_k25.kimi_k25_image_processor import (
     KimiK25ImageProcessor,
@@ -17,6 +18,7 @@ from zeromodels.models.kimi_k25.kimi_k25_tokenizer import KimiK25Tokenizer
 from zeromodels.models.kimi_k25.kimi_k25_vision import KimiK25VisionModel
 
 __all__ = [
+    "KimiK25Config",
     "KimiK25Model",
     "KimiK25ConditionalGenerate",
     "KimiK25VisionModel",

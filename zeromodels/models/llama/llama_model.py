@@ -5,7 +5,7 @@ from keras import layers, ops
 
 from zeromodels.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
-from .llama_config import LLAMA_CONFIG, LLAMA_WEIGHTS_URLS
+from .llama_config import LLAMA_CONFIG, LLAMA_WEIGHTS_URLS, LlamaConfig
 from .llama_layers import LlamaDecoderLayer, LlamaRMSNorm
 
 MASK_NEG = -1e9
@@ -136,6 +136,7 @@ class LlamaModel(BaseModel):
     HF_MODEL_TYPE = "llama"
     BASE_MODEL_CONFIG = LLAMA_CONFIG
     BASE_WEIGHT_CONFIG = LLAMA_WEIGHTS_URLS
+    config_class = LlamaConfig
     # LlamaTextGenerate flips this on to also emit LM-head logits from the graph.
     output_logits = False
 

@@ -1,3 +1,49 @@
+from zeromodels.base import BaseConfig
+
+
+class DeepseekV4Config(BaseConfig):
+    """Typed config for DeepSeek-V4 (MLA + DeepSeekMoE + sparse-indexer attention)."""
+
+    model_type = "deepseek_v4"
+
+    vocab_size: int = 129280
+    embed_dim: int = 4096
+    num_layers: int = 43
+    num_heads: int = 64
+    head_dim: int = 512
+    q_lora_rank: int = 1024
+    qk_rope_head_dim: int = 64
+    o_groups: int = 8
+    o_lora_rank: int = 1024
+    layer_types: tuple = None
+    mlp_layer_types: tuple = None
+    num_experts: int = 256
+    num_experts_per_tok: int = 6
+    moe_mlp_dim: int = 2048
+    routed_scaling_factor: float = 1.5
+    swiglu_limit: float = 10.0
+    sliding_window: int = 128
+    compress_rate_csa: int = 4
+    compress_rate_hca: int = 128
+    index_n_heads: int = 64
+    index_head_dim: int = 128
+    index_topk: int = 512
+    hc_mult: int = 4
+    hc_sinkhorn_iters: int = 20
+    hc_eps: float = 1e-6
+    rope_theta: float = 10000.0
+    compress_rope_theta: float = 160000.0
+    rope_scaling: dict = {
+        "type": "yarn",
+        "factor": 16,
+        "beta_fast": 32,
+        "beta_slow": 1,
+        "original_max_position_embeddings": 65536,
+    }
+    norm_eps: float = 1e-6
+    tie_embeddings: bool = False
+
+
 DEEPSEEK_V4_CONFIG = {
     "deepseek-v4-flash": {
         "embed_dim": 4096,

@@ -3,7 +3,7 @@ from keras import layers, ops
 
 from zeromodels.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
-from .mistral_config import MISTRAL_CONFIG, MISTRAL_WEIGHTS_URLS
+from .mistral_config import MISTRAL_CONFIG, MISTRAL_WEIGHTS_URLS, MistralConfig
 from .mistral_layers import MistralDecoderLayer, MistralRMSNorm
 
 MASK_NEG = -1e9
@@ -81,6 +81,7 @@ class MistralModel(BaseModel):
     HF_MODEL_TYPE = "mistral"
     BASE_MODEL_CONFIG = MISTRAL_CONFIG
     BASE_WEIGHT_CONFIG = MISTRAL_WEIGHTS_URLS
+    config_class = MistralConfig
     # MistralTextGenerate flips this on to also emit LM-head logits from the graph.
     output_logits = False
 

@@ -4,7 +4,7 @@ from keras import layers, ops
 from zeromodels.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 from zeromodels.base.base_mixin import inference_scope
 
-from .minimax_config import MINIMAX_CONFIG, MINIMAX_WEIGHTS_URLS
+from .minimax_config import MINIMAX_CONFIG, MINIMAX_WEIGHTS_URLS, MiniMaxConfig
 from .minimax_layers import MiniMaxDecoderLayer, MiniMaxRMSNorm
 
 MASK_NEG = -1e9
@@ -79,6 +79,7 @@ class MiniMaxModel(BaseModel):
     HF_MODEL_TYPE = "minimax"
     BASE_MODEL_CONFIG = MINIMAX_CONFIG
     BASE_WEIGHT_CONFIG = MINIMAX_WEIGHTS_URLS
+    config_class = MiniMaxConfig
     output_logits = False
 
     def __init__(

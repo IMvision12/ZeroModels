@@ -4,7 +4,7 @@ from keras import layers, ops
 from zeromodels.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 from zeromodels.base.base_mixin import inference_scope
 
-from .glm5_moe_config import GLM5_MOE_CONFIG, GLM5_MOE_WEIGHTS_URLS
+from .glm5_moe_config import GLM5_MOE_CONFIG, GLM5_MOE_WEIGHTS_URLS, Glm5MoeConfig
 from .glm5_moe_layers import Glm5MoeDecoderLayer, Glm5MoeRMSNorm
 
 MASK_NEG = -1e9
@@ -61,6 +61,7 @@ class Glm5MoeModel(BaseModel):
     HF_MODEL_TYPE = "glm_moe_dsa"
     BASE_MODEL_CONFIG = GLM5_MOE_CONFIG
     BASE_WEIGHT_CONFIG = GLM5_MOE_WEIGHTS_URLS
+    config_class = Glm5MoeConfig
     output_logits = False
 
     def __init__(

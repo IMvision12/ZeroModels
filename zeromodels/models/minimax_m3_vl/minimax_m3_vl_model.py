@@ -11,7 +11,11 @@ from zeromodels.base import (
 )
 from zeromodels.base.base_mixin import inference_scope
 
-from .minimax_m3_vl_config import MINIMAX_M3_VL_CONFIG, MINIMAX_M3_VL_WEIGHTS_URLS
+from .minimax_m3_vl_config import (
+    MINIMAX_M3_VL_CONFIG,
+    MINIMAX_M3_VL_WEIGHTS_URLS,
+    MiniMaxM3VLConfig,
+)
 from .minimax_m3_vl_layers import (
     MASK_NEG,
     MiniMaxM3VLDecoderLayer,
@@ -244,6 +248,7 @@ class MiniMaxM3VLModel(BaseModel):
 
     HF_MODEL_TYPE = "minimax_m3_vl"
     BASE_MODEL_CONFIG = MINIMAX_M3_VL_CONFIG
+    config_class = MiniMaxM3VLConfig
     BASE_WEIGHT_CONFIG = MINIMAX_M3_VL_WEIGHTS_URLS
     output_logits = False
 

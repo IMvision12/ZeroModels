@@ -20,7 +20,7 @@ from zeromodels.models.deepseek_v3.deepseek_v3_model import (
     deepseek_v3_rope_tables,
 )
 
-from .kimi_k25_config import KIMI_K25_CONFIG, KIMI_K25_WEIGHTS_URLS
+from .kimi_k25_config import KIMI_K25_CONFIG, KIMI_K25_WEIGHTS_URLS, KimiK25Config
 from .kimi_k25_layers import KimiK25MultimodalProjection
 from .kimi_k25_vision import KimiK25VisionModel
 
@@ -88,6 +88,7 @@ class KimiK25Model(BaseModel):
 
     HF_MODEL_TYPE = "kimi_k25"
     BASE_MODEL_CONFIG = KIMI_K25_CONFIG
+    config_class = KimiK25Config
     BASE_WEIGHT_CONFIG = KIMI_K25_WEIGHTS_URLS
     output_logits = False
 

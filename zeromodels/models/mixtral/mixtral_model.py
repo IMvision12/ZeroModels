@@ -3,7 +3,7 @@ from keras import layers, ops
 
 from zeromodels.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
-from .mixtral_config import MIXTRAL_CONFIG, MIXTRAL_WEIGHTS_URLS
+from .mixtral_config import MIXTRAL_CONFIG, MIXTRAL_WEIGHTS_URLS, MixtralConfig
 from .mixtral_layers import MixtralDecoderLayer, MixtralRMSNorm
 
 MASK_NEG = -1e9
@@ -79,6 +79,7 @@ class MixtralModel(BaseModel):
     HF_MODEL_TYPE = "mixtral"
     BASE_MODEL_CONFIG = MIXTRAL_CONFIG
     BASE_WEIGHT_CONFIG = MIXTRAL_WEIGHTS_URLS
+    config_class = MixtralConfig
     output_logits = False
 
     def __init__(

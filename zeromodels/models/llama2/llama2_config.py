@@ -1,3 +1,23 @@
+from zeromodels.base import BaseConfig
+
+
+class Llama2Config(BaseConfig):
+    """Typed config for the Llama 2 family."""
+
+    model_type = "llama2"
+
+    vocab_size: int = 32000
+    embed_dim: int = 4096
+    mlp_dim: int = 11008
+    num_layers: int = 32
+    num_heads: int = 32
+    num_kv_heads: int = 32
+    head_dim: int = None
+    norm_eps: float = 1e-5
+    rope_theta: float = 10000.0
+    tie_embeddings: bool = False
+
+
 LLAMA2_CONFIG = {
     "llama2-7b": {
         "vocab_size": 32000,

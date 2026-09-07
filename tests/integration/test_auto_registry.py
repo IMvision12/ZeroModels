@@ -237,7 +237,7 @@ def test_every_table_value_resolves_and_matches_its_task():
 _COVERAGE_EXEMPT = {
     # Collision losers: a family sharing one config model_type where ONE committed class
     # loads either checkpoint -- the table holds it, the other is loadable via its own class.
-    "Llama2Model",
+    # (Llama2Model now has its own "llama2" MODEL row; only its TextGenerate head stays a loser.)
     "Llama2TextGenerate",
     "DepthAnythingV1Model",
     "DepthAnythingV1DepthEstimation",
@@ -282,7 +282,8 @@ def test_every_autodetectable_model_class_appears_in_a_table():
 # Classes whose zm config model_type DELIBERATELY differs from the HF checkpoint's
 # model_type (not the "rejects its own repo" bug): HF DeBERTa-v3 checkpoints carry the
 # "deberta-v2" config type; the MiT backbone is HF's SegFormer encoder ("segformer"); the
-# Gemma 4 unified text head loads the "gemma4_unified" repo.
+# Gemma 4 unified text head loads the "gemma4_unified" repo; Llama 2 checkpoints carry HF
+# model_type "llama"; GLM-5 MoE checkpoints carry HF "glm_moe_dsa".
 _HF_TYPE_CROSSNAME_EXEMPT = {
     "DebertaV3Model",
     "DebertaV3MaskedLM",
@@ -293,6 +294,10 @@ _HF_TYPE_CROSSNAME_EXEMPT = {
     "MiTModel",
     "MiTImageClassify",
     "Gemma4UnifiedTextGenerate",
+    "Llama2Model",
+    "Llama2TextGenerate",
+    "Glm5MoeModel",
+    "Glm5MoeTextGenerate",
 }
 
 

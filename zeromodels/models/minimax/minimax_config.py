@@ -1,3 +1,34 @@
+from zeromodels.base import BaseConfig
+
+
+class MiniMaxConfig(BaseConfig):
+    """Typed config for MiniMax (MoE + lightning/full hybrid attention)."""
+
+    model_type = "minimax"
+
+    vocab_size: int = 200064
+    embed_dim: int = 6144
+    mlp_dim: int = 9216
+    num_layers: int = 80
+    num_heads: int = 64
+    num_kv_heads: int = 8
+    head_dim: int = 128
+    num_experts: int = 32
+    num_experts_per_tok: int = 2
+    layer_types: tuple = None
+    block_size: int = 256
+    full_attn_alpha: float = 1.0
+    full_attn_beta: float = 1.0
+    linear_attn_alpha: float = 1.0
+    linear_attn_beta: float = 1.0
+    mlp_alpha: float = 1.0
+    mlp_beta: float = 1.0
+    partial_rotary_factor: float = 1.0
+    rope_theta: float = 10000000.0
+    norm_eps: float = 1e-05
+    tie_embeddings: bool = False
+
+
 MINIMAX_CONFIG = {
     "minimax-text-01": {
         "vocab_size": 200064,

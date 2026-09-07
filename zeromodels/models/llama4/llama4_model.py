@@ -5,7 +5,7 @@ from keras import layers, ops
 
 from zeromodels.base import BaseGeneration, BaseModel, CausalMask, TiedHead
 
-from .llama4_config import LLAMA4_CONFIG, LLAMA4_WEIGHTS_URLS
+from .llama4_config import LLAMA4_CONFIG, LLAMA4_WEIGHTS_URLS, Llama4Config
 from .llama4_layers import Llama4DecoderLayer, Llama4RMSNorm
 
 MASK_NEG = -1e9
@@ -199,6 +199,7 @@ class Llama4Model(BaseModel):
 
     HF_MODEL_TYPE = ("llama4", "llama4_text")
     BASE_MODEL_CONFIG = LLAMA4_CONFIG
+    config_class = Llama4Config
     BASE_WEIGHT_CONFIG = LLAMA4_WEIGHTS_URLS
     output_logits = False
 

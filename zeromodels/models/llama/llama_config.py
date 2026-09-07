@@ -1,3 +1,27 @@
+from zeromodels.base import BaseConfig
+
+
+class LlamaConfig(BaseConfig):
+    """Typed config for the Llama family (Llama 3 / 3.1 / 3.2; rope_factor=None -> Llama 2)."""
+
+    model_type = "llama"
+
+    vocab_size: int = 128256
+    embed_dim: int = 2048
+    mlp_dim: int = 8192
+    num_layers: int = 16
+    num_heads: int = 32
+    num_kv_heads: int = 8
+    head_dim: int = None
+    norm_eps: float = 1e-5
+    rope_theta: float = 500000.0
+    rope_factor: float = 32.0
+    rope_low_freq_factor: float = 1.0
+    rope_high_freq_factor: float = 4.0
+    rope_original_max_pos: int = 8192
+    tie_embeddings: bool = True
+
+
 LLAMA_CONFIG = {
     "llama3-8b": {
         "vocab_size": 128256,
