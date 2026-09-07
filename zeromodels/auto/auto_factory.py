@@ -45,6 +45,29 @@ def read_model_type(identifier):
     variant string (no ``/``) has no remote config to read, so it is rejected with a
     message pointing at the concrete class.
     """
+    config, source = _load_repo_config(identifier)
+    model_type = config.get("model_type")
+    if not model_type:
+        if source == "hf":
+            raise ValueError(
+                f"'{identifier}': config.json has no 'model_type', so Auto* cannot "
+                f"pick a class. Load with the concrete class's from_weights('{identifier}')."
+            )
+        raise ValueError(
+            f"'{identifier}': no zm_config.json with a 'model_type' was found "
+            f"(only zeromodels repos and 'hf:org/repo' ids are auto-detectable). "
+            f"Load with the concrete class's from_weights('{identifier}')."
+        )
+    return model_type, source
+
+
+def _load_repo_config(identifier):
+    """Fetch a repo's config dict + source: ``config.json`` for an ``hf:org/repo`` id
+    (source ``"hf"``), ``zm_config.json`` for a zeromodels ``org/repo`` (``"zm"``).
+
+    Raises for a bare variant (no ``/`` and no ``hf:`` prefix): there is no remote
+    config to read.
+    """
     if identifier.startswith(_HF_PREFIX):
         from huggingface_hub import hf_hub_download
 
@@ -59,27 +82,12 @@ def read_model_type(identifier):
         with open(
             hf_hub_download(repo, "config.json", token=token), encoding="utf-8"
         ) as f:
-            hf_config = json.load(f)
-        model_type = hf_config.get("model_type")
-        if not model_type:
-            raise ValueError(
-                f"'{identifier}': config.json has no 'model_type', so Auto* cannot "
-                f"pick a class. Load with the concrete class's from_weights('{identifier}')."
-            )
-        return model_type, "hf"
+            return json.load(f), "hf"
 
     if "/" in identifier:
         from zeromodels.conversion.zm_config import load_zm_config
 
-        spec = load_zm_config(identifier.rstrip("/"))
-        model_type = spec.get("model_type") if spec else None
-        if not model_type:
-            raise ValueError(
-                f"'{identifier}': no zm_config.json with a 'model_type' was found "
-                f"(only zeromodels repos and 'hf:org/repo' ids are auto-detectable). "
-                f"Load with the concrete class's from_weights('{identifier}')."
-            )
-        return model_type, "zm"
+        return (load_zm_config(identifier.rstrip("/")) or {}), "zm"
 
     raise ValueError(
         f"Auto*.from_weights needs a repo id ('org/repo' or 'hf:org/repo'), got the "
@@ -215,7 +223,23 @@ class _BasePreprocessorAuto:
     @classmethod
     def from_weights(cls, identifier, **kwargs):
         model_type, source = read_model_type(identifier)
+        model_type = cls._disambiguate(identifier, model_type)
         return cls._resolve(model_type).from_weights(identifier, **kwargs)
+
+    @classmethod
+    def _disambiguate(cls, identifier, model_type):
+        # HF reuses model_type "llama" for two INCOMPATIBLE tokenizers: Llama 2
+        # (SentencePiece, 32k vocab, [INST]) and Llama 3+ (tiktoken, 128k vocab,
+        # <|start_header_id|>). The model class is a superset that reads either config,
+        # but the tokenizers are not, so pick by the config's vocab size.
+        if cls.task == "tokenizer" and model_type == "llama":
+            config, _ = _load_repo_config(identifier)
+            vocab = config.get("vocab_size")
+            if vocab is None:
+                text = config.get("text_config")
+                vocab = text.get("vocab_size") if isinstance(text, dict) else None
+            return "llama" if (vocab or 0) >= 100000 else "llama2"
+        return model_type
 
     @classmethod
     def register(cls, model_type, preprocessor_class):

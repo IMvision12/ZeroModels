@@ -206,7 +206,7 @@ MODEL_TASK_MAPPING_NAMES = {
         "janus": "JanusModel",
         "kimi_k25": "KimiK25Model",
         "levit": "LevitModel",
-        "llama": "Llama2Model",
+        "llama": "LlamaModel",
         "llama4": "Llama4Model",
         "llama4_text": "Llama4Model",
         "locateanything": "LocateAnythingModel",
@@ -358,7 +358,7 @@ MODEL_TASK_MAPPING_NAMES = {
         "glm_moe_dsa": "Glm5MoeTextGenerate",
         "gpt2": "GPT2TextGenerate",
         "gpt_oss": "GptOssTextGenerate",
-        "llama": "Llama2TextGenerate",
+        "llama": "LlamaTextGenerate",
         "llama4": "Llama4TextGenerate",
         "llama4_text": "Llama4TextGenerate",
         "minimax": "MiniMaxTextGenerate",
@@ -451,7 +451,6 @@ AMBIGUOUS_HF_TYPES = {
         "deberta-v2": ["DebertaV2Model", "DebertaV3Model"],
         "depth_anything": ["DepthAnythingV1Model", "DepthAnythingV2Model"],
         "gemma4": ["Gemma4Model", "Gemma4MultimodalModel"],
-        "llama": ["Llama2Model", "LlamaModel"],
         "qwen3_5": ["Qwen3_5Model", "Qwen3_5VLModel"],
         "segformer": ["MiTModel", "SegFormerModel"],
     },
@@ -463,9 +462,6 @@ AMBIGUOUS_HF_TYPES = {
     },
     "SequenceClassify": {
         "deberta-v2": ["DebertaV2SequenceClassify", "DebertaV3SequenceClassify"],
-    },
-    "TextGenerate": {
-        "llama": ["Llama2TextGenerate", "LlamaTextGenerate"],
     },
     "TokenClassify": {
         "deberta-v2": ["DebertaV2TokenClassify", "DebertaV3TokenClassify"],
@@ -688,6 +684,7 @@ TOKENIZER_MAPPING_NAMES = {
     "janus": "JanusTokenizer",
     "kimi_k25": "KimiK25Tokenizer",
     "llama": "LlamaTokenizer",
+    "llama2": "Llama2Tokenizer",
     "llama4": "Llama4Tokenizer",
     "llama4_text": "Llama4Tokenizer",
     "locateanything": "LocateAnythingTokenizer",

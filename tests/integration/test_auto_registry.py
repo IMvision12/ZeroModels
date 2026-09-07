@@ -149,10 +149,12 @@ def test_key_resolutions(auto_name, model_type, expected_cls):
 @pytest.mark.parametrize(
     "auto_name,model_type,expected_cls",
     [
-        # Llama v1/v2 and DepthAnything v1/v2 genuinely share one config model_type;
+        # Llama 2/3 and DepthAnything v1/v2 genuinely share one config model_type;
         # the table's committed entry is the newer class (overridable via register()).
-        ("AutoZModel", "llama", "Llama2Model"),
-        ("AutoZMTextGenerate", "llama", "Llama2TextGenerate"),
+        # LlamaModel reads either config (rope_scaling absent -> Llama 2), so it is a
+        # true superset, not just a default.
+        ("AutoZModel", "llama", "LlamaModel"),
+        ("AutoZMTextGenerate", "llama", "LlamaTextGenerate"),
         ("AutoZModel", "depth_anything", "DepthAnythingV2Model"),
     ],
 )
@@ -214,8 +216,8 @@ def test_every_table_value_resolves_and_matches_its_task():
 _COVERAGE_EXEMPT = {
     # Collision losers: a family sharing one config model_type -- the table holds the newer
     # sibling, the older is loadable via its own class.
-    "LlamaModel",
-    "LlamaTextGenerate",
+    "Llama2Model",
+    "Llama2TextGenerate",
     "DepthAnythingV1Model",
     "DepthAnythingV1DepthEstimation",
     # Redundant transformers-named alias whose model_type ("grounding-dino") already maps to
