@@ -78,12 +78,15 @@ class QuantizedDense(layers.Layer):
     Backend-agnostic; built from a trained ``Dense`` via :meth:`from_dense`.
     """
 
-    def __init__(self, units, mode="int8", use_bias=True, group_size=32, **kwargs):
+    def __init__(
+        self, units, mode="int8", use_bias=True, group_size=32, activation=None, **kwargs
+    ):
         super().__init__(**kwargs)
         self.units = int(units)
         self.mode = mode
         self.use_bias = use_bias
         self.group_size = group_size
+        self.activation = keras.activations.get(activation)
         self.quantizer = get_quantizer(mode, group_size)
         self._loading = False
         self._loaded = False
@@ -120,7 +123,7 @@ class QuantizedDense(layers.Layer):
         y = ops.matmul(inputs, kernel)
         if self.use_bias:
             y = y + ops.cast(self.bias, y.dtype)
-        return y
+        return self.activation(y)
 
     def assign_float_weight(self, value):
         """Quantize a float kernel into this layer's int storage (no-float load)."""
@@ -148,6 +151,7 @@ class QuantizedDense(layers.Layer):
             mode=mode,
             use_bias=dense.use_bias,
             group_size=group_size,
+            activation=dense.activation,
             name=dense.name,
         )
         layer.build((None, int(dense.kernel.shape[0])))
@@ -161,7 +165,12 @@ class QuantizedDense(layers.Layer):
     def to_dense(self):
         """Reconstruct a float ``keras.layers.Dense`` from the quantized weights."""
         kernel = self.quantizer.dequantize(self.kernel, self.scale, axis=0)
-        dense = layers.Dense(self.units, use_bias=self.use_bias, name=self.name)
+        dense = layers.Dense(
+            self.units,
+            use_bias=self.use_bias,
+            activation=self.activation,
+            name=self.name,
+        )
         dense.build((None, int(ops.shape(kernel)[0])))
         dense.kernel.assign(ops.cast(kernel, dense.kernel.dtype))
         if self.use_bias:
@@ -176,6 +185,7 @@ class QuantizedDense(layers.Layer):
                 "mode": self.mode,
                 "use_bias": self.use_bias,
                 "group_size": self.group_size,
+                "activation": keras.activations.serialize(self.activation),
             }
         )
         return config
@@ -201,6 +211,7 @@ class QuantizedEinsumDense(layers.Layer):
         bias_axes=None,
         bias_shape=None,
         group_size=32,
+        activation=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -211,6 +222,7 @@ class QuantizedEinsumDense(layers.Layer):
         self.bias_axes = bias_axes
         self.bias_shape = tuple(bias_shape) if bias_shape is not None else None
         self.group_size = group_size
+        self.activation = keras.activations.get(activation)
         self.quantizer = get_quantizer(mode, group_size)
         self.axis = einsum_contracting_axes(equation)
 
@@ -250,7 +262,7 @@ class QuantizedEinsumDense(layers.Layer):
         y = ops.einsum(self.equation, inputs, kernel)
         if self.bias is not None:
             y = y + ops.cast(self.bias, y.dtype)
-        return y
+        return self.activation(y)
 
     @classmethod
     def from_einsum_dense(cls, einsum_dense, mode, group_size=32):
@@ -263,6 +275,7 @@ class QuantizedEinsumDense(layers.Layer):
             bias_axes=einsum_dense.bias_axes,
             bias_shape=tuple(bias.shape) if bias is not None else None,
             group_size=group_size,
+            activation=getattr(einsum_dense, "activation", None),
             name=einsum_dense.name,
         )
         layer.build()
@@ -284,6 +297,7 @@ class QuantizedEinsumDense(layers.Layer):
                 "bias_axes": self.bias_axes,
                 "bias_shape": list(self.bias_shape) if self.bias_shape else None,
                 "group_size": self.group_size,
+                "activation": keras.activations.serialize(self.activation),
             }
         )
         return config

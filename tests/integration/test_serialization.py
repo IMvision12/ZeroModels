@@ -118,6 +118,45 @@ def test_quantize_in_place_paths_have_no_collisions():
     assert len(paths) == len(set(paths)), f"path collision: {paths}"
 
 
+def test_activation_survives_quantize_roundtrip():
+    """A Dense/EinsumDense activation is carried through quantize (and the swap
+    back on dequantize), so a fused activation is not silently dropped."""
+    import numpy as np
+    from keras import layers, ops
+
+    from zeromodels.quantization import dequantize_model, quantize_model
+
+    inp = layers.Input((16,))
+    h = layers.Dense(8, activation="relu", name="relu_dense")(inp)
+    out = layers.Dense(4, activation="tanh", name="tanh_dense")(h)
+    model = keras.Model(inp, out)
+
+    x = np.random.default_rng(0).standard_normal((4, 16)).astype("float32")
+    float_out = ops.convert_to_numpy(model(x))
+
+    model = quantize_model(model, "int8")
+    relu_dense = model.get_layer("relu_dense")
+    assert type(relu_dense).__name__ == "QuantizedDense"
+    assert keras.activations.serialize(relu_dense.activation) == "relu"
+
+    quant_out = ops.convert_to_numpy(model(x))
+    # tanh head bounds the output; a dropped activation would run unbounded.
+    assert quant_out.min() >= -1.001 and quant_out.max() <= 1.001
+    cos = float(
+        float_out.ravel()
+        @ quant_out.ravel()
+        / (np.linalg.norm(float_out) * np.linalg.norm(quant_out) + 1e-9)
+    )
+    assert cos > 0.99, cos
+
+    model = dequantize_model(model)
+    revived = model.get_layer("relu_dense")
+    assert isinstance(revived, layers.Dense) and not hasattr(revived, "quant_kernel")
+    assert keras.activations.serialize(revived.activation) == "relu"
+    deq_out = ops.convert_to_numpy(model(x))
+    assert deq_out.min() >= -1.001 and deq_out.max() <= 1.001
+
+
 def test_no_float_load_matches_load_then_quantize():
     """quantize_and_load streams a float checkpoint into int storage and lands
     byte-identical to building float then quantizing (int8 / int4, all backends)."""

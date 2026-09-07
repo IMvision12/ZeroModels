@@ -85,6 +85,7 @@ def _skeleton_layer(layer, config, path):
                         mode=mode,
                         use_bias=value.use_bias,
                         group_size=config.group_size,
+                        activation=value.activation,
                         name=value.name,
                     ),
                 )
@@ -299,6 +300,7 @@ def _swap_to_quantized_dense(parent, name, dense, mode, group_size):
         mode=mode,
         use_bias=dense.use_bias,
         group_size=group_size,
+        activation=dense.activation,
         name=dense.name,
     )
     _swap(parent, name, dense, quantized)
