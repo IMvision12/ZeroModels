@@ -235,7 +235,7 @@ class GraniteSpeechAttention(layers.Layer):
 
         attn = ops.matmul(query, ops.transpose(key, (0, 1, 3, 2))) * self.scaling
         if attention_mask is not None:
-            attn = attn + attention_mask
+            attn = attn + ops.cast(attention_mask, attn.dtype)
         attn = ops.cast(ops.softmax(ops.cast(attn, "float32"), axis=-1), query.dtype)
         out = ops.matmul(attn, value)
         out = ops.transpose(out, (0, 2, 1, 3))
