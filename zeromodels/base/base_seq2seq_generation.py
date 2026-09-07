@@ -97,6 +97,14 @@ class BaseSeq2SeqGeneration(BaseGeneration):
         if rotary is not None:
             q = rotary(q, update_index)
             k_new = rotary(k_new, update_index)
+        # Match the cache dtype before writing / attending. Under a non-float32
+        # load_dtype the model computes in bf16, but the rope tables (and any
+        # float32 init) can upcast q/k, so a bare slice_update or the attend matmul
+        # would raise a dtype mismatch on jax / tf (and torch's index_put). Casting
+        # keeps the whole decode path at the model's compute dtype.
+        q = ops.cast(q, cache_k.dtype)
+        k_new = ops.cast(k_new, cache_k.dtype)
+        v_new = ops.cast(v_new, cache_v.dtype)
         cache_k = ops.slice_update(cache_k, (0, 0, update_index, 0), k_new)
         cache_v = ops.slice_update(cache_v, (0, 0, update_index, 0), v_new)
         n = hidden_states.shape[1]
@@ -128,8 +136,8 @@ class BaseSeq2SeqGeneration(BaseGeneration):
         head_dim = self.decode_head_dim
         cache = tuple(
             (
-                ops.zeros((batch, heads, max_len, head_dim)),
-                ops.zeros((batch, heads, max_len, head_dim)),
+                ops.zeros((batch, heads, max_len, head_dim), dtype=cross_k.dtype),
+                ops.zeros((batch, heads, max_len, head_dim), dtype=cross_v.dtype),
                 cross_k,
                 cross_v,
             )
