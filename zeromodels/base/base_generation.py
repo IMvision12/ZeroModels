@@ -206,7 +206,17 @@ class BaseGeneration:
                         out[rows] = np.asarray(ops.convert_to_numpy(group_out))
                     return ops.convert_to_tensor(out)
         noise = self.draw_noise(sampler, max_new_tokens, batch, seed)
+        sampler_key = (
+            type(sampler).__name__,
+            tuple(sorted(sampler.get_config().items())),
+        )
         if prefill_inputs:
+            # The multimodal prefill (vision / audio encoder + fusion) has dynamic
+            # shapes and stays eager, but the fixed-shape text decode loop that
+            # follows is compiled + cached (keyed on prompt_len, which sets the cache
+            # size) exactly like the text-only path -- otherwise repeated multimodal
+            # generation runs the decode loop uncompiled, ~an order of magnitude
+            # slower on JAX / TF than the identical text-only call.
             prompt_len = int(input_ids.shape[1])
             with inference_scope():
                 cache, logits = self.build_cache(
@@ -215,14 +225,12 @@ class BaseGeneration:
                     prompt_len + max_new_tokens,
                     **prefill_inputs,
                 )
-            return self.run_decode(
-                cache, logits, prompt_len, noise, max_new_tokens, eos, sampler
+            decode_key = (prompt_len, max_new_tokens, eos, sampler_key)
+            fn = self.cached_decode_function(
+                decode_key, prompt_len, max_new_tokens, eos, sampler
             )
+            return self.run_compiled(fn, (cache, logits), noise)
 
-        sampler_key = (
-            type(sampler).__name__,
-            tuple(sorted(sampler.get_config().items())),
-        )
         cache_key = (max_new_tokens, eos, attention_mask is not None, sampler_key)
         fn = self.cached_generate_function(cache_key, max_new_tokens, eos, sampler)
         return self.run_compiled(fn, (input_ids, padding_mask), noise)
@@ -366,6 +374,60 @@ class BaseGeneration:
 
         return run
 
+    def make_decode_function(self, prompt_len, max_new_tokens, eos, sampler):
+        # Like make_generate_function, but compiles ONLY the decode loop: the cache /
+        # prefill logits are built eagerly (the multimodal prefill can't be jitted)
+        # and handed in as runtime args ``(cache, logits)``. Model weights thread
+        # through the same StatelessScope (JAX) / tf.function (TF) / eager (Torch),
+        # so the compiled loop is reused across calls just like the text-only path.
+        backend = keras.backend.backend()
+        if backend == "jax":
+            import itertools
+
+            import jax
+
+            def compiled(runtime_args, noise, state):
+                cache, logits = runtime_args
+                trainable, non_trainable = state
+                mapping = itertools.chain(
+                    zip(self.trainable_variables, trainable),
+                    zip(self.non_trainable_variables, non_trainable),
+                )
+                with keras.StatelessScope(state_mapping=mapping):
+                    return self.decode_loop(
+                        cache, logits, prompt_len, noise, max_new_tokens, eos, sampler
+                    )
+
+            compiled = jax.jit(compiled)
+
+            def run(runtime_args, noise):
+                state = (
+                    [v.value for v in self.trainable_variables],
+                    [v.value for v in self.non_trainable_variables],
+                )
+                return compiled(runtime_args, noise, state)
+
+            return run
+
+        if backend == "tensorflow":
+            import tensorflow as tf
+
+            def run(runtime_args, noise):
+                cache, logits = runtime_args
+                return self.decode_loop(
+                    cache, logits, prompt_len, noise, max_new_tokens, eos, sampler
+                )
+
+            return tf.function(run, jit_compile=True)
+
+        def run(runtime_args, noise):
+            cache, logits = runtime_args
+            return self.decode_loop(
+                cache, logits, prompt_len, noise, max_new_tokens, eos, sampler
+            )
+
+        return run
+
     def resolve_generation_args(self, max_new_tokens, eos_token_id, sampler, seed):
         if max_new_tokens is None:
             max_new_tokens = 128
@@ -412,6 +474,22 @@ class BaseGeneration:
             fns.move_to_end(cache_key)
             return fn
         fn = self.make_generate_function(max_new_tokens, eos, sampler)
+        fns[cache_key] = fn
+        if len(fns) > self._generate_cache_maxsize:
+            fns.popitem(last=False)
+        return fn
+
+    def cached_decode_function(
+        self, cache_key, prompt_len, max_new_tokens, eos, sampler
+    ):
+        fns = self.__dict__.get("_decode_functions")
+        if fns is None:
+            fns = self.__dict__["_decode_functions"] = OrderedDict()
+        fn = fns.get(cache_key)
+        if fn is not None:
+            fns.move_to_end(cache_key)
+            return fn
+        fn = self.make_decode_function(prompt_len, max_new_tokens, eos, sampler)
         fns[cache_key] = fn
         if len(fns) > self._generate_cache_maxsize:
             fns.popitem(last=False)
