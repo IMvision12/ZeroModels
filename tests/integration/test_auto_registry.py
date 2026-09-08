@@ -335,3 +335,53 @@ def test_class_accepts_its_own_config_model_type():
         "from_weights('hf:...') on their own checkpoint fails assert_hf_model_type; fix "
         f"HF_MODEL_TYPE (or add a documented cross-name exemption): {bad}"
     )
+
+
+# model_types that INTENTIONALLY resolve across two directories; the exact family set
+# is pinned so a genuine mix-up is still caught.
+_CROSS_FAMILY_EXEMPT = {
+    # HF's "segformer" model_type covers SegFormer (segmentation) AND its MiT encoder
+    # used as a classifier; zeromodels splits them across dirs but shares the type (see
+    # the AMBIGUOUS_HF_TYPES comment). zeromodels repos use distinct "mit"/"segformer".
+    "segformer": {"mit", "segformer"},
+    # Qwen2.5-VL reuses Qwen2-VL's processor: Qwen2_5VLProcessor IS Qwen2VLProcessor,
+    # defined in the qwen2_vl module. The model / config are qwen2_5_vl.
+    "qwen2_5_vl": {"qwen2_5_vl", "qwen2_vl"},
+    "qwen2_5_vl_text": {"qwen2_5_vl", "qwen2_vl"},
+}
+
+
+def test_no_cross_family_model_type():
+    """Every table (model tasks + config/tokenizer/processor/image-processor) must
+    resolve a given model_type to classes from ONE family directory, so the Auto*
+    loaders hand back a coherent (model, config, processor) triple. ZOO-2: `gemma4_text`
+    text-generation resolved to the gemma4_unified class while every other gemma4_text
+    row stayed in gemma4, and depth_anything's config/image-processor lagged its V2
+    model. The genuinely-shared model_types are allowlisted with their exact family set."""
+
+    def family(class_name):
+        return A._resolve_class(class_name).__module__.split(".")[2]
+
+    per_type = {}
+    for task, table in names.MODEL_TASK_MAPPING_NAMES.items():
+        for model_type, class_name in table.items():
+            per_type.setdefault(model_type, {})[f"model:{task}"] = family(class_name)
+    for table_name, table in [
+        ("config", names.CONFIG_MAPPING_NAMES),
+        ("tokenizer", names.TOKENIZER_MAPPING_NAMES),
+        ("processor", names.PROCESSOR_MAPPING_NAMES),
+        ("image_processor", names.IMAGE_PROCESSOR_MAPPING_NAMES),
+    ]:
+        for model_type, class_name in table.items():
+            per_type.setdefault(model_type, {})[table_name] = family(class_name)
+
+    bad = []
+    for model_type, by_table in sorted(per_type.items()):
+        fams = set(by_table.values())
+        if len(fams) > 1 and _CROSS_FAMILY_EXEMPT.get(model_type) != fams:
+            bad.append(f"{model_type!r}: {by_table}")
+    assert not bad, (
+        "model_type(s) whose tables resolve to different families -- the Auto* loaders "
+        "would return a mismatched (model, config, processor) triple; fix the mapping "
+        f"(or allowlist a genuinely-shared type with its exact family set): {bad}"
+    )
