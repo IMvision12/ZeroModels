@@ -461,7 +461,9 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         except Exception:
             return None
         for info in pkgutil.iter_modules(getattr(pkg, "__path__", [])):
-            if info.name.startswith("convert_") and info.name.endswith("_timm_to_keras"):
+            if info.name.startswith("convert_") and info.name.endswith(
+                "_timm_to_keras"
+            ):
                 try:
                     conv = importlib.import_module(f"{pkg_name}.{info.name}")
                 except Exception:
