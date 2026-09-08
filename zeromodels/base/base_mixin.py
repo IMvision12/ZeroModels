@@ -451,6 +451,31 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         model.load_weights(download_weights(url), skip_mismatch=skip_mismatch)
 
     @classmethod
+    def timm_model_configs(cls):
+        import importlib
+        import pkgutil
+
+        pkg_name = cls.__module__.rsplit(".", 1)[0]
+        try:
+            pkg = importlib.import_module(pkg_name)
+        except Exception:
+            return None
+        for info in pkgutil.iter_modules(getattr(pkg, "__path__", [])):
+            if info.name.startswith("convert_") and info.name.endswith(
+                "_timm_to_keras"
+            ):
+                try:
+                    conv = importlib.import_module(f"{pkg_name}.{info.name}")
+                except Exception:
+                    continue
+                for attr in sorted(dir(conv)):
+                    if attr.endswith("_MODEL_CONFIG") and isinstance(
+                        getattr(conv, attr), dict
+                    ):
+                        return getattr(conv, attr)
+        return None
+
+    @classmethod
     def from_variant(
         cls,
         variant,
@@ -469,18 +494,24 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         loaded by Hub repo id instead (``from_weights("org/repo")`` ->
         :meth:`from_hub_repo`), not from here.
         """
-        if cls.BASE_MODEL_CONFIG is None:
+        configs = cls.BASE_MODEL_CONFIG
+        if configs is None and cls.HF_MODEL_TYPE is None:
+            # Timm-ported families keep their arch table in the converter, not the
+            # package config (official weights load by repo id). Resolve it so the
+            # on-the-fly timm conversion path can build the model.
+            configs = cls.timm_model_configs()
+        if configs is None:
             raise NotImplementedError(
                 f"{cls.__name__} must set BASE_MODEL_CONFIG to use from_weights()."
             )
-        if variant not in cls.BASE_MODEL_CONFIG:
-            available = sorted(cls.BASE_MODEL_CONFIG.keys())
+        if variant not in configs:
+            available = sorted(configs.keys())
             raise ValueError(
                 f"Unknown variant '{variant}' for {cls.__name__}. "
                 f"Available variants: {available}"
             )
 
-        config = dict(cls.BASE_MODEL_CONFIG[variant])
+        config = dict(configs[variant])
         config.update(kwargs)
         model = cls(**config)
 
@@ -859,10 +890,10 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
             An initialized model instance.
         """
         if cls.HF_MODEL_TYPE is None:
+            configs = cls.timm_model_configs() or {}
             if variant is None:
-                tail = hf_id.split("/")[-1]
-                stem = tail.replace(".", "_")
-                for candidate in cls.BASE_MODEL_CONFIG or {}:
+                stem = hf_id.split("/")[-1].replace(".", "_")
+                for candidate in configs:
                     if stem == candidate or stem.startswith(candidate + "_"):
                         variant = candidate
                         break
@@ -870,7 +901,7 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
                     raise ValueError(
                         f"Cannot infer zeromodels variant from hf_id "
                         f"'{hf_id}'. Pass `variant=` explicitly. Available "
-                        f"variants: {sorted(cls.BASE_MODEL_CONFIG or {})}"
+                        f"variants: {sorted(configs)}"
                     )
             model = cls.from_variant(variant, load_weights=False, **kwargs)
             if load_weights:

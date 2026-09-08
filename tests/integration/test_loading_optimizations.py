@@ -150,3 +150,55 @@ def test_mxfp4_quantize_is_exact_inverse_of_dequant():
         axis=-1,
     )[..., 0].reshape(8, 256)
     np.testing.assert_allclose(wq, nearest)
+
+
+def _timm_families():
+    """Family dir names whose ``*_model.py`` defines a ``transfer_from_timm``."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[2] / "zeromodels" / "models"
+    return sorted(
+        p.parent.name
+        for p in root.glob("*/*_model.py")
+        if "def transfer_from_timm" in p.read_text(encoding="utf-8", errors="ignore")
+    )
+
+
+@pytest.mark.parametrize("family", _timm_families())
+def test_timm_conversion_path_is_wired(family):
+    """Each timm-ported family exposes its converter's arch table and builds through
+    the on-the-fly ``hf:timm/...`` path (guards ZOO-1: the timm ``from_hf`` branch
+    resolved the variant from ``BASE_MODEL_CONFIG``, which these classes stopped
+    setting when arch moved into the converters, so both documented calls raised).
+
+    Network-free: ``load_weights=False`` exercises variant inference + build without
+    downloading a checkpoint.
+    """
+    import importlib
+    import inspect
+
+    module = importlib.import_module(f"zeromodels.models.{family}")
+    cls = next(
+        (
+            obj
+            for name in getattr(module, "__all__", dir(module))
+            if inspect.isclass(obj := getattr(module, name, None))
+            and getattr(obj, "HF_MODEL_TYPE", "x") is None
+            and hasattr(obj, "timm_model_configs")
+            and obj.timm_model_configs()
+        ),
+        None,
+    )
+    assert cls is not None, f"{family}: no timm-loadable class with a resolvable arch"
+
+    configs = cls.timm_model_configs()
+    assert configs, f"{cls.__name__}.timm_model_configs() is empty"
+    variant = sorted(configs)[0]
+    # `from_weights("hf:<repo>", variant=...)`: explicit variant.
+    assert isinstance(
+        cls.from_weights("hf:test/repo", variant=variant, load_weights=False), cls
+    )
+    # `from_weights("hf:timm/<id>")`: variant inferred from the repo tail.
+    assert isinstance(
+        cls.from_weights(f"hf:timm/{variant}.pretrained", load_weights=False), cls
+    )
