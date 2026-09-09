@@ -1510,7 +1510,6 @@ class RFDETRDetect(BaseModel):
         lite_refpoint_refine: Whether to use lite reference point refinement.
         group_detr: Number of DETR groups (training only, inference uses 1).
         dim_feedforward: FFN dimension in decoder.
-        weights: Pre-trained weight identifier or file path.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to

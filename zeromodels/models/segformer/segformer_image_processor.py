@@ -33,6 +33,9 @@ class SegFormerImageProcessor(BaseImageProcessor):
             (False).
         data_format: ``"channels_first"`` / ``"channels_last"``;
             ``None`` resolves to ``keras.backend.image_data_format()``.
+        variant: Optional variant key. When given, selects that variant's
+            default resize ``size``. Normally supplied automatically when
+            loading via ``from_weights``.
     """
 
     def __init__(

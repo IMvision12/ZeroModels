@@ -1400,7 +1400,6 @@ class RTDETRV2Detect(BaseModel):
         feat_strides: Feature strides from the backbone.
         num_queries: Number of object queries.
         num_classes: Number of object classes (COCO: 80).
-        weights: Pre-trained weight identifier or file path.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to

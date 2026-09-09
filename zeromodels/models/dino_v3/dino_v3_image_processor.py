@@ -22,6 +22,8 @@ class DinoV3ImageProcessor(BaseImageProcessor):
         image_resolution: Square target side in pixels. Defaults to ``224``.
         mean / std: Per-channel normalization. Defaults to ImageNet standard.
         do_normalize / do_resize: Toggle the normalize / resize steps.
+        data_format: ``"channels_first"`` / ``"channels_last"``; ``None``
+            resolves to ``keras.config.image_data_format()``.
     """
 
     def __init__(

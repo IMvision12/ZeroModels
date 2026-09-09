@@ -23,6 +23,8 @@ class DinoV2ImageProcessor(BaseImageProcessor):
         crop_size: Square center-crop side. Defaults to ``224``.
         mean / std: Per-channel normalization. Defaults to ImageNet standard.
         do_center_crop / do_normalize / do_resize: Toggle the steps.
+        data_format: ``"channels_first"`` / ``"channels_last"``; ``None``
+            resolves to ``keras.config.image_data_format()``.
     """
 
     def __init__(
