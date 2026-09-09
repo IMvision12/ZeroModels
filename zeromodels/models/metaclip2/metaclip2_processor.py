@@ -38,10 +38,17 @@ class MetaClip2Processor(BaseProcessor):
             Defaults to ``True``.
         data_format: ``"channels_last"`` / ``"channels_first"`` /
             ``None`` (auto from ``keras.config.image_data_format()``).
-        sentencepiece_model_file: Path to ``sentencepiece.bpe.model``.
-            ``None`` triggers a one-time download from the MetaCLIP 2
-            release.
+        variant: MetaCLIP 2 worldwide variant key; resolves to the
+            ``zeromodels/<variant>`` repo's ``tokenizer.json``.
+        tokenizer_file: Optional explicit ``tokenizer.json`` path
+            (overrides ``variant``).
         max_seq_len: Tokenizer max sequence length. Defaults to ``77``.
+        tokenizer: Optional prebuilt :class:`MetaClip2Tokenizer` to use
+            instead of constructing one from ``variant`` /
+            ``tokenizer_file`` / ``max_seq_len``.
+        image_processor: Optional prebuilt
+            :class:`MetaClip2ImageProcessor` to use instead of
+            constructing one from the image kwargs above.
         **kwargs: Forwarded to :class:`BaseProcessor`.
 
     Example:

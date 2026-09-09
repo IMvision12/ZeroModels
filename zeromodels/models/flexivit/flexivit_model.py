@@ -87,6 +87,11 @@ class FlexiViTModel(ViTModel):
         name="FlexiViTModel",
         **kwargs,
     ):
+        # FlexiViT defaults (else the ViT parent's base geometry + no_embed_class
+        # False would build a plain ViT that cannot resample the position embedding).
+        kwargs.setdefault("no_embed_class", True)
+        kwargs.setdefault("embed_dim", 384)
+        kwargs.setdefault("num_heads", 6)
         super().__init__(
             as_backbone=as_backbone,
             image_size=image_size,
@@ -115,11 +120,11 @@ class FlexiViTImageClassify(ViTImageClassify):
         patch_size: Integer, conv-stem patch size in pixels. Can be set
             at inference to any value supported by the resampled
             positional embedding. Defaults to `16`.
-        embed_dim: Integer, token embedding dimension. Defaults to `768`.
+        embed_dim: Integer, token embedding dimension. Defaults to `384`.
         depth: Integer, number of transformer encoder blocks in the
             backbone. Defaults to `12`.
         num_heads: Integer, number of attention heads per block.
-            Defaults to `12`.
+            Defaults to `6`.
         mlp_ratio: Float, hidden expansion ratio for the MLP sub-block.
             Defaults to `4.0`.
         qkv_bias: Boolean, whether to include bias in the QKV projection.
@@ -133,9 +138,9 @@ class FlexiViTImageClassify(ViTImageClassify):
             Defaults to `0.0`.
         no_embed_class: Boolean, if `True`, position embeddings do not
             cover the class / distillation prefix tokens: required for
-            the flexible patch-size positional-embedding resampling.
-            Defaults to `False` here for ``__init__`` compatibility;
-            FlexiViT checkpoints set this to `True`.
+            the flexible patch-size positional-embedding resampling that
+            defines FlexiViT. Defaults to `True` (every FlexiViT
+            checkpoint is trained this way).
         use_distillation: Boolean, if `True`, prepend a separate
             distillation token alongside the class token. Defaults to
             `False`.
@@ -180,15 +185,15 @@ class FlexiViTImageClassify(ViTImageClassify):
     def __init__(
         self,
         patch_size=16,
-        embed_dim=768,
+        embed_dim=384,
         depth=12,
-        num_heads=12,
+        num_heads=6,
         mlp_ratio=4.0,
         qkv_bias=True,
         qk_norm=False,
         drop_rate=0.0,
         attn_drop_rate=0.0,
-        no_embed_class=False,
+        no_embed_class=True,
         use_distillation=False,
         layer_scale_init=None,
         image_size=240,

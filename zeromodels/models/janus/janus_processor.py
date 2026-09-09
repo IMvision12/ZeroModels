@@ -28,6 +28,8 @@ class JanusProcessor(BaseProcessor):
 
     Args:
         hf_id: Hub repo for the tokenizer's ``tokenizer.json``.
+        variant: Optional variant key forwarded to the tokenizer for
+            resolving its ``tokenizer.json``.
         num_image_tokens: Vision tokens per image ((384 / 16)**2 = 576).
         use_default_system_prompt: Prepend the default system prompt.
         tokenizer / image_processor: Optional pre-built components.

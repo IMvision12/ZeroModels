@@ -33,15 +33,20 @@ class DepthAnythingV2ImageProcessor(BaseImageProcessor):
     Example:
         ```python
         from zeromodels.models.depth_anything_v2 import (
-            DepthAnythingV2Small, DepthAnythingV2ImageProcessor,
+            DepthAnythingV2DepthEstimation, DepthAnythingV2ImageProcessor,
         )
 
-        model = DepthAnythingV2Small(
-            input_shape=(392, 784, 3), weights="depth_anything"
+        model = DepthAnythingV2DepthEstimation.from_weights(
+            "zeromodels/depth_anything_v2_small"
         )
-        proc = DepthAnythingV2ImageProcessor(target_size=(392, 784))
+        proc = DepthAnythingV2ImageProcessor.from_weights(
+            "zeromodels/depth_anything_v2_small"
+        )
         inputs = proc("photo.jpg")
-        depth = model(inputs["pixel_values"])
+        output = model(inputs["pixel_values"], training=False)
+        depth = proc.post_process_depth_estimation(
+            output, original_size=inputs["original_size"]
+        )
         ```
     """
 

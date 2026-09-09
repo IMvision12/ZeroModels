@@ -2,9 +2,14 @@ import keras
 from keras import layers, ops, utils
 
 from zeromodels.base import BaseModel
+from zeromodels.conversion import copy_weights_by_path_suffix
 from zeromodels.utils import standardize_input_shape
 
 from .deeplabv3_config import DeepLabV3Config
+
+# The backbone (DeepLabV3Model) and head (DeepLabV3SemanticSegment) share the
+# variant's weights repo, whose zm_config.json declares DeepLabV3SemanticSegment.
+DEEPLABV3_HUB_SIBLINGS = frozenset({"DeepLabV3Model", "DeepLabV3SemanticSegment"})
 
 
 def deeplabv3_dilated_resnet_backbone(
@@ -345,7 +350,22 @@ class DeepLabV3Model(BaseModel):
 
     BASE_MODEL_CONFIG = None
     BASE_WEIGHT_CONFIG = None
+    config_class = DeepLabV3Config
+    HUB_REPO_SIBLINGS = DEEPLABV3_HUB_SIBLINGS
     HF_MODEL_TYPE = None
+
+    @classmethod
+    def from_hub_repo(cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs):
+        # Backbone shares the variant's repo with DeepLabV3SemanticSegment (which the
+        # zm_config declares); build from zm_config, then copy the backbone weights.
+        model = cls.build_from_hub_repo(repo_id, **kwargs)
+        if load_weights:
+            src = DeepLabV3SemanticSegment.from_weights(
+                repo_id, skip_mismatch=skip_mismatch
+            )
+            copy_weights_by_path_suffix(src, model)
+            del src
+        return model
 
     def __init__(
         self,
@@ -355,6 +375,9 @@ class DeepLabV3Model(BaseModel):
         name="DeepLabV3Model",
         **kwargs,
     ):
+        # num_classes is a head-only field carried in the shared zm_config; the
+        # backbone ignores it (build_from_hub_repo passes the whole config).
+        kwargs.pop("num_classes", None)
         data_format = keras.config.image_data_format()
         image_size = standardize_input_shape(image_size, data_format)
 
@@ -425,6 +448,7 @@ class DeepLabV3SemanticSegment(BaseModel):
     BASE_MODEL_CONFIG = None
     config_class = DeepLabV3Config
     BASE_WEIGHT_CONFIG = None
+    HUB_REPO_SIBLINGS = DEEPLABV3_HUB_SIBLINGS
     HF_MODEL_TYPE = None
 
     def __init__(

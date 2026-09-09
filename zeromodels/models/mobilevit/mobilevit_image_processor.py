@@ -45,6 +45,9 @@ class MobileViTImageProcessor(BaseImageProcessor):
             Defaults to ``True``.
         data_format: ``"channels_first"`` / ``"channels_last"``. ``None``
             uses ``keras.config.image_data_format()``.
+        variant: Optional variant key. When given, selects that variant's
+            default ``size`` / ``crop_size`` recipe. Normally supplied
+            automatically when loading via ``from_weights``.
 
     Example:
         ```python

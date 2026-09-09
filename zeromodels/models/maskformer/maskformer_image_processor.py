@@ -26,6 +26,9 @@ class MaskFormerImageProcessor(BaseImageProcessor):
         image_std: Per-channel std for normalization.
         data_format: ``"channels_first"`` / ``"channels_last"``; ``None``
             resolves to ``keras.config.image_data_format()``.
+        variant: Optional variant key. When given, selects that variant's
+            default ``target_size``. Normally supplied automatically when
+            loading via ``from_weights``.
     """
 
     def __init__(

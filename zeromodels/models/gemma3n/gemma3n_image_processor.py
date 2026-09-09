@@ -18,7 +18,6 @@ class Gemma3nImageProcessor(BaseImageProcessor):
 
     Args:
         size: Target square side in pixels. Defaults to ``768``.
-        resample: PIL resample filter. Defaults to bicubic.
         rescale_factor: Pixel rescale. Defaults to ``1/255``.
         image_mean / image_std: Per-channel normalization. Default ``0.5`` each
             (maps ``[0, 1]`` pixels to ``[-1, 1]``).
