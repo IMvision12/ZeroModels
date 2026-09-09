@@ -109,7 +109,7 @@ class Glm4MoeLiteModel(BaseModel):
         num_experts / num_experts_per_tok / n_shared_experts: MoE shape.
         n_group / topk_group / norm_topk_prob / routed_scaling_factor: Routing.
         first_k_dense: Leading dense layers.
-        q_lora_rank: Query bottleneck (None on V2-Lite).
+        q_lora_rank: Query bottleneck.
         kv_lora_rank / qk_nope_head_dim / qk_rope_head_dim / v_head_dim: MLA.
         rope_theta: Base frequency.
         rope_scaling: The HF ``rope_scaling`` dict (yarn) or None.
@@ -126,29 +126,29 @@ class Glm4MoeLiteModel(BaseModel):
 
     def __init__(
         self,
-        vocab_size=129280,
-        embed_dim=7168,
-        num_layers=61,
-        num_heads=128,
-        mlp_dim=18432,
-        moe_mlp_dim=2048,
-        num_experts=256,
-        num_experts_per_tok=8,
+        vocab_size=154880,
+        embed_dim=2048,
+        num_layers=47,
+        num_heads=20,
+        mlp_dim=10240,
+        moe_mlp_dim=1536,
+        num_experts=64,
+        num_experts_per_tok=4,
         n_shared_experts=1,
-        n_group=8,
-        topk_group=4,
+        n_group=1,
+        topk_group=1,
         norm_topk_prob=True,
-        routed_scaling_factor=2.5,
-        first_k_dense=3,
-        q_lora_rank=1536,
+        routed_scaling_factor=1.8,
+        first_k_dense=1,
+        q_lora_rank=768,
         kv_lora_rank=512,
-        qk_nope_head_dim=128,
+        qk_nope_head_dim=192,
         qk_rope_head_dim=64,
-        v_head_dim=128,
-        rope_theta=10000.0,
+        v_head_dim=256,
+        rope_theta=1000000.0,
         rope_scaling=None,
-        norm_eps=1e-6,
-        max_position_embeddings=163840,
+        norm_eps=1e-5,
+        max_position_embeddings=202752,
         tie_embeddings=False,
         name=None,
         **kwargs,
