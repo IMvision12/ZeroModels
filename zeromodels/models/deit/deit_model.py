@@ -77,6 +77,8 @@ class DeiTModel(ViTModel):
         transfer_deit_weights(keras_model, state_dict)
 
     def __init__(self, as_backbone=False, name="DeiTModel", **kwargs):
+        kwargs.setdefault("embed_dim", 192)
+        kwargs.setdefault("num_heads", 3)
         super().__init__(as_backbone=as_backbone, name=name, **kwargs)
 
 
@@ -101,11 +103,11 @@ class DeiTImageClassify(ViTImageClassify):
     Args:
         patch_size: Integer, conv-stem patch size in pixels.
             Defaults to `16`.
-        embed_dim: Integer, token embedding dimension. Defaults to `768`.
+        embed_dim: Integer, token embedding dimension. Defaults to `192`.
         depth: Integer, number of transformer encoder blocks in the
             backbone. Defaults to `12`.
         num_heads: Integer, number of attention heads per block.
-            Defaults to `12`.
+            Defaults to `3`.
         mlp_ratio: Float, hidden expansion ratio for the MLP sub-block.
             Defaults to `4.0`.
         qkv_bias: Boolean, whether to include bias in the QKV projection.
@@ -164,9 +166,9 @@ class DeiTImageClassify(ViTImageClassify):
     def __init__(
         self,
         patch_size=16,
-        embed_dim=768,
+        embed_dim=192,
         depth=12,
-        num_heads=12,
+        num_heads=3,
         mlp_ratio=4.0,
         qkv_bias=True,
         qk_norm=False,

@@ -249,15 +249,15 @@ class InceptionNextModel(BaseModel):
             use as a backbone network. When True, returns a list of the
             4 per-stage feature maps. Defaults to `False`.
         depths: Tuple of integers, number of blocks per stage (length 4).
-            Defaults to `(3, 3, 9, 3)`.
+            Defaults to `(2, 2, 6, 2)`.
         num_filters: Tuple of integers, output channel count per stage
-            (length 4). Defaults to `(96, 192, 384, 768)`.
+            (length 4). Defaults to `(40, 80, 160, 320)`.
         mlp_ratios: Tuple of numbers, MLP expansion ratio per stage
             (length 4). Defaults to `(4, 4, 4, 3)`.
         band_kernel_size: Integer, band length for the token mixer
-            (shared across stages). Defaults to `11`.
+            (shared across stages). Defaults to `9`.
         branch_ratio: Float, fraction of input channels allocated to
-            each non-identity token-mixer branch. Defaults to `0.125`.
+            each non-identity token-mixer branch. Defaults to `0.25`.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -302,11 +302,11 @@ class InceptionNextModel(BaseModel):
 
     def __init__(
         self,
-        depths=(3, 3, 9, 3),
-        num_filters=(96, 192, 384, 768),
+        depths=(2, 2, 6, 2),
+        num_filters=(40, 80, 160, 320),
         mlp_ratios=(4, 4, 4, 3),
-        band_kernel_size=11,
-        branch_ratio=0.125,
+        band_kernel_size=9,
+        branch_ratio=0.25,
         image_size=224,
         input_tensor=None,
         as_backbone=False,
@@ -390,15 +390,15 @@ class InceptionNextImageClassify(BaseModel):
 
     Args:
         depths: Tuple of integers, number of blocks per stage (length 4).
-            Defaults to `(3, 3, 9, 3)`.
+            Defaults to `(2, 2, 6, 2)`.
         num_filters: Tuple of integers, output channel count per stage
-            (length 4). Defaults to `(96, 192, 384, 768)`.
+            (length 4). Defaults to `(40, 80, 160, 320)`.
         mlp_ratios: Tuple of numbers, MLP expansion ratio per stage
             (length 4). Defaults to `(4, 4, 4, 3)`.
         band_kernel_size: Integer, band length for the token mixer
-            (shared across stages). Defaults to `11`.
+            (shared across stages). Defaults to `9`.
         branch_ratio: Float, fraction of input channels allocated to
-            each non-identity token-mixer branch. Defaults to `0.125`.
+            each non-identity token-mixer branch. Defaults to `0.25`.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -437,11 +437,11 @@ class InceptionNextImageClassify(BaseModel):
 
     def __init__(
         self,
-        depths=(3, 3, 9, 3),
-        num_filters=(96, 192, 384, 768),
+        depths=(2, 2, 6, 2),
+        num_filters=(40, 80, 160, 320),
         mlp_ratios=(4, 4, 4, 3),
-        band_kernel_size=11,
-        branch_ratio=0.125,
+        band_kernel_size=9,
+        branch_ratio=0.25,
         image_size=224,
         input_tensor=None,
         num_classes=1000,
