@@ -392,18 +392,43 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
     def _quantized_transfer(cls, model, state_dict, quantization, skip_mismatch=False):
         """Apply ``cls.transfer_from_hf``; stream into int storage when quantizing.
 
-        Functional models are built at construction, so this runs a plain float
-        transfer and the caller applies any quantization afterwards (gated on
-        ``model._quantization_config``). A model whose sublayers build lazily (a
-        VLM/ASR tower that does not auto-build) is materialized first via
-        ``build_for_transfer`` so every weight exists before the stream.
+        When ``quantization`` is requested and the model supports a no-float load
+        (an unbuilt subclassed model whose converter builds by iterating
+        ``model.weights``, i.e. not a lazy ``build_for_transfer`` tower), the
+        checkpoint is streamed straight into int storage via
+        :func:`~zeromodels.quantization.quantize_and_load`: an integer skeleton is
+        built first, so each source tensor is quantized as it is assigned and the
+        full float model is never materialized (the ~4x smaller peak the
+        ``quantization=`` flag exists for). That records
+        ``model._quantization_config``, so :meth:`from_weights` skips the post-hoc
+        :func:`~zeromodels.quantization.quantize_model`.
 
-        On a strict load (``skip_mismatch=False``) the build runs under
+        Otherwise a plain float transfer runs here and :meth:`from_weights`
+        quantizes afterwards (gated on ``model._quantization_config``): functional
+        models are built at construction, and a model whose sublayers build lazily
+        (a VLM/ASR tower that does not auto-build) is materialized first via
+        ``build_for_transfer`` so every weight exists before the transfer.
+
+        On a strict load (``skip_mismatch=False``) the float-path build runs under
         :func:`~zeromodels.conversion.weight_transfer_util.zeros_init` so an
         unbuilt model skips the wasted random init of weights it is about to
         overwrite; with ``skip_mismatch`` a mismatched weight may be left at its
         initializer, so that optimization is disabled.
         """
+        if (
+            quantization is not None
+            and not model.built
+            and not hasattr(model, "build_for_transfer")
+        ):
+            from zeromodels.quantization import quantize_and_load
+
+            # No-float load: build the integer skeleton, then stream the float
+            # checkpoint straight into int storage (the full float model is never
+            # materialized). Sets model._quantization_config, so from_weights does
+            # not re-quantize.
+            quantize_and_load(model, quantization, cls.transfer_from_hf, state_dict)
+            return True
+
         from zeromodels.conversion.weight_transfer_util import zeros_init
 
         build_init = contextlib.nullcontext() if skip_mismatch else zeros_init()
@@ -566,6 +591,8 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
                         hf_model_id=hf_id,
                         transfer_fn=cls.transfer_from_hf,
                         is_gated=gated,
+                        skip_mismatch=skip_mismatch,
+                        build_kwargs=kwargs,
                     )
                 warn_skipped(skipped)
 

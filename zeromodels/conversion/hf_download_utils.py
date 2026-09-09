@@ -1,4 +1,5 @@
 import collections.abc
+import hashlib
 import json
 import os
 
@@ -159,12 +160,51 @@ def download_hf_state_dict(hf_id, token=None):
     )
 
 
+def model_dtype_tag(model):
+    """Weight dtype of a (built) model as a stable string, else the backend float."""
+    weights = getattr(model, "weights", None)
+    if weights:
+        return str(getattr(weights[0], "dtype", "float32"))
+    import keras
+
+    return keras.backend.floatx()
+
+
+def cached_weights_name(model, model_name, build_kwargs, skip_mismatch):
+    """Cache file name for one build config.
+
+    Keyed on the architecture kwargs, the weight dtype and whether mismatched
+    weights were skipped, so a non-default build (e.g. ``num_classes=10``), a
+    non-default dtype, or a skip-mismatch load never overwrites or is served the
+    canonical file. The canonical build (no extra kwargs, float32, strict) keeps
+    the legacy ``<model_name>.weights.h5`` name so existing caches stay valid.
+    ``attn_implementation`` is excluded: it is reapplied at build and does not
+    change the stored weights.
+    """
+    kwargs = {
+        k: v for k, v in (build_kwargs or {}).items() if k != "attn_implementation"
+    }
+    dtype = model_dtype_tag(model)
+    if not kwargs and not skip_mismatch and dtype == "float32":
+        return f"{model_name}.weights.h5"
+    payload = {
+        "kwargs": {k: kwargs[k] for k in sorted(kwargs)},
+        "dtype": dtype,
+        "skip_mismatch": bool(skip_mismatch),
+    }
+    blob = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
+    digest = hashlib.sha256(blob.encode()).hexdigest()[:16]
+    return f"{model_name}.{digest}.weights.h5"
+
+
 def load_and_convert_from_hf(
     model,
     model_name,
     hf_model_id,
     transfer_fn,
     is_gated=False,
+    skip_mismatch=False,
+    build_kwargs=None,
 ):
     """Download, convert, and cache source weights for a Keras model.
 
@@ -175,7 +215,9 @@ def load_and_convert_from_hf(
     larger than GitHub's 2 GB release asset cap).
 
     Weights are cached at ``~/.cache/zeromodels/<model_name>/``. Sharded at
-    5 GB per shard for local cache.
+    5 GB per shard for local cache. The cache file name encodes the build
+    config (see :func:`cached_weights_name`) so a non-default ``num_classes`` /
+    dtype / ``skip_mismatch`` never collides with the canonical file.
 
     Args:
         model: The Keras model instance to load weights into.
@@ -186,15 +228,23 @@ def load_and_convert_from_hf(
             ``hf:`` / safetensors release path produces).
         is_gated: When True, emits the license-acceptance error message
             on 401/403. When False (default), lets the download error propagate.
+        skip_mismatch: Forwarded to ``model.load_weights`` on a cache hit, so a
+            cached load honors the caller's skip-on-shape-mismatch request (and
+            is part of the cache key, so a strict load never reuses a file whose
+            weights were skipped).
+        build_kwargs: The caller's architecture overrides (beyond the variant
+            defaults). Part of the cache key so different builds cache separately.
     """
     cache_dir = os.path.join(
         os.path.expanduser("~"), ".cache", "zeromodels", model_name
     )
-    cached_weights = os.path.join(cache_dir, f"{model_name}.weights.h5")
+    cached_weights = os.path.join(
+        cache_dir, cached_weights_name(model, model_name, build_kwargs, skip_mismatch)
+    )
 
     if os.path.exists(cached_weights):
         print(f"Loading cached {model_name} weights from {cached_weights}")
-        model.load_weights(cached_weights)
+        model.load_weights(cached_weights, skip_mismatch=skip_mismatch)
         return
 
     gated_note = " (requires accepted license + HF token)" if is_gated else ""
