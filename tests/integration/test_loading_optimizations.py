@@ -6,6 +6,7 @@ import pytest
 from keras import layers, ops
 
 from zeromodels.base import BaseModel
+from zeromodels.base.base_mixin import WeightLoadingMixin
 from zeromodels.conversion import converted_cache
 from zeromodels.conversion.hf_download_utils import LazyStateDict
 
@@ -202,3 +203,121 @@ def test_timm_conversion_path_is_wired(family):
     assert isinstance(
         cls.from_weights(f"hf:timm/{variant}.pretrained", load_weights=False), cls
     )
+
+
+class _QuantBlk(layers.Layer):
+    def __init__(self, dim, **kw):
+        super().__init__(**kw)
+        self.q = layers.Dense(dim, name="q")
+        self.o = layers.Dense(dim, name="o")
+
+    def call(self, x):
+        return self.o(self.q(x))
+
+
+class _SubclassedQuantToy(WeightLoadingMixin, keras.Model):
+    """Unbuilt subclassed model whose converter builds by iterating model.weights."""
+
+    def __init__(self, n=64, dim=32, depth=2, **kw):
+        super().__init__(**kw)
+        self.emb = layers.Embedding(n, dim, name="token_embedding")
+        self.blocks = [_QuantBlk(dim, name=f"block_{i}") for i in range(depth)]
+        self.lm_head = layers.Dense(n, use_bias=False, name="lm_head")
+
+    def call(self, x):
+        h = self.emb(x)
+        for b in self.blocks:
+            h = b(h)
+        return self.lm_head(h)
+
+    @classmethod
+    def transfer_from_hf(cls, model, sd):
+        from zeromodels.conversion.weight_transfer_util import transfer_weights
+
+        if not model.built or not model.weights:
+            model(np.array([[0, 1, 2, 3]]))
+        for w in model.weights:
+            key = w.path.split("/", 1)[1].replace("/", ".")
+            key = key.replace("token_embedding.embeddings", "emb").replace(
+                "kernel", "weight"
+            )
+            transfer_weights(w.path, w, sd[key])
+
+
+class _LazyTowerQuantToy(_SubclassedQuantToy):
+    """A subclassed model that materializes lazily via build_for_transfer."""
+
+    def build_for_transfer(self):
+        self(np.array([[0, 1, 2, 3]]))
+
+
+def _quant_toy_state_dict():
+    rng = np.random.default_rng(0)
+    ref = _SubclassedQuantToy(name="toy")
+    ref(np.array([[3, 9, 40, 60]]))
+    sd = {}
+    for w in ref.weights:
+        key = w.path.split("/", 1)[1].replace("/", ".")
+        key = key.replace("token_embedding.embeddings", "emb").replace("kernel", "weight")
+        shape = tuple(w.shape)
+        if (key.endswith(".weight") and "block" in key) or key.endswith("head.weight"):
+            shape = (shape[1], shape[0])  # HF stores Dense weight transposed
+        sd[key] = rng.standard_normal(shape).astype("float32")
+    return sd
+
+
+def test_quantized_transfer_uses_no_float_path():
+    """``_quantized_transfer`` streams an unbuilt subclassed model straight into int
+    storage instead of materializing the full float model then quantizing (guards
+    LOAD-1: the no-float path was dead, so ``from_weights(..., quantization=...)``
+    built the whole float checkpoint before quantizing and OOM'd on the machines
+    the flag exists for).
+
+    Network-free: exercises the classmethod directly with an in-memory state dict.
+    """
+    from zeromodels.quantization import quantize_model
+    from zeromodels.quantization.quantized_layers import (
+        QuantizedDense,
+        QuantizedEmbedding,
+    )
+
+    x = np.array([[3, 9, 40, 60]])
+    sd = _quant_toy_state_dict()
+
+    # Reference: build float, then quantize in place.
+    ref = _SubclassedQuantToy(name="toy")
+    _SubclassedQuantToy.transfer_from_hf(ref, sd)
+    quantize_model(ref, "int8")
+    y_ref = ops.convert_to_numpy(ref(x))
+
+    # No-float path: an unbuilt instance streamed straight into int storage.
+    model = _SubclassedQuantToy(name="toy")
+    assert not model.built
+    took_no_float = _SubclassedQuantToy._quantized_transfer(model, sd, "int8", False)
+    assert took_no_float is True
+    # Recorded config -> from_weights skips the post-hoc quantize_model.
+    assert getattr(model, "_quantization_config", None) is not None
+    assert model._quantization_config.mode == "int8"
+    assert isinstance(model.get_layer("token_embedding"), QuantizedEmbedding)
+    assert isinstance(model.blocks[0].q, QuantizedDense)
+    # Byte-identical to load-then-quantize.
+    y = ops.convert_to_numpy(model(x))
+    assert float(np.max(np.abs(y - y_ref))) == 0.0
+
+    # quantization=None keeps the plain float transfer (no config, float layers).
+    plain = _SubclassedQuantToy(name="toy")
+    assert _SubclassedQuantToy._quantized_transfer(plain, sd, None, False) is False
+    assert getattr(plain, "_quantization_config", None) is None
+    assert isinstance(plain.blocks[0].q, layers.Dense)
+
+
+def test_quantized_transfer_skips_no_float_for_lazy_towers():
+    """A ``build_for_transfer`` tower (lazy VLM/ASR sublayers) is not eligible for the
+    no-float skeleton, so ``_quantized_transfer`` runs a float transfer and leaves it
+    unquantized for ``from_weights`` to quantize afterwards (LOAD-1 guardrail)."""
+    sd = _quant_toy_state_dict()
+    tower = _LazyTowerQuantToy(name="toy")
+    took_no_float = _LazyTowerQuantToy._quantized_transfer(tower, sd, "int8", False)
+    assert took_no_float is False
+    assert getattr(tower, "_quantization_config", None) is None
+    assert isinstance(tower.blocks[0].q, layers.Dense)
