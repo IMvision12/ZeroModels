@@ -591,6 +591,8 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
                         hf_model_id=hf_id,
                         transfer_fn=cls.transfer_from_hf,
                         is_gated=gated,
+                        skip_mismatch=skip_mismatch,
+                        build_kwargs=kwargs,
                     )
                 warn_skipped(skipped)
 
