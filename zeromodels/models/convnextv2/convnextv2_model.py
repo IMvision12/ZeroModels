@@ -72,6 +72,8 @@ class ConvNeXtV2Model(ConvNeXtModel):
         transfer_convnext_weights(keras_model, state_dict)
 
     def __init__(self, as_backbone=False, name="ConvNeXtV2Model", **kwargs):
+        kwargs.setdefault("use_grn", True)
+        kwargs.setdefault("layer_scale_init", None)
         super().__init__(as_backbone=as_backbone, name=name, **kwargs)
 
 
@@ -98,12 +100,12 @@ class ConvNeXtV2ImageClassify(ConvNeXtImageClassify):
             Linearly scaled from 0 to this value across all blocks.
             Defaults to `0.0`.
         layer_scale_init: Float, initial value for per-channel
-            LayerScale. Pass ``None`` to disable LayerScale.
-            Defaults to `1e-6`.
+            LayerScale. Pass ``None`` to disable LayerScale (ConvNeXtV2
+            replaces it with GRN). Defaults to `None`.
         use_conv: Boolean, if True, use 1x1 Conv2D layers inside each
             block's MLP; otherwise use Dense layers. Defaults to `False`.
         use_grn: Boolean, whether to apply ConvNeXtGlobalResponseNorm inside each
-            block (ConvNeXtV2 recipe). Defaults to `False`.
+            block (the ConvNeXtV2 recipe). Defaults to `True`.
         image_size: Input image specification. Accepts an integer
             ``N`` (builds an ``N x N x 3`` square input), a 2-tuple
             ``(H, W)`` (assumes 3 channels), or a 3-tuple ordered to
@@ -144,9 +146,9 @@ class ConvNeXtV2ImageClassify(ConvNeXtImageClassify):
         depths=(3, 3, 9, 3),
         projection_dim=(96, 192, 384, 768),
         drop_path_rate=0.0,
-        layer_scale_init=1e-6,
+        layer_scale_init=None,
         use_conv=False,
-        use_grn=False,
+        use_grn=True,
         image_size=224,
         input_tensor=None,
         num_classes=1000,
