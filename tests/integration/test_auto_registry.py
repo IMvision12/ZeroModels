@@ -196,6 +196,32 @@ def test_preprocessor_and_config_registries():
     assert zm.AutoZMProcessor.mapping()["clip"].__name__ == "CLIPProcessor"
 
 
+# model_types that legitimately have NO typed config (config-less models). Empty
+# today: every model_type resolvable via a model table also has a config, so
+# AutoZMConfig succeeds wherever AutoZM*.from_weights does. Add a key here (with a
+# reason) only if a genuinely config-less model is introduced.
+_CONFIG_COVERAGE_EXEMPT: set = set()
+
+
+def test_config_covers_every_model_type():
+    """Every model_type in a model task table is also in CONFIG_MAPPING_NAMES, so
+    AutoZMConfig.for_model_type resolves wherever AutoZM*.from_weights does. ZOO-7:
+    dfine / xlm-roberta / glm_moe_dsa / llama4_text / gemma4_unified_text / sam2_video
+    were registered in every model table but missing from the config table (their
+    config class existed, just unmapped under the alias key)."""
+    model_types = set()
+    for table in names.MODEL_TASK_MAPPING_NAMES.values():
+        model_types |= set(table)
+    missing = sorted(
+        model_types - set(names.CONFIG_MAPPING_NAMES) - _CONFIG_COVERAGE_EXEMPT
+    )
+    assert not missing, (
+        "model_type(s) resolvable via a model table but absent from CONFIG_MAPPING_NAMES "
+        "(AutoZMConfig raises where AutoZM* succeeds); add the config alias, or an "
+        f"exemption with a reason for a genuinely config-less model: {missing}"
+    )
+
+
 def test_read_model_type_rejects_bare_variant():
     with pytest.raises(ValueError, match="repo id"):
         A.read_model_type("resnet50_a1_in1k")
