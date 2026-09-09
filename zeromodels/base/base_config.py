@@ -145,11 +145,12 @@ class BaseConfig:
             if key == main:
                 data[key] = sub
                 continue
-            all_default = sub == {
-                f: getattr(sub_cls, f, None) for f in sub_cls.field_names()
-            }
-            if key in self.optional_sub_configs and all_default:
-                continue  # optional tower left all-default (legacy sentinel style)
+            # A present (non-None) optional tower is a real tower even when its
+            # values happen to equal the class defaults: absence is encoded as
+            # None (skipped above), so an all-default tower here is a canonical
+            # multimodal repo (e.g. Gemma4's default 1152/27/16/72/4304 vision
+            # tower). Serialize it and keep the glue fields, or from_dict rebuilds
+            # a text-only model and loads a multimodal checkpoint into it.
             data[key] = sub
             active_secondary = True
         if active_secondary:  # glue only present alongside a secondary tower
