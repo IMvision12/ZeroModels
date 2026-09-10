@@ -129,7 +129,9 @@ def load_image(image: ImageInput) -> np.ndarray:
           Float arrays auto-detect their range: values in [0, 1] are scaled to
           [0, 255], values already in [0, 255] (e.g. from
           ``keras.utils.img_to_array``) are kept as-is; anything outside those
-          ranges raises.
+          ranges raises. Non-uint8 integer arrays must already be in [0, 255]
+          (a higher-bit-depth image, e.g. a 16-bit TIFF, raises; convert it to
+          uint8 first) so values are never wrapped modulo 256.
     """
     if isinstance(image, np.ndarray):
         arr = image
@@ -163,6 +165,14 @@ def load_image(image: ImageInput) -> np.ndarray:
                 )
             arr = np.clip(arr, 0, 255).astype(np.uint8)
         elif arr.dtype != np.uint8:
+            max_v = int(arr.max()) if arr.size else 0
+            min_v = int(arr.min()) if arr.size else 0
+            if min_v < 0 or max_v > 255:
+                raise ValueError(
+                    "integer image values must be in [0, 255]; got "
+                    f"[{min_v}, {max_v}]. Convert a higher-bit-depth image "
+                    "(e.g. a 16-bit TIFF) to uint8 first."
+                )
             arr = arr.astype(np.uint8)
         return arr
 
