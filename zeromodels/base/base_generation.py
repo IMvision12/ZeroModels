@@ -83,14 +83,21 @@ class BaseGeneration:
     FULL_CHECKPOINT_SOURCES = {}
 
     @classmethod
-    def _load_backbone_from_full(cls, full_cls, repo_id, load_weights=True, **kwargs):
+    def _load_backbone_from_full(
+        cls, full_cls, repo_id, load_weights=True, skip_mismatch=False, **kwargs
+    ):
         """Build ``full_cls`` from ``repo_id`` and copy this head's backbone out of it.
 
         The head is constructed from the constructor kwargs it shares with the built full
         model, so extra config the head does not take (vision dims, M-RoPE sections) is
         dropped. Weights are matched by keras path suffix (see :meth:`_head_from_full`).
+        ``skip_mismatch`` is forwarded to the full model's own load, so the caller's
+        skip-on-shape-mismatch request survives the indirection (e.g. a resized-head
+        fine-tune), mirroring the suffix branch.
         """
-        full = full_cls.from_weights(repo_id, load_weights=load_weights, **kwargs)
+        full = full_cls.from_weights(
+            repo_id, load_weights=load_weights, skip_mismatch=skip_mismatch, **kwargs
+        )
         return cls._head_from_full(full, copy_weights=load_weights)
 
     @classmethod

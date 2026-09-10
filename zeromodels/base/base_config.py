@@ -75,6 +75,30 @@ class BaseConfig:
         return list(cls._annotations().keys())
 
     @classmethod
+    def unknown_keys(cls, data):
+        """Keys in a repo spec ``data`` this config does not recognize.
+
+        A typed config's ``from_dict`` keeps only annotated fields, so a key a newer
+        zeromodels added (e.g. ``rope_scaling_factor``, nested under ``text_config``)
+        is dropped. This finds those by round-trip: a key present in ``data`` but
+        absent from ``to_dict(from_dict(data))`` was not consumed. It recurses into
+        the nested sub-config dicts the repo format wraps fields in, and never flags
+        a legitimate key (a recognized key always round-trips back).
+        """
+        known = cls.from_dict(data).to_dict()
+
+        def diff(spec, seen):
+            out = set()
+            for key, value in spec.items():
+                if key not in seen:
+                    out.add(key)
+                elif isinstance(value, dict) and isinstance(seen.get(key), dict):
+                    out |= {f"{key}.{inner}" for inner in diff(value, seen[key])}
+            return out
+
+        return diff(data, known)
+
+    @classmethod
     def _defaults(cls):
         return {name: getattr(cls, name, None) for name in cls._annotations()}
 
