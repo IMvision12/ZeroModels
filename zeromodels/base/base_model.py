@@ -111,6 +111,7 @@ class BaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
     decode on the task side (a ``BaseGeneration`` mixin) over this functional
     backbone.
     """
+
     _attn_implementation = None
 
     def __init__(self, *args, **kwargs):

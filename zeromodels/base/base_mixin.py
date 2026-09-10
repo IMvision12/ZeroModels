@@ -314,7 +314,9 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                 f"attn_implementation must be one of "
                 f"{base_attention.VALID_ATTN_IMPL}, got {attn_implementation!r}"
             )
-        resolved_attn = attn_implementation or base_attention.DEFAULT_ATTN_IMPLEMENTATION
+        resolved_attn = (
+            attn_implementation or base_attention.DEFAULT_ATTN_IMPLEMENTATION
+        )
 
         if load_dtype is None:
             load_dtype = cls.hub_repo_weight_dtype(identifier)
