@@ -4,7 +4,6 @@ import keras
 
 from zeromodels.base import BaseTokenizer
 
-DEFAULT_HF_ID = "moonshotai/Kimi-K2.6"
 VOCAB_FILE = "tiktoken.model"
 NUM_RESERVED_SPECIAL_TOKENS = 256
 
@@ -84,14 +83,21 @@ class KimiK25Tokenizer(BaseTokenizer):
     Args:
         vocab_file: Path to a local ``tiktoken.model``.
         hf_id: Hub repo to pull ``tiktoken.model`` from when ``vocab_file`` is
-            omitted.
+            omitted. Required (with ``vocab_file``): there is no default repo, so
+            ``KimiK25Tokenizer()`` with neither raises. All three Kimi
+            checkpoints share one tokenizer, so any of their repos works.
     """
-
-    HF_ID = DEFAULT_HF_ID
 
     def __init__(self, vocab_file=None, hf_id=None, **kwargs):
         super().__init__(**kwargs)
-        self.hf_id = hf_id or self.HF_ID
+        if vocab_file is None and hf_id is None:
+            raise ValueError(
+                f"{type(self).__name__}() needs a vocab_file or hf_id: there is no "
+                "default repo. Load it by repo id, e.g. "
+                "from_weights('hf:moonshotai/Kimi-K2.6') (all three Kimi "
+                "checkpoints share one tokenizer), or pass a local vocab_file."
+            )
+        self.hf_id = hf_id
         self.vocab_file = vocab_file or self.download_vocab(self.hf_id)
 
         ranks = load_bpe_ranks(self.vocab_file)

@@ -26,21 +26,19 @@ class Speech2TextTokenizer(BaseTokenizer):
     The tokenizer is a pair of files (``vocab.json`` + ``spm.model``), so it is
     downloaded by Hub repo id like weights: pass a repo to
     ``from_weights("zeromodels/s2t-small-librispeech-asr")`` (all S2T variants
-    share one vocab), or explicit ``vocab_file`` / ``spm_file`` paths. With no
-    args it falls back to the default repo below.
+    share one vocab), or explicit ``vocab_file`` and ``spm_file`` paths. There is
+    no default repo, so ``Speech2TextTokenizer()`` with neither raises.
 
     Args:
-        vocab_file: Path to ``vocab.json`` (token -> id). Downloaded from the
-            default repo when ``None``.
-        spm_file: Path to the SentencePiece ``.model`` file. Downloaded when
-            ``None``.
+        vocab_file: Path to ``vocab.json`` (token -> id). Required together with
+            ``spm_file`` (or load by repo id, which downloads both).
+        spm_file: Path to the SentencePiece ``.model`` file. Required together
+            with ``vocab_file``.
         do_upper_case: Upper-case the decoded text (multilingual ST variants).
         do_lower_case: Lower-case the input text before encoding.
         max_seq_len: Maximum target length (used when padding label ids).
         bos_token / eos_token / pad_token / unk_token: Special token strings.
     """
-
-    DEFAULT_REPO = "zeromodels/s2t-small-librispeech-asr"
 
     @classmethod
     def _download_pair(cls, repo_id):
@@ -87,8 +85,13 @@ class Speech2TextTokenizer(BaseTokenizer):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        if vocab_file is None and spm_file is None:
-            vocab_file, spm_file = type(self)._download_pair(type(self).DEFAULT_REPO)
+        if vocab_file is None or spm_file is None:
+            raise ValueError(
+                f"{type(self).__name__}() needs both vocab_file and spm_file: there "
+                "is no default repo. Load it by repo id, e.g. "
+                "from_weights('zeromodels/s2t-small-librispeech-asr') (all S2T "
+                "variants share one vocab), which downloads both."
+            )
         self.vocab_file = vocab_file
         self.spm_file = spm_file
         self.do_upper_case = do_upper_case

@@ -125,19 +125,20 @@ class BeitImageProcessor(BaseImageProcessor):
                 if get_data_format(self.data_format) == "channels_first":
                     image = ops.transpose(image, (0, 3, 1, 2))
         else:
-            image = ops.convert_to_tensor(image)
-            if len(image.shape) == 4:
-                image = image[0]
-            if len(image.shape) != 3:
-                raise ValueError("Input tensor must have shape (H, W, C)")
-            image = ops.cast(image, "float32")
+            image = ops.cast(ops.convert_to_tensor(image), "float32")
             max_v = float(ops.convert_to_numpy(ops.max(image)))
             min_v = float(ops.convert_to_numpy(ops.min(image)))
             if max_v <= 1.0 and min_v >= 0.0:
                 image = image * 255.0
             elif min_v < 0 or max_v > 255:
                 raise ValueError("Tensor values must be in [0, 1] or [0, 255] range")
-            image = ops.expand_dims(image, axis=0)
+            rank = len(image.shape)
+            if rank == 3:
+                image = ops.expand_dims(image, axis=0)
+            elif rank != 4:
+                raise ValueError(
+                    "Input tensor must have shape (H, W, C) or (B, H, W, C)."
+                )
             if self.do_resize:
                 target = (self.size["height"], self.size["width"])
                 if tuple(image.shape[1:3]) != target:

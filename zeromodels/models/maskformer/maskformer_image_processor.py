@@ -65,8 +65,6 @@ class MaskFormerImageProcessor(BaseImageProcessor):
         return self.call(image)
 
     def call(self, image) -> Dict[str, keras.KerasTensor]:
-        if hasattr(image, "ndim") and image.ndim == 4:
-            image = image[0]
         image = load_image(image)
 
         h, w = image.shape[:2]

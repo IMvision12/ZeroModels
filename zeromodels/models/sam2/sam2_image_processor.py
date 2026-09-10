@@ -59,8 +59,6 @@ class SAM2ImageProcessor(BaseImageProcessor):
     def call(
         self, image: Union[str, np.ndarray, "Image.Image"]
     ) -> Dict[str, "keras.KerasTensor"]:
-        if isinstance(image, np.ndarray) and image.ndim == 4:
-            image = image[0]
         image = load_image(image).astype(np.float32)
 
         orig_h, orig_w = image.shape[:2]
@@ -256,8 +254,6 @@ def load_image_to_numpy(image: Union[str, np.ndarray, "Image.Image"]) -> np.ndar
     optional leading batch axis and casts to float32, matching the dtype the
     rest of the Sam2 pipeline expects.
     """
-    if isinstance(image, np.ndarray) and image.ndim == 4:
-        image = image[0]
     return load_image(image).astype(np.float32, copy=False)
 
 

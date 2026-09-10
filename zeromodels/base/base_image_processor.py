@@ -136,20 +136,21 @@ class BaseImageProcessor(PreprocessorMixin):
         if isinstance(image, (str, Image.Image)):
             image = ops.cast(ops.convert_to_tensor(load_image(image)), "float32")
         else:
-            image = ops.convert_to_tensor(image)
-            if len(image.shape) == 4:
-                image = image[0]
-            image = ops.cast(image, "float32")
+            image = ops.cast(ops.convert_to_tensor(image), "float32")
             max_v = float(ops.convert_to_numpy(ops.max(image)))
             min_v = float(ops.convert_to_numpy(ops.min(image)))
             if max_v <= 1.0 and min_v >= 0.0:
                 image = image * 255.0
             elif min_v < 0 or max_v > 255:
                 raise ValueError("Tensor values must be in [0, 1] or [0, 255] range")
-        if len(image.shape) != 3:
-            raise ValueError("Input image must have shape (H, W, C)")
-
-        image = ops.expand_dims(image, axis=0)
+        rank = len(image.shape)
+        if rank == 3:
+            image = ops.expand_dims(image, axis=0)
+        elif rank != 4:
+            raise ValueError(
+                "Input image must have shape (H, W, C) or a batch (B, H, W, C); "
+                f"got rank {rank}."
+            )
         if self.do_resize:
             image = ops.image.resize(
                 image,
@@ -515,3 +516,91 @@ class BaseImageProcessor(PreprocessorMixin):
             x = ops.transpose(x, (0, 3, 1, 2))
 
         return x, original_sizes, (target_h, target_w), data_format
+
+    @staticmethod
+    def resize_shortest_longest(h, w, shortest_edge, longest_edge):
+        """Aspect-preserving target ``(H, W)``: scale the short side to
+        ``shortest_edge``, then cap so the long side does not exceed
+        ``longest_edge`` (the reference DETR ``get_size_with_aspect_ratio``).
+        The long side is derived from the rounded short side so a square input
+        stays square.
+        """
+        short, long_ = min(h, w), max(h, w)
+        new_short = shortest_edge
+        if longest_edge is not None and long_ * (new_short / short) > longest_edge:
+            new_short = int(round(longest_edge * short / long_))
+        new_long = int(round(new_short * long_ / short))
+        return (new_short, new_long) if h <= w else (new_long, new_short)
+
+    @staticmethod
+    def preprocess_image_variable(
+        images,
+        shortest_edge,
+        longest_edge,
+        image_mean=None,
+        image_std=None,
+        rescale=True,
+        interpolation="bilinear",
+        antialias=False,
+        data_format=None,
+    ):
+        """Aspect-preserving resize + rescale + normalize, matching the reference
+        DETR pipeline: each image is resized so its short side is ``shortest_edge``
+        (capped at ``longest_edge``), then a batch is zero-padded to the common max
+        size. A single image is not padded, so single-image inference is exact; a
+        padded multi-image batch is approximate (this port has no ``pixel_mask``
+        to hide the padding from attention, unlike the reference).
+        """
+        data_format = get_data_format(data_format)
+        if isinstance(images, (list, tuple)):
+            items = list(images)
+        elif isinstance(images, np.ndarray) and images.ndim == 4:
+            items = [images[i] for i in range(images.shape[0])]
+        else:
+            items = [images]
+        if not items:
+            raise ValueError("`images` must contain at least one image.")
+
+        loaded = [load_image(img) for img in items]
+        original_sizes = [(int(a.shape[0]), int(a.shape[1])) for a in loaded]
+
+        mean = std = None
+        if image_mean is not None:
+            if image_std is None:
+                raise ValueError("image_std must be provided when image_mean is set.")
+            mean = ops.reshape(ops.convert_to_tensor(image_mean, "float32"), (1, 1, 3))
+            std = ops.reshape(ops.convert_to_tensor(image_std, "float32"), (1, 1, 3))
+
+        resized = []
+        for arr in loaded:
+            th, tw = BaseImageProcessor.resize_shortest_longest(
+                int(arr.shape[0]), int(arr.shape[1]), shortest_edge, longest_edge
+            )
+            t = ops.expand_dims(ops.convert_to_tensor(arr, "float32"), 0)
+            t = ops.image.resize(
+                t,
+                size=(th, tw),
+                interpolation=interpolation,
+                antialias=antialias,
+                data_format="channels_last",
+            )[0]
+            if rescale:
+                t = t / 255.0
+            if mean is not None:
+                t = (t - mean) / std
+            resized.append(t)
+
+        max_h = max(int(t.shape[0]) for t in resized)
+        max_w = max(int(t.shape[1]) for t in resized)
+        batch = []
+        for t in resized:
+            h, w = int(t.shape[0]), int(t.shape[1])
+            if h != max_h or w != max_w:
+                t = ops.pad(t, [[0, max_h - h], [0, max_w - w], [0, 0]])
+            batch.append(ops.expand_dims(t, 0))
+        x = ops.concatenate(batch, axis=0)
+
+        if data_format == "channels_first":
+            x = ops.transpose(x, (0, 3, 1, 2))
+
+        return x, original_sizes, (max_h, max_w), data_format

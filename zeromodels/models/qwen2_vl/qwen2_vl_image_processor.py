@@ -80,10 +80,15 @@ class Qwen2VLImageProcessor(BaseImageProcessor):
 
         from PIL import Image
 
+        from zeromodels.utils.image_util import load_image
+
         if isinstance(image, (str, os.PathLike)):
             image = Image.open(image)
         elif not isinstance(image, Image.Image):
-            image = Image.fromarray(np.asarray(image).astype("uint8"))
+            # load_image handles the value range (float [0,1] -> [0,255], [0,255]
+            # kept, out-of-range raises), matching every other processor instead
+            # of truncating a [0,1] array to black.
+            image = Image.fromarray(load_image(image))
         return image.convert("RGB")
 
     def _preprocess_one(self, image):

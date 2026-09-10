@@ -1089,9 +1089,45 @@ class PreprocessorMixin(keras.layers.Layer):
 
     Subclasses (:class:`BaseTokenizer`, :class:`BaseProcessor`,
     :class:`BaseImageProcessor`, :class:`BaseAudioFeatureExtractor`) implement
-    ``call`` and add their own state / ``get_config``: the base bakes in no
-    defaults.
+    ``call``; the base bakes in no defaults but provides a generic
+    ``get_config`` / ``from_config`` (below) so a Keras save/reload round-trips
+    the constructor state without every subclass hand-writing one.
     """
+
+    def get_config(self):
+        """Serialize the constructor state so a Keras save/reload round-trips.
+
+        Keras's default ``Layer.get_config`` returns only ``{name, trainable,
+        dtype}`` and would silently drop every real argument (e.g. a CLIP
+        processor's ``image_resolution``), so read the values straight off the
+        instance by walking the constructor signature: each named parameter maps
+        to a same-named attribute (``self.image_resolution``, ``self.size``, ...),
+        falling back to the parameter default; ``self`` and ``*args`` /
+        ``**kwargs`` are skipped. A subclass with unusual state (e.g.
+        :class:`BaseProcessor`, whose sub-components are Keras objects) still
+        overrides this.
+        """
+        from zeromodels.conversion.zm_config import _jsonable
+
+        config = {}
+        for name, param in inspect.signature(type(self).__init__).parameters.items():
+            if name == "self" or param.kind in (
+                param.VAR_POSITIONAL,
+                param.VAR_KEYWORD,
+            ):
+                continue
+            # A processor may transform its argument (e.g. a mean tuple into a
+            # tensor); _jsonable turns that back into a serializable form the
+            # constructor re-accepts (tensor -> list, numpy -> python).
+            if hasattr(self, name):
+                config[name] = _jsonable(getattr(self, name))
+            elif param.default is not inspect.Parameter.empty:
+                config[name] = _jsonable(param.default)
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
     @classmethod
     def from_weights(cls, identifier, **kwargs):

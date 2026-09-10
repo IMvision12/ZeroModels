@@ -45,16 +45,26 @@ def standardize_input_shape(
     * ``(H, W, C)`` or ``(C, H, W)``: already a 3-tuple. The channel
       dimension (``C in {1, 3, 4}``) must sit in the position required by
       the active data format; mismatches raise ``ValueError``.
+    * ``None`` (or a shape already containing ``None``): a dynamic,
+      variable-size input, ``(None, None, 3)`` / ``(3, None, None)``, for a
+      size-agnostic model (e.g. DETR, which resizes aspect-preserving to
+      variable sizes).
 
     Args:
-        image_size: Flexible spec, int, 2-tuple, or 3-tuple.
+        image_size: Flexible spec: int, 2-tuple, 3-tuple, or ``None`` (dynamic).
         data_format: ``"channels_first"`` / ``"channels_last"`` / ``None``.
             ``None`` defaults to ``keras.config.image_data_format()``.
 
     Returns:
-        A length-3 tuple ordered to match the resolved ``data_format``.
+        A length-3 tuple ordered to match the resolved ``data_format`` (its H/W
+        entries are ``None`` for a dynamic input).
     """
     data_format = get_data_format(data_format)
+
+    if image_size is None or (
+        isinstance(image_size, (tuple, list)) and None in tuple(image_size)
+    ):
+        return (None, None, 3) if data_format == "channels_last" else (3, None, None)
 
     if isinstance(image_size, int):
         if image_size <= 0:
@@ -114,10 +124,27 @@ def load_image(image: ImageInput) -> np.ndarray:
         * ``PIL.Image.Image``: returned as a copy converted to RGB.
         * ``np.ndarray``: assumed to already be an HWC RGB image. 2D arrays
           are broadcast across 3 channels; 4-channel arrays are truncated to
-          RGB; float arrays in [0, 1] are scaled to uint8.
+          RGB. A ``(1, H, W, C)`` array is unwrapped to a single image; a real
+          batch ``(N, H, W, C)`` with ``N > 1`` raises (pass a list to batch).
+          Float arrays auto-detect their range: values in [0, 1] are scaled to
+          [0, 255], values already in [0, 255] (e.g. from
+          ``keras.utils.img_to_array``) are kept as-is; anything outside those
+          ranges raises. Non-uint8 integer arrays must already be in [0, 255]
+          (a higher-bit-depth image, e.g. a 16-bit TIFF, raises; convert it to
+          uint8 first) so values are never wrapped modulo 256.
     """
     if isinstance(image, np.ndarray):
         arr = image
+        if arr.ndim == 4:
+            # A leading batch axis of 1 is a single image; a real batch (N > 1)
+            # must be passed as a list so no image is silently dropped.
+            if arr.shape[0] != 1:
+                raise ValueError(
+                    f"load_image got a batch of {arr.shape[0]} images (shape "
+                    f"{arr.shape}); pass a single image, or a list of images to "
+                    "preprocess a batch."
+                )
+            arr = arr[0]
         if arr.ndim == 2:
             arr = np.stack([arr, arr, arr], axis=-1)
         if arr.ndim != 3:
@@ -127,8 +154,25 @@ def load_image(image: ImageInput) -> np.ndarray:
         if arr.shape[-1] != 3:
             raise ValueError(f"Expected 3 channels, got shape {arr.shape}.")
         if np.issubdtype(arr.dtype, np.floating):
-            arr = np.clip(arr * 255.0, 0, 255).astype(np.uint8)
+            max_v = float(arr.max()) if arr.size else 0.0
+            min_v = float(arr.min()) if arr.size else 0.0
+            if max_v <= 1.0 and min_v >= 0.0:
+                arr = arr * 255.0
+            elif min_v < 0.0 or max_v > 255.0:
+                raise ValueError(
+                    "float image values must be in [0, 1] or [0, 255]; got "
+                    f"[{min_v:.4g}, {max_v:.4g}]."
+                )
+            arr = np.clip(arr, 0, 255).astype(np.uint8)
         elif arr.dtype != np.uint8:
+            max_v = int(arr.max()) if arr.size else 0
+            min_v = int(arr.min()) if arr.size else 0
+            if min_v < 0 or max_v > 255:
+                raise ValueError(
+                    "integer image values must be in [0, 255]; got "
+                    f"[{min_v}, {max_v}]. Convert a higher-bit-depth image "
+                    "(e.g. a 16-bit TIFF) to uint8 first."
+                )
             arr = arr.astype(np.uint8)
         return arr
 
