@@ -6,6 +6,7 @@ from zeromodels.base import (
     CausalMask,
     MediaMerge,
     TiedHead,
+    base_attention,
 )
 from zeromodels.base.base_mixin import inference_scope
 from zeromodels.models.qwen2.qwen2_layers import Qwen2DecoderLayer, Qwen2RMSNorm
@@ -463,6 +464,7 @@ class LocateAnythingConditionalGenerate(LocateAnythingModel):
         )
         return ops.cast(self.project(hidden), "float32"), caches
 
+    @base_attention.with_model_attn_implementation
     def generate(
         self,
         input_ids,

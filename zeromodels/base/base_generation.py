@@ -5,6 +5,7 @@ import keras
 import numpy as np
 from keras import ops
 
+from zeromodels.base import base_attention
 from zeromodels.base.base_mixin import inference_scope
 from zeromodels.samplers import GreedySampler
 
@@ -152,6 +153,7 @@ class BaseGeneration:
                 hw.assign(ops.convert_to_tensor(src))
         return head
 
+    @base_attention.with_model_attn_implementation
     def generate(
         self,
         input_ids,

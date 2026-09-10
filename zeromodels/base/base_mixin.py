@@ -306,13 +306,15 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
         Returns:
             An initialized model instance.
         """
-        if attn_implementation is not None:
-            if attn_implementation not in base_attention.VALID_ATTN_IMPL:
-                raise ValueError(
-                    f"attn_implementation must be one of "
-                    f"{base_attention.VALID_ATTN_IMPL}, got {attn_implementation!r}"
-                )
-            base_attention.ATTN_IMPLEMENTATION = attn_implementation
+        if (
+            attn_implementation is not None
+            and attn_implementation not in base_attention.VALID_ATTN_IMPL
+        ):
+            raise ValueError(
+                f"attn_implementation must be one of "
+                f"{base_attention.VALID_ATTN_IMPL}, got {attn_implementation!r}"
+            )
+        resolved_attn = attn_implementation or base_attention.DEFAULT_ATTN_IMPLEMENTATION
 
         if load_dtype is None:
             load_dtype = cls.hub_repo_weight_dtype(identifier)
@@ -328,13 +330,19 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                     cls, identifier, quantization, load_dtype, kwargs
                 )
                 if converted_cache.is_cached(cache_directory):
-                    cached = converted_cache.try_load_converted(
-                        cache_directory, quantization, load_dtype
-                    )
+                    with base_attention.use_attn_implementation(resolved_attn):
+                        cached = converted_cache.try_load_converted(
+                            cache_directory, quantization, load_dtype
+                        )
                     if cached is not None:
+                        cached._attn_implementation = resolved_attn
                         return cached
 
-        with inference_scope(), build_dtype_scope(load_dtype):
+        with (
+            base_attention.use_attn_implementation(resolved_attn),
+            inference_scope(),
+            build_dtype_scope(load_dtype),
+        ):
             if identifier.startswith(_HF_PREFIX):
                 hf_id = identifier[len(_HF_PREFIX) :]
                 if "/" not in hf_id:
@@ -386,6 +394,8 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
             converted_cache.try_save_converted(
                 model, cache_directory, quantization, load_dtype
             )
+
+        model._attn_implementation = resolved_attn
         return model
 
     @classmethod
