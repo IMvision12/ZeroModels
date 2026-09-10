@@ -106,11 +106,6 @@ class SegFormerImageProcessor(BaseImageProcessor):
             and hasattr(image, "dtype")
         )
         if is_keras_tensor:
-            if len(image.shape) == 4:
-                image = image[0]
-            if len(image.shape) != 3:
-                raise ValueError("Input tensor must have shape (H, W, C)")
-
             image_float = keras.ops.cast(image, dtype="float32")
             max_val_py = keras.ops.convert_to_numpy(keras.ops.max(image_float)).item()
             min_val_py = keras.ops.convert_to_numpy(keras.ops.min(image_float)).item()
@@ -122,7 +117,15 @@ class SegFormerImageProcessor(BaseImageProcessor):
             else:
                 image = image_float
 
-            image = keras.ops.expand_dims(image, axis=0)
+            # A single image (H, W, C) gets a batch axis; a batch (B, H, W, C) is
+            # kept whole, never silently reduced to its first image.
+            rank = len(image.shape)
+            if rank == 3:
+                image = keras.ops.expand_dims(image, axis=0)
+            elif rank != 4:
+                raise ValueError(
+                    "Input tensor must have shape (H, W, C) or (B, H, W, C)."
+                )
             if self.do_resize:
                 target_size = (self.size["height"], self.size["width"])
                 if image.shape[1:3] != target_size:

@@ -114,10 +114,25 @@ def load_image(image: ImageInput) -> np.ndarray:
         * ``PIL.Image.Image``: returned as a copy converted to RGB.
         * ``np.ndarray``: assumed to already be an HWC RGB image. 2D arrays
           are broadcast across 3 channels; 4-channel arrays are truncated to
-          RGB; float arrays in [0, 1] are scaled to uint8.
+          RGB. A ``(1, H, W, C)`` array is unwrapped to a single image; a real
+          batch ``(N, H, W, C)`` with ``N > 1`` raises (pass a list to batch).
+          Float arrays auto-detect their range: values in [0, 1] are scaled to
+          [0, 255], values already in [0, 255] (e.g. from
+          ``keras.utils.img_to_array``) are kept as-is; anything outside those
+          ranges raises.
     """
     if isinstance(image, np.ndarray):
         arr = image
+        if arr.ndim == 4:
+            # A leading batch axis of 1 is a single image; a real batch (N > 1)
+            # must be passed as a list so no image is silently dropped.
+            if arr.shape[0] != 1:
+                raise ValueError(
+                    f"load_image got a batch of {arr.shape[0]} images (shape "
+                    f"{arr.shape}); pass a single image, or a list of images to "
+                    "preprocess a batch."
+                )
+            arr = arr[0]
         if arr.ndim == 2:
             arr = np.stack([arr, arr, arr], axis=-1)
         if arr.ndim != 3:
@@ -127,7 +142,16 @@ def load_image(image: ImageInput) -> np.ndarray:
         if arr.shape[-1] != 3:
             raise ValueError(f"Expected 3 channels, got shape {arr.shape}.")
         if np.issubdtype(arr.dtype, np.floating):
-            arr = np.clip(arr * 255.0, 0, 255).astype(np.uint8)
+            max_v = float(arr.max()) if arr.size else 0.0
+            min_v = float(arr.min()) if arr.size else 0.0
+            if max_v <= 1.0 and min_v >= 0.0:
+                arr = arr * 255.0
+            elif min_v < 0.0 or max_v > 255.0:
+                raise ValueError(
+                    "float image values must be in [0, 1] or [0, 255]; got "
+                    f"[{min_v:.4g}, {max_v:.4g}]."
+                )
+            arr = np.clip(arr, 0, 255).astype(np.uint8)
         elif arr.dtype != np.uint8:
             arr = arr.astype(np.uint8)
         return arr

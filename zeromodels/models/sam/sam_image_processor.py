@@ -62,8 +62,6 @@ class SAMImageProcessor(BaseImageProcessor):
     def call(
         self, image: Union[str, np.ndarray, "Image.Image"]
     ) -> Dict[str, "keras.KerasTensor"]:
-        if isinstance(image, np.ndarray) and image.ndim == 4:
-            image = image[0]
         image = load_image(image).astype(np.float32)
 
         orig_h, orig_w = image.shape[:2]
@@ -406,8 +404,6 @@ def generate_crop_boxes(
               (all ones: foreground).
             - ``"original_size"``: ``(orig_h, orig_w)``.
     """
-    if isinstance(image, np.ndarray) and image.ndim == 4:
-        image = image[0]
     image = load_image(image).astype(np.float32, copy=False)
     image = keras.ops.convert_to_tensor(image, dtype="float32")
 

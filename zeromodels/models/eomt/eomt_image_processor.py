@@ -71,8 +71,6 @@ class EoMTImageProcessor(BaseImageProcessor):
     def call(
         self, image: Union[str, np.ndarray, Image.Image]
     ) -> Dict[str, keras.KerasTensor]:
-        if isinstance(image, np.ndarray) and image.ndim == 4:
-            image = image[0]
         image = load_image(image).astype(np.float32)
 
         h, w = image.shape[:2]

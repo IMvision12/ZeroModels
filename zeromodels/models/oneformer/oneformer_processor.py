@@ -46,8 +46,6 @@ class OneFormerImageProcessor(BaseImageProcessor):
         self.data_format = data_format
 
     def call(self, image):
-        if isinstance(image, np.ndarray) and image.ndim == 4:
-            image = image[0]
         image = load_image(image).astype(np.float32)
 
         h, w = image.shape[:2]

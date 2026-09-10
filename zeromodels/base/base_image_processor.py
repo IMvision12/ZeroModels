@@ -136,20 +136,21 @@ class BaseImageProcessor(PreprocessorMixin):
         if isinstance(image, (str, Image.Image)):
             image = ops.cast(ops.convert_to_tensor(load_image(image)), "float32")
         else:
-            image = ops.convert_to_tensor(image)
-            if len(image.shape) == 4:
-                image = image[0]
-            image = ops.cast(image, "float32")
+            image = ops.cast(ops.convert_to_tensor(image), "float32")
             max_v = float(ops.convert_to_numpy(ops.max(image)))
             min_v = float(ops.convert_to_numpy(ops.min(image)))
             if max_v <= 1.0 and min_v >= 0.0:
                 image = image * 255.0
             elif min_v < 0 or max_v > 255:
                 raise ValueError("Tensor values must be in [0, 1] or [0, 255] range")
-        if len(image.shape) != 3:
-            raise ValueError("Input image must have shape (H, W, C)")
-
-        image = ops.expand_dims(image, axis=0)
+        rank = len(image.shape)
+        if rank == 3:
+            image = ops.expand_dims(image, axis=0)
+        elif rank != 4:
+            raise ValueError(
+                "Input image must have shape (H, W, C) or a batch (B, H, W, C); "
+                f"got rank {rank}."
+            )
         if self.do_resize:
             image = ops.image.resize(
                 image,
