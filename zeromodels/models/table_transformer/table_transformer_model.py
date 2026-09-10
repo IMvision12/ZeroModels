@@ -422,12 +422,14 @@ class TableTransformerModel(BaseModel):
         dim_feedforward=2048,
         dropout_rate=0.1,
         num_queries=15,
-        image_size=800,
+        image_size=None,
         input_tensor=None,
         name="TableTransformerModel",
         **kwargs,
     ):
         data_format = keras.config.image_data_format()
+        # None -> dynamic (None, None, 3): the reference resizes aspect-preserving
+        # to variable sizes, which the size-agnostic graph accepts.
         image_size = standardize_input_shape(image_size, data_format)
 
         if input_tensor is None:
@@ -561,7 +563,7 @@ class TableTransformerDetect(BaseModel):
         dropout_rate=0.1,
         num_queries=15,
         num_classes=3,
-        image_size=800,
+        image_size=None,
         input_tensor=None,
         name="TableTransformerDetect",
         **kwargs,

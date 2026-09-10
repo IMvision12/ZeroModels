@@ -16,8 +16,12 @@ class DETRImageProcessor(BaseImageProcessor):
     first.
 
     Args:
-        size: Target size as ``{"height": H, "width": W}``.
-            Default: ``{"height": 800, "width": 800}``.
+        size: Aspect-preserving resize spec
+            ``{"shortest_edge": S, "longest_edge": L}``: the short side is scaled
+            to ``S``, capped so the long side does not exceed ``L``. Default:
+            ``{"shortest_edge": 800, "longest_edge": 1333}`` (the reference
+            DetrImageProcessor). Requires a model built with a dynamic input
+            (``image_size=None``, the default).
         resample: Interpolation method (``"nearest"``, ``"bilinear"``,
             or ``"bicubic"``).
         do_rescale: Whether to divide pixel values by 255.
@@ -47,7 +51,9 @@ class DETRImageProcessor(BaseImageProcessor):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.size = size if size is not None else {"height": 800, "width": 800}
+        self.size = (
+            size if size is not None else {"shortest_edge": 800, "longest_edge": 1333}
+        )
         self.resample = resample
         self.do_rescale = do_rescale
         self.rescale_factor = rescale_factor
@@ -67,11 +73,13 @@ class DETRImageProcessor(BaseImageProcessor):
     def call(
         self, image: Union[str, np.ndarray, Image.Image, List]
     ) -> Dict[str, Union[keras.KerasTensor, np.ndarray]]:
-        if isinstance(image, (list, tuple)):
-            return self.stack_images(image)
-        image, _, _, _ = self.preprocess_image(
+        # Aspect-preserving resize (shortest_edge / longest_edge), matching the
+        # reference DetrImageProcessor. A batch is zero-padded to the common max
+        # size (single-image inference is exact; see preprocess_image_variable).
+        image, _, _, _ = self.preprocess_image_variable(
             image,
-            target_size=(self.size["height"], self.size["width"]),
+            shortest_edge=self.size["shortest_edge"],
+            longest_edge=self.size["longest_edge"],
             image_mean=self.image_mean if self.do_normalize else None,
             image_std=self.image_std if self.do_normalize else None,
             rescale=self.do_rescale,

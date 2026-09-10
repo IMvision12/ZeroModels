@@ -45,16 +45,26 @@ def standardize_input_shape(
     * ``(H, W, C)`` or ``(C, H, W)``: already a 3-tuple. The channel
       dimension (``C in {1, 3, 4}``) must sit in the position required by
       the active data format; mismatches raise ``ValueError``.
+    * ``None`` (or a shape already containing ``None``): a dynamic,
+      variable-size input, ``(None, None, 3)`` / ``(3, None, None)``, for a
+      size-agnostic model (e.g. DETR, which resizes aspect-preserving to
+      variable sizes).
 
     Args:
-        image_size: Flexible spec, int, 2-tuple, or 3-tuple.
+        image_size: Flexible spec: int, 2-tuple, 3-tuple, or ``None`` (dynamic).
         data_format: ``"channels_first"`` / ``"channels_last"`` / ``None``.
             ``None`` defaults to ``keras.config.image_data_format()``.
 
     Returns:
-        A length-3 tuple ordered to match the resolved ``data_format``.
+        A length-3 tuple ordered to match the resolved ``data_format`` (its H/W
+        entries are ``None`` for a dynamic input).
     """
     data_format = get_data_format(data_format)
+
+    if image_size is None or (
+        isinstance(image_size, (tuple, list)) and None in tuple(image_size)
+    ):
+        return (None, None, 3) if data_format == "channels_last" else (3, None, None)
 
     if isinstance(image_size, int):
         if image_size <= 0:

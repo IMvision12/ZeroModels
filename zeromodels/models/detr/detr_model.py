@@ -468,12 +468,14 @@ class DetrModel(BaseModel):
         dim_feedforward=2048,
         dropout_rate=0.1,
         num_queries=100,
-        image_size=800,
+        image_size=None,
         input_tensor=None,
         name="DetrModel",
         **kwargs,
     ):
         data_format = keras.config.image_data_format()
+        # None -> dynamic (None, None, 3): the reference resizes aspect-preserving
+        # to variable sizes, which the size-agnostic DETR graph accepts.
         image_size = standardize_input_shape(image_size, data_format)
 
         if input_tensor is None:
@@ -594,7 +596,7 @@ class DETRDetect(BaseModel):
         dropout_rate=0.1,
         num_queries=100,
         num_classes=92,
-        image_size=800,
+        image_size=None,
         input_tensor=None,
         name="DETRDetect",
         **kwargs,
