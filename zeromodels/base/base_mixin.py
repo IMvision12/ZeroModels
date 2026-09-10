@@ -774,7 +774,11 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
         if cs.match == "path":
             full_cls = getattr(importlib.import_module(cs.module), cs.source)
             return cls._load_backbone_from_full(
-                full_cls, repo_id, load_weights=load_weights, **kwargs
+                full_cls,
+                repo_id,
+                load_weights=load_weights,
+                skip_mismatch=skip_mismatch,
+                **kwargs,
             )
 
         from zeromodels.conversion import copy_weights_by_path_suffix
