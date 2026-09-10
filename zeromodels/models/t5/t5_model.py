@@ -5,6 +5,7 @@ from zeromodels.base import (
     BaseModel,
     BaseSeq2SeqGeneration,
     CheckpointSource,
+    base_attention,
 )
 from zeromodels.base.base_mixin import inference_scope
 
@@ -583,6 +584,7 @@ class T5ConditionalGenerate(T5Model, BaseSeq2SeqGeneration):
             return ops.matmul(hidden, ops.transpose(self.shared.embeddings))
         return self.lm_head(hidden)
 
+    @base_attention.with_model_attn_implementation
     def generate(
         self,
         input_ids,

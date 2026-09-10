@@ -2,6 +2,7 @@ import inspect
 
 import keras
 
+from zeromodels.base import base_attention
 from zeromodels.base.base_config import BaseConfig
 from zeromodels.base.base_mixin import WeightLoadingMixin
 
@@ -111,6 +112,8 @@ class BaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
     backbone.
     """
 
+    _attn_implementation = None
+
     def __init__(self, *args, **kwargs):
         unexpected = sorted(k for k in kwargs if k not in _KERAS_INIT_KWARGS)
         if unexpected:
@@ -119,6 +122,13 @@ class BaseModel(WeightLoadingMixin, keras.Model, metaclass=_ConfigModelMeta):
                 f"{', '.join(unexpected)}"
             )
         super().__init__(*args, **kwargs)
+
+    def __call__(self, *args, **kwargs):
+        impl = self._attn_implementation
+        if impl is None:
+            return super().__call__(*args, **kwargs)
+        with base_attention.use_attn_implementation(impl):
+            return super().__call__(*args, **kwargs)
 
     def get_config(self):
         """Config for keras serialization, carrying any applied quantization.

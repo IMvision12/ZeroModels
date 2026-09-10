@@ -1,5 +1,6 @@
 from keras import ops
 
+from zeromodels.base import base_attention
 from zeromodels.base.base_generation import BaseGeneration
 
 
@@ -176,6 +177,7 @@ class BaseSeq2SeqGeneration(BaseGeneration):
             cross_mask=cross_mask,
         )
 
+    @base_attention.with_model_attn_implementation
     def generate(
         self,
         encoder_inputs,

@@ -258,7 +258,9 @@ def _quant_toy_state_dict():
     sd = {}
     for w in ref.weights:
         key = w.path.split("/", 1)[1].replace("/", ".")
-        key = key.replace("token_embedding.embeddings", "emb").replace("kernel", "weight")
+        key = key.replace("token_embedding.embeddings", "emb").replace(
+            "kernel", "weight"
+        )
         shape = tuple(w.shape)
         if (key.endswith(".weight") and "block" in key) or key.endswith("head.weight"):
             shape = (shape[1], shape[0])  # HF stores Dense weight transposed
