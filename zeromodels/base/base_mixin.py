@@ -377,16 +377,40 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                     quantization=quantization,
                     **kwargs,
                 )
-        # A no-float load already quantized in place (and recorded the config);
-        # only quantize here when that path didn't run (functional models, or the
-        # release-`.h5` / timm paths).
-        if (
-            quantization is not None
-            and getattr(model, "_quantization_config", None) is None
-        ):
-            from zeromodels.quantization import quantize_model
+        # Quantize here only when nothing already did. A model can arrive already
+        # quantized two ways: a no-float load applied the caller's own request, or a
+        # natively-quantized repo (e.g. mxfp4 GPT-OSS) packed itself from its
+        # zm_config. In the second case the requested format is baked into the
+        # weights and cannot be re-quantized on load, so a caller asking for a
+        # different format is refused rather than silently handed the repo's format.
+        if quantization is not None:
+            existing = getattr(model, "_quantization_config", None)
+            if existing is None:
+                from zeromodels.quantization import quantize_model
 
-            model = quantize_model(model, quantization)
+                model = quantize_model(model, quantization)
+            else:
+                from zeromodels.quantization.quant_config import resolve_config
+
+                requested = resolve_config(quantization).mode
+                current = (
+                    existing.get("quant_method")
+                    if isinstance(existing, dict)
+                    else getattr(existing, "mode", None)
+                )
+                if current != requested:
+                    raise ValueError(
+                        f"{cls.__name__}.from_weights({identifier!r}, "
+                        f"quantization={quantization!r}) cannot be honored: "
+                        f"{identifier!r} ships its own {current!r} quantization baked "
+                        f"into its weights, which cannot be re-quantized to "
+                        f"{requested!r} during load. Load it without quantization= to "
+                        f"keep {current!r}. To build {requested!r} instead, quantize an "
+                        f"unquantized build: load a float source (e.g. "
+                        f"from_weights('hf:<upstream repo>', quantization={requested!r}), "
+                        f"which dequantizes {current!r} first), or dequantize_model() "
+                        f"this model and quantize_model(..., {requested!r})."
+                    )
 
         # First-load cache write: store the converted result so a later identical
         # call rebuilds from it. Best-effort: never breaks the returned model.
