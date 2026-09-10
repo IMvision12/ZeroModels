@@ -18,8 +18,14 @@ class KimiK25Processor(BaseProcessor):
     embedding lookup and scatters the projected patches back in.
 
     Args:
-        tokenizer / image_processor: Pre-built components, or omit them to construct
-            the defaults.
+        hf_id: Hub repo the default tokenizer pulls ``tiktoken.model`` from (all
+            three Kimi checkpoints share one tokenizer). There is no default repo,
+            so bare ``KimiK25Processor()`` raises via the tokenizer: pass an
+            ``hf_id``, a pre-built ``tokenizer``, or load by repo id with
+            ``from_weights``.
+        tokenizer / image_processor: Pre-built components; omit them to build the
+            defaults (the image processor is pure config; the tokenizer needs
+            ``hf_id``).
     """
 
     TOKENIZER_CLS = KimiK25Tokenizer
@@ -28,12 +34,14 @@ class KimiK25Processor(BaseProcessor):
 
     def __init__(
         self,
+        hf_id=None,
         tokenizer=None,
         image_processor=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.tokenizer = tokenizer or KimiK25Tokenizer()
+        self.hf_id = hf_id
+        self.tokenizer = tokenizer or KimiK25Tokenizer(hf_id=hf_id)
         self.image_processor = image_processor or KimiK25ImageProcessor()
 
     @classmethod

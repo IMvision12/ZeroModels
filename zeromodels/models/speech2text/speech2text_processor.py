@@ -24,8 +24,9 @@ class Speech2TextProcessor(BaseProcessor):
     Speech2Text uses to seed autoregressive decoding.
 
     Args:
-        vocab_file / spm_file: Tokenizer files. Downloaded from the HF repo
-            when ``None``.
+        vocab_file / spm_file: Tokenizer files. There is no default repo, so bare
+            construction with neither raises via the tokenizer: load by repo id
+            with ``from_weights`` (which downloads both), or pass the files.
         sampling_rate / num_mel_bins: Forwarded to the feature extractor.
         do_upper_case / do_lower_case: Forwarded to the tokenizer.
         decoder_start_token_id: Seed token id for generation (``</s>`` = 2).
