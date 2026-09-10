@@ -662,6 +662,21 @@ download_weights`: a Hugging Face repo is fetched through the HF cache
             # flat format: hyperparameters at the top level (transformers style).
             fields = {k: v for k, v in spec.items() if k not in ZM_METADATA_KEYS}
             if cls.config_class is not None:
+                # A typed config silently drops keys it does not annotate, so a
+                # behavior-changing field a newer repo adds (e.g. rope_scaling_factor)
+                # would be ignored and the model built wrong with no signal. Surface
+                # it instead, matching the untyped branch below (which raises on an
+                # unaccepted constructor kwarg).
+                unknown = cls.config_class.unknown_keys(fields)
+                if unknown:
+                    raise ValueError(
+                        f"{cls.__name__}.from_weights: '{variant}' zm_config.json has "
+                        f"config key(s) {sorted(unknown)} that this zeromodels "
+                        f"version does not recognize. The repo is likely newer than "
+                        f"the installed zeromodels: upgrade it (ignoring these could "
+                        f"change the model, e.g. context length or rope scaling), or "
+                        f"remove the key(s) if you are hand-editing the config."
+                    )
                 return cls.config_class.from_dict(fields).constructor_kwargs()
             fields.pop("model_type", None)
             return retuple(fields)
