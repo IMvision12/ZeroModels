@@ -151,8 +151,12 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 from PIL import Image
 from zeromodels.models.mistral3 import Mistral3ConditionalGenerate, Mistral3Processor
 
-model = Mistral3ConditionalGenerate.from_weights("hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503")
-processor = Mistral3Processor.from_weights("hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503")
+model = Mistral3ConditionalGenerate.from_weights(
+    "hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+)
+processor = Mistral3Processor.from_weights(
+    "hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+)
 
 image = Image.open("photo.jpg")
 inputs = processor(
@@ -237,7 +241,9 @@ have rendered yourself (or go through the processor above).
 ```python
 from zeromodels.models.mistral3 import Mistral3Tokenizer
 
-tokenizer = Mistral3Tokenizer.from_weights("hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503")
+tokenizer = Mistral3Tokenizer.from_weights(
+    "hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+)
 inputs = tokenizer("Who wrote Dune?")
 outputs = model.generate(**inputs, max_new_tokens=32)
 print(tokenizer.decode(outputs[0]))
