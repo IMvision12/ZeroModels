@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -20,11 +20,11 @@ See also [minimax.md](minimax.md), [minimax_m2.md](minimax_m2.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `minimax-m3` | [`MiniMaxAI/MiniMax-M3`](https://huggingface.co/MiniMaxAI/MiniMax-M3) |
+| `hf:` id |
+|---|
+| [`hf:MiniMaxAI/MiniMax-M3`](https://huggingface.co/MiniMaxAI/MiniMax-M3) |
 
 ## API
 
@@ -155,8 +155,8 @@ from zeromodels.models.minimax_m3_vl import (
     MiniMaxM3VLProcessor,
 )
 
-model = MiniMaxM3VLConditionalGenerate.from_weights("minimax-m3")
-processor = MiniMaxM3VLProcessor.from_weights("minimax-m3")
+model = MiniMaxM3VLConditionalGenerate.from_weights("hf:MiniMaxAI/MiniMax-M3")
+processor = MiniMaxM3VLProcessor.from_weights("hf:MiniMaxAI/MiniMax-M3")
 
 image = Image.open("photo.jpg")
 inputs = processor(
@@ -241,7 +241,7 @@ have rendered yourself (or go through the processor above).
 ```python
 from zeromodels.models.minimax_m3_vl import MiniMaxM3VLTokenizer
 
-tokenizer = MiniMaxM3VLTokenizer.from_weights("minimax-m3")
+tokenizer = MiniMaxM3VLTokenizer.from_weights("hf:MiniMaxAI/MiniMax-M3")
 inputs = tokenizer("Who wrote Dune?")
 outputs = model.generate(**inputs, max_new_tokens=32)
 print(tokenizer.decode(outputs[0]))
@@ -254,6 +254,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = MiniMaxM3VLConditionalGenerate.from_weights(
-    "minimax-m3", quantization="int8", load_dtype="bfloat16"
+    "hf:MiniMaxAI/MiniMax-M3", quantization="int8", load_dtype="bfloat16"
 )
 ```

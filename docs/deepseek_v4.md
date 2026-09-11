@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -21,14 +21,14 @@ See also [deepseek_v2.md](deepseek_v2.md), [deepseek_v3.md](deepseek_v3.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `deepseek-v4-flash` | [`deepseek-ai/DeepSeek-V4-Flash`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) |
-| `deepseek-v4-flash-base` | [`deepseek-ai/DeepSeek-V4-Flash-Base`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-Base) |
-| `deepseek-v4-pro` | [`deepseek-ai/DeepSeek-V4-Pro`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro) |
-| `deepseek-v4-pro-base` | [`deepseek-ai/DeepSeek-V4-Pro-Base`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-Base) |
+| `hf:` id |
+|---|
+| [`hf:deepseek-ai/DeepSeek-V4-Flash`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) |
+| [`hf:deepseek-ai/DeepSeek-V4-Flash-Base`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-Base) |
+| [`hf:deepseek-ai/DeepSeek-V4-Pro`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro) |
+| [`hf:deepseek-ai/DeepSeek-V4-Pro-Base`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-Base) |
 
 ## API
 
@@ -124,8 +124,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from zeromodels.models.deepseek_v4 import DeepseekV4TextGenerate, DeepseekV4Tokenizer
 
-model = DeepseekV4TextGenerate.from_weights("deepseek-v4-flash")
-tokenizer = DeepseekV4Tokenizer.from_weights("deepseek-v4-flash")
+model = DeepseekV4TextGenerate.from_weights("hf:deepseek-ai/DeepSeek-V4-Flash")
+tokenizer = DeepseekV4Tokenizer.from_weights("hf:deepseek-ai/DeepSeek-V4-Flash")
 
 inputs = tokenizer("Explain rotary embeddings in one sentence.")
 outputs = model.generate(**inputs, max_new_tokens=64)
@@ -156,7 +156,7 @@ for text in tokenizer.batch_decode(outputs):
 ```python
 from zeromodels.models.deepseek_v4 import DeepseekV4Model
 
-backbone = DeepseekV4Model.from_weights("deepseek-v4-flash")
+backbone = DeepseekV4Model.from_weights("hf:deepseek-ai/DeepSeek-V4-Flash")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -176,6 +176,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = DeepseekV4TextGenerate.from_weights(
-    "deepseek-v4-flash", quantization="int8", load_dtype="bfloat16"
+    "hf:deepseek-ai/DeepSeek-V4-Flash", quantization="int8", load_dtype="bfloat16"
 )
 ```

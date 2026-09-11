@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -41,14 +41,14 @@ See also [llama.md](llama.md), [llama2.md](llama2.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `llama4-scout-17b-16e` | [`meta-llama/Llama-4-Scout-17B-16E`](https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E) |
-| `llama4-scout-17b-16e-instruct` | [`meta-llama/Llama-4-Scout-17B-16E-Instruct`](https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct) |
-| `llama4-maverick-17b-128e` | [`meta-llama/Llama-4-Maverick-17B-128E`](https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E) |
-| `llama4-maverick-17b-128e-instruct` | [`meta-llama/Llama-4-Maverick-17B-128E-Instruct`](https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct) |
+| `hf:` id |
+|---|
+| [`hf:meta-llama/Llama-4-Scout-17B-16E`](https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E) |
+| [`hf:meta-llama/Llama-4-Scout-17B-16E-Instruct`](https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct) |
+| [`hf:meta-llama/Llama-4-Maverick-17B-128E`](https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E) |
+| [`hf:meta-llama/Llama-4-Maverick-17B-128E-Instruct`](https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct) |
 
 ## API
 
@@ -138,8 +138,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from zeromodels.models.llama4 import Llama4TextGenerate, Llama4Tokenizer
 
-model = Llama4TextGenerate.from_weights("llama4-scout-17b-16e")
-tokenizer = Llama4Tokenizer.from_weights("llama4-scout-17b-16e")
+model = Llama4TextGenerate.from_weights("hf:meta-llama/Llama-4-Scout-17B-16E")
+tokenizer = Llama4Tokenizer.from_weights("hf:meta-llama/Llama-4-Scout-17B-16E")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -172,7 +172,7 @@ for text in tokenizer.batch_decode(outputs):
 ```python
 from zeromodels.models.llama4 import Llama4Model
 
-backbone = Llama4Model.from_weights("llama4-scout-17b-16e")
+backbone = Llama4Model.from_weights("hf:meta-llama/Llama-4-Scout-17B-16E")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -192,6 +192,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Llama4TextGenerate.from_weights(
-    "llama4-scout-17b-16e", quantization="int8", load_dtype="bfloat16"
+    "hf:meta-llama/Llama-4-Scout-17B-16E", quantization="int8", load_dtype="bfloat16"
 )
 ```

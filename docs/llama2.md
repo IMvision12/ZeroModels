@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -24,20 +24,20 @@ See also [llama.md](llama.md), [llama4.md](llama4.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `llama2-7b` | [`meta-llama/Llama-2-7b-hf`](https://huggingface.co/meta-llama/Llama-2-7b-hf) |
-| `llama2-7b-chat` | [`meta-llama/Llama-2-7b-chat-hf`](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf) |
-| `llama2-13b` | [`meta-llama/Llama-2-13b-hf`](https://huggingface.co/meta-llama/Llama-2-13b-hf) |
-| `llama2-13b-chat` | [`meta-llama/Llama-2-13b-chat-hf`](https://huggingface.co/meta-llama/Llama-2-13b-chat-hf) |
-| `llama2-70b` | [`meta-llama/Llama-2-70b-hf`](https://huggingface.co/meta-llama/Llama-2-70b-hf) |
-| `llama2-70b-chat` | [`meta-llama/Llama-2-70b-chat-hf`](https://huggingface.co/meta-llama/Llama-2-70b-chat-hf) |
-| `codellama-7b` | [`codellama/CodeLlama-7b-hf`](https://huggingface.co/codellama/CodeLlama-7b-hf) |
-| `codellama-13b` | [`codellama/CodeLlama-13b-hf`](https://huggingface.co/codellama/CodeLlama-13b-hf) |
-| `codellama-34b` | [`codellama/CodeLlama-34b-hf`](https://huggingface.co/codellama/CodeLlama-34b-hf) |
-| `codellama-70b` | [`codellama/CodeLlama-70b-hf`](https://huggingface.co/codellama/CodeLlama-70b-hf) |
+| `hf:` id |
+|---|
+| [`hf:meta-llama/Llama-2-7b-hf`](https://huggingface.co/meta-llama/Llama-2-7b-hf) |
+| [`hf:meta-llama/Llama-2-7b-chat-hf`](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf) |
+| [`hf:meta-llama/Llama-2-13b-hf`](https://huggingface.co/meta-llama/Llama-2-13b-hf) |
+| [`hf:meta-llama/Llama-2-13b-chat-hf`](https://huggingface.co/meta-llama/Llama-2-13b-chat-hf) |
+| [`hf:meta-llama/Llama-2-70b-hf`](https://huggingface.co/meta-llama/Llama-2-70b-hf) |
+| [`hf:meta-llama/Llama-2-70b-chat-hf`](https://huggingface.co/meta-llama/Llama-2-70b-chat-hf) |
+| [`hf:codellama/CodeLlama-7b-hf`](https://huggingface.co/codellama/CodeLlama-7b-hf) |
+| [`hf:codellama/CodeLlama-13b-hf`](https://huggingface.co/codellama/CodeLlama-13b-hf) |
+| [`hf:codellama/CodeLlama-34b-hf`](https://huggingface.co/codellama/CodeLlama-34b-hf) |
+| [`hf:codellama/CodeLlama-70b-hf`](https://huggingface.co/codellama/CodeLlama-70b-hf) |
 
 ## API
 
@@ -113,8 +113,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from zeromodels.models.llama2 import Llama2TextGenerate, Llama2Tokenizer
 
-model = Llama2TextGenerate.from_weights("llama2-7b")
-tokenizer = Llama2Tokenizer.from_weights("llama2-7b")
+model = Llama2TextGenerate.from_weights("hf:meta-llama/Llama-2-7b-hf")
+tokenizer = Llama2Tokenizer.from_weights("hf:meta-llama/Llama-2-7b-hf")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -147,7 +147,7 @@ for text in tokenizer.batch_decode(outputs):
 ```python
 from zeromodels.models.llama2 import Llama2Model
 
-backbone = Llama2Model.from_weights("llama2-7b")
+backbone = Llama2Model.from_weights("hf:meta-llama/Llama-2-7b-hf")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -167,6 +167,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Llama2TextGenerate.from_weights(
-    "llama2-7b", quantization="int8", load_dtype="bfloat16"
+    "hf:meta-llama/Llama-2-7b-hf", quantization="int8", load_dtype="bfloat16"
 )
 ```

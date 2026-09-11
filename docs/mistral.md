@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -24,19 +24,19 @@ See also [mixtral.md](mixtral.md), [mistral3.md](mistral3.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `mistral-7b-v0.1` | [`mistralai/Mistral-7B-v0.1`](https://huggingface.co/mistralai/Mistral-7B-v0.1) |
-| `mistral-7b-instruct-v0.2` | [`mistralai/Mistral-7B-Instruct-v0.2`](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2) |
-| `mistral-7b-v0.3` | [`mistralai/Mistral-7B-v0.3`](https://huggingface.co/mistralai/Mistral-7B-v0.3) |
-| `mistral-7b-instruct-v0.3` | [`mistralai/Mistral-7B-Instruct-v0.3`](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3) |
-| `ministral-8b-instruct-2410` | [`mistralai/Ministral-8B-Instruct-2410`](https://huggingface.co/mistralai/Ministral-8B-Instruct-2410) |
-| `mistral-nemo-base-2407` | [`mistralai/Mistral-Nemo-Base-2407`](https://huggingface.co/mistralai/Mistral-Nemo-Base-2407) |
-| `mistral-nemo-instruct-2407` | [`mistralai/Mistral-Nemo-Instruct-2407`](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407) |
-| `mistral-small-24b-base-2501` | [`mistralai/Mistral-Small-24B-Base-2501`](https://huggingface.co/mistralai/Mistral-Small-24B-Base-2501) |
-| `mistral-small-24b-instruct-2501` | [`mistralai/Mistral-Small-24B-Instruct-2501`](https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501) |
+| `hf:` id |
+|---|
+| [`hf:mistralai/Mistral-7B-v0.1`](https://huggingface.co/mistralai/Mistral-7B-v0.1) |
+| [`hf:mistralai/Mistral-7B-Instruct-v0.2`](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2) |
+| [`hf:mistralai/Mistral-7B-v0.3`](https://huggingface.co/mistralai/Mistral-7B-v0.3) |
+| [`hf:mistralai/Mistral-7B-Instruct-v0.3`](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3) |
+| [`hf:mistralai/Ministral-8B-Instruct-2410`](https://huggingface.co/mistralai/Ministral-8B-Instruct-2410) |
+| [`hf:mistralai/Mistral-Nemo-Base-2407`](https://huggingface.co/mistralai/Mistral-Nemo-Base-2407) |
+| [`hf:mistralai/Mistral-Nemo-Instruct-2407`](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407) |
+| [`hf:mistralai/Mistral-Small-24B-Base-2501`](https://huggingface.co/mistralai/Mistral-Small-24B-Base-2501) |
+| [`hf:mistralai/Mistral-Small-24B-Instruct-2501`](https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501) |
 
 ## API
 
@@ -113,8 +113,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from zeromodels.models.mistral import MistralTextGenerate, MistralTokenizer
 
-model = MistralTextGenerate.from_weights("mistral-7b-v0.1")
-tokenizer = MistralTokenizer.from_weights("mistral-7b-v0.1")
+model = MistralTextGenerate.from_weights("hf:mistralai/Mistral-7B-v0.1")
+tokenizer = MistralTokenizer.from_weights("hf:mistralai/Mistral-7B-v0.1")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -147,7 +147,7 @@ for text in tokenizer.batch_decode(outputs):
 ```python
 from zeromodels.models.mistral import MistralModel
 
-backbone = MistralModel.from_weights("mistral-7b-v0.1")
+backbone = MistralModel.from_weights("hf:mistralai/Mistral-7B-v0.1")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -167,6 +167,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = MistralTextGenerate.from_weights(
-    "mistral-7b-v0.1", quantization="int8", load_dtype="bfloat16"
+    "hf:mistralai/Mistral-7B-v0.1", quantization="int8", load_dtype="bfloat16"
 )
 ```

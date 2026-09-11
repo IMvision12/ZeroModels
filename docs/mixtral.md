@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -27,14 +27,14 @@ See also [mistral.md](mistral.md), [mistral3.md](mistral3.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `mixtral-8x7b` | [`mistralai/Mixtral-8x7B-v0.1`](https://huggingface.co/mistralai/Mixtral-8x7B-v0.1) |
-| `mixtral-8x7b-instruct` | [`mistralai/Mixtral-8x7B-Instruct-v0.1`](https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1) |
-| `mixtral-8x22b` | [`mistralai/Mixtral-8x22B-v0.1`](https://huggingface.co/mistralai/Mixtral-8x22B-v0.1) |
-| `mixtral-8x22b-instruct` | [`mistralai/Mixtral-8x22B-Instruct-v0.1`](https://huggingface.co/mistralai/Mixtral-8x22B-Instruct-v0.1) |
+| `hf:` id |
+|---|
+| [`hf:mistralai/Mixtral-8x7B-v0.1`](https://huggingface.co/mistralai/Mixtral-8x7B-v0.1) |
+| [`hf:mistralai/Mixtral-8x7B-Instruct-v0.1`](https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1) |
+| [`hf:mistralai/Mixtral-8x22B-v0.1`](https://huggingface.co/mistralai/Mixtral-8x22B-v0.1) |
+| [`hf:mistralai/Mixtral-8x22B-Instruct-v0.1`](https://huggingface.co/mistralai/Mixtral-8x22B-Instruct-v0.1) |
 
 ## API
 
@@ -113,8 +113,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from zeromodels.models.mixtral import MixtralTextGenerate, MixtralTokenizer
 
-model = MixtralTextGenerate.from_weights("mixtral-8x7b")
-tokenizer = MixtralTokenizer.from_weights("mixtral-8x7b")
+model = MixtralTextGenerate.from_weights("hf:mistralai/Mixtral-8x7B-v0.1")
+tokenizer = MixtralTokenizer.from_weights("hf:mistralai/Mixtral-8x7B-v0.1")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -147,7 +147,7 @@ for text in tokenizer.batch_decode(outputs):
 ```python
 from zeromodels.models.mixtral import MixtralModel
 
-backbone = MixtralModel.from_weights("mixtral-8x7b")
+backbone = MixtralModel.from_weights("hf:mistralai/Mixtral-8x7B-v0.1")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -167,6 +167,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = MixtralTextGenerate.from_weights(
-    "mixtral-8x7b", quantization="int8", load_dtype="bfloat16"
+    "hf:mistralai/Mixtral-8x7B-v0.1", quantization="int8", load_dtype="bfloat16"
 )
 ```

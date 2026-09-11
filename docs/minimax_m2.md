@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -22,11 +22,11 @@ See also [minimax.md](minimax.md), [minimax_m3_vl.md](minimax_m3_vl.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `minimax-m2` | [`MiniMaxAI/MiniMax-M2`](https://huggingface.co/MiniMaxAI/MiniMax-M2) |
+| `hf:` id |
+|---|
+| [`hf:MiniMaxAI/MiniMax-M2`](https://huggingface.co/MiniMaxAI/MiniMax-M2) |
 
 ## API
 
@@ -105,8 +105,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from zeromodels.models.minimax_m2 import MiniMaxM2TextGenerate, MiniMaxM2Tokenizer
 
-model = MiniMaxM2TextGenerate.from_weights("minimax-m2")
-tokenizer = MiniMaxM2Tokenizer.from_weights("minimax-m2")
+model = MiniMaxM2TextGenerate.from_weights("hf:MiniMaxAI/MiniMax-M2")
+tokenizer = MiniMaxM2Tokenizer.from_weights("hf:MiniMaxAI/MiniMax-M2")
 
 inputs = tokenizer("Explain rotary embeddings in one sentence.")
 outputs = model.generate(**inputs, max_new_tokens=64)
@@ -137,7 +137,7 @@ for text in tokenizer.batch_decode(outputs):
 ```python
 from zeromodels.models.minimax_m2 import MiniMaxM2Model
 
-backbone = MiniMaxM2Model.from_weights("minimax-m2")
+backbone = MiniMaxM2Model.from_weights("hf:MiniMaxAI/MiniMax-M2")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -157,6 +157,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = MiniMaxM2TextGenerate.from_weights(
-    "minimax-m2", quantization="int8", load_dtype="bfloat16"
+    "hf:MiniMaxAI/MiniMax-M2", quantization="int8", load_dtype="bfloat16"
 )
 ```

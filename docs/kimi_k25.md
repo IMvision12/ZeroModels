@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -24,13 +24,13 @@ See also [deepseek_v3.md](deepseek_v3.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `kimi-k2.5` | [`moonshotai/Kimi-K2.5`](https://huggingface.co/moonshotai/Kimi-K2.5) |
-| `kimi-k2.6` | [`moonshotai/Kimi-K2.6`](https://huggingface.co/moonshotai/Kimi-K2.6) |
-| `kimi-k2.7-code` | [`moonshotai/Kimi-K2.7-Code`](https://huggingface.co/moonshotai/Kimi-K2.7-Code) |
+| `hf:` id |
+|---|
+| [`hf:moonshotai/Kimi-K2.5`](https://huggingface.co/moonshotai/Kimi-K2.5) |
+| [`hf:moonshotai/Kimi-K2.6`](https://huggingface.co/moonshotai/Kimi-K2.6) |
+| [`hf:moonshotai/Kimi-K2.7-Code`](https://huggingface.co/moonshotai/Kimi-K2.7-Code) |
 
 ## API
 
@@ -176,8 +176,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 from PIL import Image
 from zeromodels.models.kimi_k25 import KimiK25ConditionalGenerate, KimiK25Processor
 
-model = KimiK25ConditionalGenerate.from_weights("kimi-k2.5")
-processor = KimiK25Processor.from_weights("kimi-k2.5")
+model = KimiK25ConditionalGenerate.from_weights("hf:moonshotai/Kimi-K2.5")
+processor = KimiK25Processor.from_weights("hf:moonshotai/Kimi-K2.5")
 
 image = Image.open("photo.jpg")
 prompt = (
@@ -232,7 +232,7 @@ have rendered yourself (or go through the processor above).
 ```python
 from zeromodels.models.kimi_k25 import KimiK25Tokenizer
 
-tokenizer = KimiK25Tokenizer.from_weights("kimi-k2.5")
+tokenizer = KimiK25Tokenizer.from_weights("hf:moonshotai/Kimi-K2.5")
 inputs = tokenizer("Who wrote Dune?")
 outputs = model.generate(**inputs, max_new_tokens=32)
 print(tokenizer.decode(outputs[0]))
@@ -245,6 +245,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = KimiK25ConditionalGenerate.from_weights(
-    "kimi-k2.5", quantization="int8", load_dtype="bfloat16"
+    "hf:moonshotai/Kimi-K2.5", quantization="int8", load_dtype="bfloat16"
 )
 ```

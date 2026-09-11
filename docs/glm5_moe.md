@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -29,13 +29,13 @@ See also [glm4.md](glm4.md), [glm4_moe.md](glm4_moe.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `glm5` | [`zai-org/GLM-5`](https://huggingface.co/zai-org/GLM-5) |
-| `glm5_1` | [`zai-org/GLM-5.1`](https://huggingface.co/zai-org/GLM-5.1) |
-| `glm5_2` | [`zai-org/GLM-5.2`](https://huggingface.co/zai-org/GLM-5.2) |
+| `hf:` id |
+|---|
+| [`hf:zai-org/GLM-5`](https://huggingface.co/zai-org/GLM-5) |
+| [`hf:zai-org/GLM-5.1`](https://huggingface.co/zai-org/GLM-5.1) |
+| [`hf:zai-org/GLM-5.2`](https://huggingface.co/zai-org/GLM-5.2) |
 
 ## API
 
@@ -127,8 +127,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from zeromodels.models.glm5_moe import Glm5MoeTextGenerate, Glm5MoeTokenizer
 
-model = Glm5MoeTextGenerate.from_weights("glm5")
-tokenizer = Glm5MoeTokenizer.from_weights("glm5")
+model = Glm5MoeTextGenerate.from_weights("hf:zai-org/GLM-5")
+tokenizer = Glm5MoeTokenizer.from_weights("hf:zai-org/GLM-5")
 
 inputs = tokenizer("Explain rotary embeddings in one sentence.")
 outputs = model.generate(**inputs, max_new_tokens=64)
@@ -159,7 +159,7 @@ for text in tokenizer.batch_decode(outputs):
 ```python
 from zeromodels.models.glm5_moe import Glm5MoeModel
 
-backbone = Glm5MoeModel.from_weights("glm5")
+backbone = Glm5MoeModel.from_weights("hf:zai-org/GLM-5")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -179,6 +179,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Glm5MoeTextGenerate.from_weights(
-    "glm5", quantization="int8", load_dtype="bfloat16"
+    "hf:zai-org/GLM-5", quantization="int8", load_dtype="bfloat16"
 )
 ```
