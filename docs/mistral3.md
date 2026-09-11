@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -23,12 +23,12 @@ See also [mistral.md](mistral.md), [mixtral.md](mixtral.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `mistral-small-3.1-24b-instruct` | [`mistralai/Mistral-Small-3.1-24B-Instruct-2503`](https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503) |
-| `mistral-small-3.2-24b-instruct` | [`mistralai/Mistral-Small-3.2-24B-Instruct-2506`](https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506) |
+| `hf:` id |
+|---|
+| [`hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503`](https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503) |
+| [`hf:mistralai/Mistral-Small-3.2-24B-Instruct-2506`](https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506) |
 
 ## API
 
@@ -151,8 +151,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 from PIL import Image
 from zeromodels.models.mistral3 import Mistral3ConditionalGenerate, Mistral3Processor
 
-model = Mistral3ConditionalGenerate.from_weights("mistral-small-3.1-24b-instruct")
-processor = Mistral3Processor.from_weights("mistral-small-3.1-24b-instruct")
+model = Mistral3ConditionalGenerate.from_weights("hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503")
+processor = Mistral3Processor.from_weights("hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503")
 
 image = Image.open("photo.jpg")
 inputs = processor(
@@ -237,7 +237,7 @@ have rendered yourself (or go through the processor above).
 ```python
 from zeromodels.models.mistral3 import Mistral3Tokenizer
 
-tokenizer = Mistral3Tokenizer.from_weights("mistral-small-3.1-24b-instruct")
+tokenizer = Mistral3Tokenizer.from_weights("hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503")
 inputs = tokenizer("Who wrote Dune?")
 outputs = model.generate(**inputs, max_new_tokens=32)
 print(tokenizer.decode(outputs[0]))
@@ -250,7 +250,7 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = Mistral3ConditionalGenerate.from_weights(
-    "mistral-small-3.1-24b-instruct",
+    "hf:mistralai/Mistral-Small-3.1-24B-Instruct-2503",
     quantization="int8",
     load_dtype="bfloat16",
 )

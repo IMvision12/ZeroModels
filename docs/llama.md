@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -25,23 +25,23 @@ See also [llama2.md](llama2.md), [llama4.md](llama4.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `llama3-8b` | [`meta-llama/Meta-Llama-3-8B`](https://huggingface.co/meta-llama/Meta-Llama-3-8B) |
-| `llama3-8b-instruct` | [`meta-llama/Meta-Llama-3-8B-Instruct`](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct) |
-| `llama3-70b` | [`meta-llama/Meta-Llama-3-70B`](https://huggingface.co/meta-llama/Meta-Llama-3-70B) |
-| `llama3-70b-instruct` | [`meta-llama/Meta-Llama-3-70B-Instruct`](https://huggingface.co/meta-llama/Meta-Llama-3-70B-Instruct) |
-| `llama3.1-8b` | [`meta-llama/Llama-3.1-8B`](https://huggingface.co/meta-llama/Llama-3.1-8B) |
-| `llama3.1-8b-instruct` | [`meta-llama/Llama-3.1-8B-Instruct`](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) |
-| `llama3.1-70b` | [`meta-llama/Llama-3.1-70B`](https://huggingface.co/meta-llama/Llama-3.1-70B) |
-| `llama3.1-70b-instruct` | [`meta-llama/Llama-3.1-70B-Instruct`](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct) |
-| `llama3.2-1b` | [`meta-llama/Llama-3.2-1B`](https://huggingface.co/meta-llama/Llama-3.2-1B) |
-| `llama3.2-1b-instruct` | [`meta-llama/Llama-3.2-1B-Instruct`](https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct) |
-| `llama3.2-3b` | [`meta-llama/Llama-3.2-3B`](https://huggingface.co/meta-llama/Llama-3.2-3B) |
-| `llama3.2-3b-instruct` | [`meta-llama/Llama-3.2-3B-Instruct`](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct) |
-| `llama3.3-70b-instruct` | [`meta-llama/Llama-3.3-70B-Instruct`](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) |
+| `hf:` id |
+|---|
+| [`hf:meta-llama/Meta-Llama-3-8B`](https://huggingface.co/meta-llama/Meta-Llama-3-8B) |
+| [`hf:meta-llama/Meta-Llama-3-8B-Instruct`](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct) |
+| [`hf:meta-llama/Meta-Llama-3-70B`](https://huggingface.co/meta-llama/Meta-Llama-3-70B) |
+| [`hf:meta-llama/Meta-Llama-3-70B-Instruct`](https://huggingface.co/meta-llama/Meta-Llama-3-70B-Instruct) |
+| [`hf:meta-llama/Llama-3.1-8B`](https://huggingface.co/meta-llama/Llama-3.1-8B) |
+| [`hf:meta-llama/Llama-3.1-8B-Instruct`](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) |
+| [`hf:meta-llama/Llama-3.1-70B`](https://huggingface.co/meta-llama/Llama-3.1-70B) |
+| [`hf:meta-llama/Llama-3.1-70B-Instruct`](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct) |
+| [`hf:meta-llama/Llama-3.2-1B`](https://huggingface.co/meta-llama/Llama-3.2-1B) |
+| [`hf:meta-llama/Llama-3.2-1B-Instruct`](https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct) |
+| [`hf:meta-llama/Llama-3.2-3B`](https://huggingface.co/meta-llama/Llama-3.2-3B) |
+| [`hf:meta-llama/Llama-3.2-3B-Instruct`](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct) |
+| [`hf:meta-llama/Llama-3.3-70B-Instruct`](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) |
 
 ## API
 
@@ -121,8 +121,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from zeromodels.models.llama import LlamaTextGenerate, LlamaTokenizer
 
-model = LlamaTextGenerate.from_weights("llama3-8b")
-tokenizer = LlamaTokenizer.from_weights("llama3-8b")
+model = LlamaTextGenerate.from_weights("hf:meta-llama/Meta-Llama-3-8B")
+tokenizer = LlamaTokenizer.from_weights("hf:meta-llama/Meta-Llama-3-8B")
 
 inputs = tokenizer(
     [{"role": "user", "content": "Explain rotary embeddings in one sentence."}]
@@ -155,7 +155,7 @@ for text in tokenizer.batch_decode(outputs):
 ```python
 from zeromodels.models.llama import LlamaModel
 
-backbone = LlamaModel.from_weights("llama3-8b")
+backbone = LlamaModel.from_weights("hf:meta-llama/Meta-Llama-3-8B")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -175,6 +175,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = LlamaTextGenerate.from_weights(
-    "llama3-8b", quantization="int8", load_dtype="bfloat16"
+    "hf:meta-llama/Meta-Llama-3-8B", quantization="int8", load_dtype="bfloat16"
 )
 ```

@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -26,11 +26,11 @@ See also [minimax_m2.md](minimax_m2.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `minimax-text-01` | [`MiniMaxAI/MiniMax-Text-01-hf`](https://huggingface.co/MiniMaxAI/MiniMax-Text-01-hf) |
+| `hf:` id |
+|---|
+| [`hf:MiniMaxAI/MiniMax-Text-01-hf`](https://huggingface.co/MiniMaxAI/MiniMax-Text-01-hf) |
 
 ## API
 
@@ -118,8 +118,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from zeromodels.models.minimax import MiniMaxTextGenerate, MiniMaxTokenizer
 
-model = MiniMaxTextGenerate.from_weights("minimax-text-01")
-tokenizer = MiniMaxTokenizer.from_weights("minimax-text-01")
+model = MiniMaxTextGenerate.from_weights("hf:MiniMaxAI/MiniMax-Text-01-hf")
+tokenizer = MiniMaxTokenizer.from_weights("hf:MiniMaxAI/MiniMax-Text-01-hf")
 
 inputs = tokenizer("Explain rotary embeddings in one sentence.")
 outputs = model.generate(**inputs, max_new_tokens=64)
@@ -150,7 +150,7 @@ for text in tokenizer.batch_decode(outputs):
 ```python
 from zeromodels.models.minimax import MiniMaxModel
 
-backbone = MiniMaxModel.from_weights("minimax-text-01")
+backbone = MiniMaxModel.from_weights("hf:MiniMaxAI/MiniMax-Text-01-hf")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -170,6 +170,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = MiniMaxTextGenerate.from_weights(
-    "minimax-text-01", quantization="int8", load_dtype="bfloat16"
+    "hf:MiniMaxAI/MiniMax-Text-01-hf", quantization="int8", load_dtype="bfloat16"
 )
 ```

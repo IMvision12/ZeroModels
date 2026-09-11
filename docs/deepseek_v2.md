@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -31,15 +31,15 @@ See also [deepseek_v3.md](deepseek_v3.md), [deepseek_v4.md](deepseek_v4.md).
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `deepseek-v2-lite` | [`deepseek-ai/DeepSeek-V2-Lite`](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite) |
-| `deepseek-v2-lite-chat` | [`deepseek-ai/DeepSeek-V2-Lite-Chat`](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite-Chat) |
-| `deepseek-v2` | [`deepseek-ai/DeepSeek-V2`](https://huggingface.co/deepseek-ai/DeepSeek-V2) |
-| `deepseek-v2-chat` | [`deepseek-ai/DeepSeek-V2-Chat`](https://huggingface.co/deepseek-ai/DeepSeek-V2-Chat) |
-| `deepseek-v2.5` | [`deepseek-ai/DeepSeek-V2.5`](https://huggingface.co/deepseek-ai/DeepSeek-V2.5) |
+| `hf:` id |
+|---|
+| [`hf:deepseek-ai/DeepSeek-V2-Lite`](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite) |
+| [`hf:deepseek-ai/DeepSeek-V2-Lite-Chat`](https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite-Chat) |
+| [`hf:deepseek-ai/DeepSeek-V2`](https://huggingface.co/deepseek-ai/DeepSeek-V2) |
+| [`hf:deepseek-ai/DeepSeek-V2-Chat`](https://huggingface.co/deepseek-ai/DeepSeek-V2-Chat) |
+| [`hf:deepseek-ai/DeepSeek-V2.5`](https://huggingface.co/deepseek-ai/DeepSeek-V2.5) |
 
 ## API
 
@@ -129,8 +129,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 
 from zeromodels.models.deepseek_v2 import DeepseekV2TextGenerate, DeepseekV2Tokenizer
 
-model = DeepseekV2TextGenerate.from_weights("deepseek-v2-lite")
-tokenizer = DeepseekV2Tokenizer.from_weights("deepseek-v2-lite")
+model = DeepseekV2TextGenerate.from_weights("hf:deepseek-ai/DeepSeek-V2-Lite")
+tokenizer = DeepseekV2Tokenizer.from_weights("hf:deepseek-ai/DeepSeek-V2-Lite")
 
 inputs = tokenizer("Explain rotary embeddings in one sentence.")
 outputs = model.generate(**inputs, max_new_tokens=64)
@@ -161,7 +161,7 @@ for text in tokenizer.batch_decode(outputs):
 ```python
 from zeromodels.models.deepseek_v2 import DeepseekV2Model
 
-backbone = DeepseekV2Model.from_weights("deepseek-v2-lite")
+backbone = DeepseekV2Model.from_weights("hf:deepseek-ai/DeepSeek-V2-Lite")
 hidden = backbone(inputs)["last_hidden_state"]  # (batch, seq, embed_dim)
 ```
 
@@ -181,6 +181,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = DeepseekV2TextGenerate.from_weights(
-    "deepseek-v2-lite", quantization="int8", load_dtype="bfloat16"
+    "hf:deepseek-ai/DeepSeek-V2-Lite", quantization="int8", load_dtype="bfloat16"
 )
 ```

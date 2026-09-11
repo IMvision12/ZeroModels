@@ -3,7 +3,7 @@
 <div class="kf-note kf-note--convert">
 <b>On-the-fly conversion:</b> these weights are <b>not</b> mirrored as preconverted
 <code>.weights.h5</code> under <code>zeromodels/</code>.
-<code>from_weights("&lt;variant&gt;")</code> downloads the original safetensors
+<code>from_weights("hf:&lt;org&gt;/&lt;repo&gt;")</code> downloads the original safetensors
 from the Hub and converts them in process on every load, because checkpoints this large are
 impractical to re-host.
 Pass <code>cache_converted=True</code> to keep the converted result and skip the download and
@@ -23,23 +23,23 @@ Links:
 
 ## Variants
 
-Load any of these with `from_weights("<variant>")`.
+Load any of these from the Hub by its `hf:` id (any same-architecture repo, including community fine-tunes, works too).
 
-| Variant | Hub |
-|---|---|
-| `internvl3-1b` | [`OpenGVLab/InternVL3-1B-hf`](https://huggingface.co/OpenGVLab/InternVL3-1B-hf) |
-| `internvl3-2b` | [`OpenGVLab/InternVL3-2B-hf`](https://huggingface.co/OpenGVLab/InternVL3-2B-hf) |
-| `internvl3-8b` | [`OpenGVLab/InternVL3-8B-hf`](https://huggingface.co/OpenGVLab/InternVL3-8B-hf) |
-| `internvl3-14b` | [`OpenGVLab/InternVL3-14B-hf`](https://huggingface.co/OpenGVLab/InternVL3-14B-hf) |
-| `internvl3-38b` | [`OpenGVLab/InternVL3-38B-hf`](https://huggingface.co/OpenGVLab/InternVL3-38B-hf) |
-| `internvl3-78b` | [`OpenGVLab/InternVL3-78B-hf`](https://huggingface.co/OpenGVLab/InternVL3-78B-hf) |
-| `internvl3.5-1b` | [`OpenGVLab/InternVL3_5-1B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-1B-HF) |
-| `internvl3.5-2b` | [`OpenGVLab/InternVL3_5-2B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-2B-HF) |
-| `internvl3.5-4b` | [`OpenGVLab/InternVL3_5-4B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-4B-HF) |
-| `internvl3.5-8b` | [`OpenGVLab/InternVL3_5-8B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-8B-HF) |
-| `internvl3.5-14b` | [`OpenGVLab/InternVL3_5-14B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-14B-HF) |
-| `internvl3.5-38b` | [`OpenGVLab/InternVL3_5-38B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-38B-HF) |
-| `internvl3.5-30b-a3b` | [`OpenGVLab/InternVL3_5-30B-A3B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-30B-A3B-HF) |
+| `hf:` id |
+|---|
+| [`hf:OpenGVLab/InternVL3-1B-hf`](https://huggingface.co/OpenGVLab/InternVL3-1B-hf) |
+| [`hf:OpenGVLab/InternVL3-2B-hf`](https://huggingface.co/OpenGVLab/InternVL3-2B-hf) |
+| [`hf:OpenGVLab/InternVL3-8B-hf`](https://huggingface.co/OpenGVLab/InternVL3-8B-hf) |
+| [`hf:OpenGVLab/InternVL3-14B-hf`](https://huggingface.co/OpenGVLab/InternVL3-14B-hf) |
+| [`hf:OpenGVLab/InternVL3-38B-hf`](https://huggingface.co/OpenGVLab/InternVL3-38B-hf) |
+| [`hf:OpenGVLab/InternVL3-78B-hf`](https://huggingface.co/OpenGVLab/InternVL3-78B-hf) |
+| [`hf:OpenGVLab/InternVL3_5-1B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-1B-HF) |
+| [`hf:OpenGVLab/InternVL3_5-2B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-2B-HF) |
+| [`hf:OpenGVLab/InternVL3_5-4B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-4B-HF) |
+| [`hf:OpenGVLab/InternVL3_5-8B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-8B-HF) |
+| [`hf:OpenGVLab/InternVL3_5-14B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-14B-HF) |
+| [`hf:OpenGVLab/InternVL3_5-38B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-38B-HF) |
+| [`hf:OpenGVLab/InternVL3_5-30B-A3B-HF`](https://huggingface.co/OpenGVLab/InternVL3_5-30B-A3B-HF) |
 
 The InternVL3 rows use a Qwen2.5 text tower; InternVL3.5 dense uses Qwen3, and
 `internvl3.5-30b-a3b` uses a Qwen3-MoE tower. One class loads them all.
@@ -174,8 +174,8 @@ os.environ["KERAS_BACKEND"] = "torch"  # or "jax" / "tensorflow"
 from PIL import Image
 from zeromodels.models.internvl import InternVLConditionalGenerate, InternVLProcessor
 
-model = InternVLConditionalGenerate.from_weights("internvl3-1b")
-processor = InternVLProcessor.from_weights("internvl3-1b")
+model = InternVLConditionalGenerate.from_weights("hf:OpenGVLab/InternVL3-1B-hf")
+processor = InternVLProcessor.from_weights("hf:OpenGVLab/InternVL3-1B-hf")
 
 image = Image.open("photo.jpg")
 inputs = processor(
@@ -260,7 +260,7 @@ have rendered yourself (or go through the processor above).
 ```python
 from zeromodels.models.internvl import InternVLTokenizer
 
-tokenizer = InternVLTokenizer.from_weights("internvl3-1b")
+tokenizer = InternVLTokenizer.from_weights("hf:OpenGVLab/InternVL3-1B-hf")
 inputs = tokenizer("Who wrote Dune?")
 outputs = model.generate(**inputs, max_new_tokens=32)
 print(tokenizer.decode(outputs[0]))
@@ -273,6 +273,6 @@ Larger checkpoints load in bf16 or weight-only quantized. See
 
 ```python
 model = InternVLConditionalGenerate.from_weights(
-    "internvl3-1b", quantization="int8", load_dtype="bfloat16"
+    "hf:OpenGVLab/InternVL3-1B-hf", quantization="int8", load_dtype="bfloat16"
 )
 ```

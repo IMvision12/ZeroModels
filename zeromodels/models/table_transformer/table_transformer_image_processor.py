@@ -28,9 +28,10 @@ class TableTransformerImageProcessor(BaseImageProcessor):
     Args:
         size: Aspect-preserving resize spec
             ``{"shortest_edge": S, "longest_edge": L}``. Default:
-            ``{"shortest_edge": 800, "longest_edge": 1333}`` (the reference).
-            Requires a model built with a dynamic input (``image_size=None``,
-            the default).
+            ``{"shortest_edge": 800, "longest_edge": 1333}`` (the reference),
+            which needs a model built with a dynamic input (``image_size=None``,
+            the default). A fixed ``{"height": H, "width": W}`` instead resizes to
+            exactly ``H x W`` (the reference accepts either form).
         resample: Interpolation method (``"nearest"``, ``"bilinear"``, or
             ``"bicubic"``).
         do_rescale: Whether to divide pixel values by 255.
@@ -77,20 +78,34 @@ class TableTransformerImageProcessor(BaseImageProcessor):
         return self.call(image)
 
     def call(self, image) -> Dict[str, keras.KerasTensor]:
-        # Aspect-preserving resize (shortest_edge / longest_edge), matching the
-        # reference. A batch is zero-padded to the common max size (single-image
-        # inference is exact; see preprocess_image_variable).
-        image, _, _, _ = self.preprocess_image_variable(
-            image,
-            shortest_edge=self.size["shortest_edge"],
-            longest_edge=self.size["longest_edge"],
-            image_mean=self.image_mean if self.do_normalize else None,
-            image_std=self.image_std if self.do_normalize else None,
-            rescale=self.do_rescale,
-            interpolation=self.resample,
-            antialias=False,
-            data_format=self.data_format,
-        )
+        # Aspect-preserving resize (shortest_edge / longest_edge, the reference
+        # default); a fixed {"height", "width"} size does a plain resize to that
+        # size instead (the reference accepts either). A batch is zero-padded to the
+        # common max size (single-image inference is exact; see
+        # preprocess_image_variable).
+        if "shortest_edge" in self.size:
+            image, _, _, _ = self.preprocess_image_variable(
+                image,
+                shortest_edge=self.size["shortest_edge"],
+                longest_edge=self.size.get("longest_edge"),
+                image_mean=self.image_mean if self.do_normalize else None,
+                image_std=self.image_std if self.do_normalize else None,
+                rescale=self.do_rescale,
+                interpolation=self.resample,
+                antialias=False,
+                data_format=self.data_format,
+            )
+        else:
+            image, _, _, _ = self.preprocess_image(
+                image,
+                target_size=(self.size["height"], self.size["width"]),
+                image_mean=self.image_mean if self.do_normalize else None,
+                image_std=self.image_std if self.do_normalize else None,
+                rescale=self.do_rescale,
+                interpolation=self.resample,
+                antialias=False,
+                data_format=self.data_format,
+            )
         if self.do_rescale and self.rescale_factor != 1 / 255:
             image = image * (self.rescale_factor * 255)
 
