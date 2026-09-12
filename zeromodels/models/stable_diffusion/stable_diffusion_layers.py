@@ -5,23 +5,6 @@ from keras import layers, ops
 
 from zeromodels.base.base_attention import fused_attention
 
-# The Stable Diffusion UNet and VAE are built channels-last: the
-# Transformer2D (B, H, W, C) <-> (B, H*W, C) reshape is then a no-op flatten
-# (no channel transpose), and every conv is a standard keras Conv2D. Weight
-# conversion from the channels-first diffusers checkpoints is a plain
-# (O, I, H, W) -> (H, W, I, O) kernel transpose, handled by the converter.
-#
-# Each block is a composite keras Layer (ResnetBlock2D, Transformer2DModel, ...),
-# not a chain of bare ops in the functional graph: a functional model keeps every
-# node's output alive until the whole forward finishes, and at 512px the UNet's
-# per-op intermediates (the 4096x4096 attention maps above all) run to several GB,
-# whereas a layer's internals are freed as soon as its call returns.
-#
-# Each weight-bearing leaf is named with its diffusers module path so the converter
-# is a 1:1 name map, but torch parameter names cannot contain ".", so the dots are
-# encoded as "__" in the actual layer name (real diffusers path segments never
-# contain "__") and decoded by the converter.
-
 GROUP_EPS = 1e-6
 GROUPS = 32
 

@@ -584,10 +584,12 @@ class StableDiffusionTextToImage(StableDiffusionModel, BaseDiffusion):
     diffusers ``StableDiffusionPipeline`` in this library's task-class form).
 
     :class:`StableDiffusionModel` (the UNet, VAE and CLIP text towers, built
-    internally like ``CLIPModel``) plus :class:`BaseDiffusion`'s denoising loop,
-    the way ``T5ConditionalGenerate`` is ``T5Model`` plus a generation mixin. It is
-    the same graph and weights as the container, so both classes load the same
-    hosted repo.
+    internally like ``CLIPModel``) plus :class:`BaseDiffusion`'s ``generate``, the
+    way ``T5ConditionalGenerate`` is ``T5Model`` plus a generation mixin: this class
+    only supplies the hooks (``encode_prompt`` on the CLIP tower, the empty prompt's
+    ``unconditional_ids``, ``predict_noise`` on the UNet, ``decode_latents`` on the
+    VAE) and the scheduler. It is the same graph and weights as the container, so
+    both classes load the same hosted repo.
 
     Inference is the library's usual two-step, tokenizer then ``generate``::
 
@@ -611,6 +613,9 @@ class StableDiffusionTextToImage(StableDiffusionModel, BaseDiffusion):
     """
 
     HUB_REPO_SIBLINGS = STABLE_DIFFUSION_HUB_SIBLINGS
+    # Default generation settings (diffusers' StableDiffusionPipeline defaults);
+    # a repo's zm_config.json generate_args override them on load.
+    generate_args = {"num_inference_steps": 50, "guidance_scale": 7.5}
 
     def __init__(self, scheduler=None, name="StableDiffusionTextToImage", **kwargs):
         # read from the flat kwargs: the metaclass attaches self.config only after
@@ -625,82 +630,34 @@ class StableDiffusionTextToImage(StableDiffusionModel, BaseDiffusion):
             )
         self.scheduler = scheduler
 
-    def empty_prompt_ids(self, batch):
-        """Token ids of the empty prompt: the unconditional branch of guidance."""
+    @property
+    def latent_shape(self):
+        size = self.unet.sample_size
+        height, width = size if isinstance(size, (tuple, list)) else (size, size)
+        return (height, width, self.unet.in_channels)
+
+    def unconditional_ids(self, batch):
         cfg = self.config
         length = cfg.text_config.max_seq_len
         row = [cfg.bos_token_id, cfg.eos_token_id] + [cfg.pad_token_id] * (length - 2)
         return ops.convert_to_tensor([row] * batch, dtype="int32")
 
-    def encode_text(self, input_ids):
-        """Text embeddings for a batch of token ids.
-
-        SD attends the padding tokens (the reference passes no attention mask), so
-        the text tower gets an all-ones padding mask regardless of the tokenizer's.
-        """
-        input_ids = ops.convert_to_tensor(input_ids, dtype="int32")
+    def encode_prompt(self, input_ids, attention_mask=None):
+        # SD attends the padding tokens (the reference passes no attention mask),
+        # so the text tower gets an all-ones mask regardless of the tokenizer's
+        input_ids = ops.cast(ops.convert_to_tensor(input_ids), "int32")
         mask = ops.ones_like(input_ids)
         out = self.text_encoder({"token_ids": input_ids, "padding_mask": mask})
         return out["last_hidden_state"]
 
-    def generate(
-        self,
-        input_ids,
-        attention_mask=None,
-        negative_input_ids=None,
-        num_inference_steps=50,
-        guidance_scale=7.5,
-        seed=None,
-        latents=None,
-    ):
-        """Generate images from tokenized prompts.
+    def predict_noise(self, latents, timesteps, embeddings):
+        return self.unet(
+            {
+                "sample": latents,
+                "timestep": timesteps,
+                "encoder_hidden_states": embeddings,
+            }
+        )["sample"]
 
-        Args:
-            input_ids: ``(B, 77)`` token ids, i.e. ``**tokenizer(prompts)``.
-            attention_mask: Accepted alongside the tokenizer's output but unused:
-                SD attends its padding tokens.
-            negative_input_ids: ``(B, 77)`` tokenized negative prompt for
-                classifier-free guidance; defaults to the empty prompt.
-            num_inference_steps: Scheduler steps (default 50).
-            guidance_scale: Classifier-free guidance strength; ``<= 1`` disables it.
-            seed: RNG seed for the initial latent (per backend).
-            latents: Explicit ``(B, H/8, W/8, 4)`` initial latent, for results that
-                are identical across backends.
-
-        Returns:
-            ``(B, H, W, 3)`` uint8 numpy images at the built resolution.
-        """
-        input_ids = ops.convert_to_tensor(input_ids, dtype="int32")
-        batch = int(ops.shape(input_ids)[0])
-        cond = self.encode_text(input_ids)
-        if guidance_scale is not None and guidance_scale > 1.0:
-            uncond_ids = (
-                negative_input_ids
-                if negative_input_ids is not None
-                else self.empty_prompt_ids(batch)
-            )
-            embeddings = ops.concatenate([self.encode_text(uncond_ids), cond], axis=0)
-        else:
-            embeddings = cond
-
-        size = self.unet.sample_size
-        lat_h, lat_w = size if isinstance(size, (tuple, list)) else (size, size)
-        latents = self.prepare_latents(
-            batch,
-            self.unet.in_channels,
-            lat_h,
-            lat_w,
-            self.scheduler.init_noise_sigma,
-            seed=seed,
-            latents=latents,
-        )
-        latents = self.denoise(
-            self.unet,
-            self.scheduler,
-            latents,
-            embeddings,
-            num_inference_steps,
-            guidance_scale,
-        )
-        image = self.vae.decode(latents / self.vae.scaling_factor)
-        return self.postprocess_image(image)
+    def decode_latents(self, latents):
+        return self.vae.decode(latents / self.vae.scaling_factor)
