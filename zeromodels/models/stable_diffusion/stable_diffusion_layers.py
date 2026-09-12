@@ -360,7 +360,7 @@ class BasicTransformerBlock(layers.Layer):
 
 @keras.saving.register_keras_serializable(package="zeromodels")
 class Transformer2DModel(layers.Layer):
-    """Diffusers ``Transformer2DModel``: GroupNorm, in-proj, one
+    """Diffusers ``Transformer2DModel``: GroupNorm, in-proj, ``num_layers``
     ``BasicTransformerBlock`` over the flattened spatial tokens, out-proj,
     residual. ``call([x, context])`` with ``x`` in the active image data format.
 
@@ -371,6 +371,8 @@ class Transformer2DModel(layers.Layer):
         groups: GroupNorm groups.
         use_linear_projection: Project the flattened tokens with a linear layer
             instead of the feature map with a 1x1 conv.
+        num_layers: Transformer blocks in the stack (1 for SD 1.x / 2.x; SDXL
+            stacks up to 10).
         data_format: ``"channels_last"`` or ``"channels_first"``; defaults to
             ``keras.config.image_data_format()``.
         channels_axis: The channel axis of that layout (``-1`` or ``1``).
@@ -383,6 +385,7 @@ class Transformer2DModel(layers.Layer):
         module_path,
         groups=GROUPS,
         use_linear_projection=False,
+        num_layers=1,
         data_format=None,
         channels_axis=None,
         **kwargs,
@@ -394,6 +397,7 @@ class Transformer2DModel(layers.Layer):
         self.module_path = module_path
         self.groups = groups
         self.use_linear_projection = use_linear_projection
+        self.num_layers = num_layers
         self.data_format = data_format or keras.config.image_data_format()
         self.channels_axis = (
             channels_axis
@@ -428,9 +432,22 @@ class Transformer2DModel(layers.Layer):
                 data_format=self.data_format,
                 name=safe_name(f"{module_path}.proj_out"),
             )
-        self.transformer_block = BasicTransformerBlock(
-            channels, heads, module_path=f"{module_path}.transformer_blocks.0"
-        )
+        # Block 0 keeps the single-block attribute name (the hosted SD 1.x / 2.x
+        # checkpoints' h5 layout follows attribute names); the deeper SDXL stacks
+        # add transformer_block_1, transformer_block_2, ...
+        for k in range(num_layers):
+            block = BasicTransformerBlock(
+                channels, heads, module_path=f"{module_path}.transformer_blocks.{k}"
+            )
+            setattr(
+                self, "transformer_block" if k == 0 else f"transformer_block_{k}", block
+            )
+
+    @property
+    def transformer_blocks(self):
+        return [self.transformer_block] + [
+            getattr(self, f"transformer_block_{k}") for k in range(1, self.num_layers)
+        ]
 
     def build(self, input_shape):
         x_shape, context_shape = input_shape
@@ -449,7 +466,8 @@ class Transformer2DModel(layers.Layer):
         else:
             self.proj_in.build(x_shape)
             self.proj_out.build(proj_shape)
-        self.transformer_block.build((tokens_shape, context_shape))
+        for block in self.transformer_blocks:
+            block.build((tokens_shape, context_shape))
         self.built = True
 
     def call(self, inputs):
@@ -467,7 +485,8 @@ class Transformer2DModel(layers.Layer):
         h = ops.reshape(h, (-1, height * width, self.channels))
         if self.use_linear_projection:
             h = self.proj_in(h)  # linear on the tokens
-        h = self.transformer_block([h, context])
+        for block in self.transformer_blocks:
+            h = block([h, context])
         if self.use_linear_projection:
             h = self.proj_out(h)
         h = ops.reshape(h, (-1, height, width, self.channels))
@@ -489,6 +508,7 @@ class Transformer2DModel(layers.Layer):
                 "module_path": self.module_path,
                 "groups": self.groups,
                 "use_linear_projection": self.use_linear_projection,
+                "num_layers": self.num_layers,
                 "data_format": self.data_format,
                 "channels_axis": self.channels_axis,
             }

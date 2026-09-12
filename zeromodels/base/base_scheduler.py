@@ -126,6 +126,10 @@ class BaseScheduler:
     def set_timesteps(self, num_inference_steps):
         raise NotImplementedError
 
+    def set_begin_index(self, index):
+        """Start the loop at ``self.timesteps[index]`` (image-to-image skips the first
+        steps); a no-op for the samplers that index by timestep value."""
+
     def step(self, model_output, timestep, sample, **kwargs):
         raise NotImplementedError
 
@@ -334,54 +338,125 @@ class PNDMScheduler(BaseScheduler):
 
 
 class EulerDiscreteScheduler(BaseScheduler):
-    """Euler sampler over the karras-style sigma parameterization."""
+    """Euler sampler over the karras-style sigma parameterization.
 
-    def __init__(self, **kwargs):
+    Args:
+        timestep_spacing: How the inference timesteps are spread over the training
+            ones: ``"linspace"`` (evenly from ``num_train_timesteps - 1`` to 0),
+            ``"leading"`` (multiples of the step ratio from 0, shifted by
+            ``steps_offset``; the SD 1.x / 2.x and SDXL repos) or ``"trailing"``
+            (multiples counted back from ``num_train_timesteps``; SDXL-Turbo).
+        interpolation_type: ``"linear"`` interpolates the training sigmas at the
+            timesteps; ``"log_linear"`` spaces them evenly in log space.
+    """
+
+    def __init__(
+        self, timestep_spacing="linspace", interpolation_type="linear", **kwargs
+    ):
         super().__init__(**kwargs)
+        self.timestep_spacing = timestep_spacing
+        self.interpolation_type = interpolation_type
         ac = self.alphas_cumprod
         sigmas = ((np.float32(1.0) - ac) / ac) ** np.float32(0.5)
         self.train_sigmas = sigmas.astype(np.float32)
         self.sigmas = np.concatenate([sigmas[::-1], [0.0]]).astype(np.float32)
+        self.step_index = 0
 
     @property
     def init_noise_sigma(self):
-        # "linspace" timestep spacing (the only one implemented): the reference
-        # scales the initial noise by the largest sigma itself.
-        return float(self.sigmas.max())
+        # the reference scales the initial noise by the largest sigma itself for
+        # "linspace" / "trailing" spacing and by sqrt(sigma_max^2 + 1) for "leading"
+        max_sigma = float(self.sigmas.max())
+        if self.timestep_spacing in ("linspace", "trailing"):
+            return max_sigma
+        return (max_sigma**2 + 1) ** 0.5
 
     def scale_model_input(self, sample, timestep=None):
         sigma = self.sigmas[self.step_index]
         return sample / ((sigma**2 + 1) ** 0.5)
 
+    def set_begin_index(self, index):
+        self.step_index = int(index)
+
+    def add_noise(self, original_samples, noise, timesteps):
+        # the Euler sample space is unscaled: x_t = x_0 + sigma_t * noise, sigma_t
+        # being the inference sigma of the timestep (set_timesteps first)
+        timesteps = np.asarray(timesteps, dtype=np.float32).reshape(-1)
+        index = [int(np.nonzero(self.timesteps == t)[0][0]) for t in timesteps]
+        sigma = self.sigmas[index]
+        while sigma.ndim < len(ops.shape(original_samples)):
+            sigma = sigma[..., None]
+        sigma = ops.convert_to_tensor(sigma, dtype=original_samples.dtype)
+        return original_samples + noise * sigma
+
+    def spaced_timesteps(self, num_inference_steps):
+        n_train = self.num_train_timesteps
+        if self.timestep_spacing == "linspace":
+            timesteps = np.linspace(
+                0, n_train - 1, num_inference_steps, dtype=np.float32
+            )
+            return timesteps[::-1].copy()
+        if self.timestep_spacing == "leading":
+            step_ratio = n_train // num_inference_steps
+            timesteps = (np.arange(0, num_inference_steps) * step_ratio).round()
+            return timesteps[::-1].copy().astype(np.float32) + self.steps_offset
+        if self.timestep_spacing == "trailing":
+            step_ratio = n_train / num_inference_steps
+            timesteps = np.arange(n_train, 0, -step_ratio).round()
+            return timesteps.astype(np.float32) - 1
+        raise ValueError(
+            f"Unknown timestep_spacing {self.timestep_spacing!r}; expected "
+            "'linspace', 'leading' or 'trailing'."
+        )
+
     def set_timesteps(self, num_inference_steps):
         self.num_inference_steps = num_inference_steps
-        timesteps = np.linspace(
-            0, self.num_train_timesteps - 1, num_inference_steps, dtype=np.float32
-        )[::-1].copy()
+        timesteps = self.spaced_timesteps(num_inference_steps)
         sigmas = self.train_sigmas
-        interp = np.interp(timesteps, np.arange(len(sigmas)), sigmas)
-        self.sigmas = np.concatenate([interp, [0.0]]).astype(np.float32)
+        if self.interpolation_type == "linear":
+            sigmas = np.interp(timesteps, np.arange(len(sigmas)), sigmas)
+        elif self.interpolation_type == "log_linear":
+            sigmas = np.exp(
+                np.linspace(
+                    np.log(sigmas[-1]), np.log(sigmas[0]), num_inference_steps + 1
+                )
+            )[:-1]
+        else:
+            raise ValueError(
+                f"Unknown interpolation_type {self.interpolation_type!r}; expected "
+                "'linear' or 'log_linear'."
+            )
+        self.sigmas = np.concatenate([sigmas, [0.0]]).astype(np.float32)
         self.timesteps = timesteps
         self.step_index = 0
         return self.timesteps
 
-    def step(self, model_output, timestep, sample, **kwargs):
-        sigma = float(self.sigmas[self.step_index])
-        sigma_next = float(self.sigmas[self.step_index + 1])
+    def pred_original_sample(self, model_output, sigma, sample):
+        # float32 sigma arithmetic, so the coefficients match the reference's bits
         if self.prediction_type == "epsilon":
-            pred_original = sample - sigma * model_output
-        elif self.prediction_type == "v_prediction":
-            pred_original = model_output * (-sigma / (sigma**2 + 1) ** 0.5) + (
+            return sample - sigma * model_output
+        if self.prediction_type == "v_prediction":
+            return model_output * (-sigma / (sigma**2 + 1) ** 0.5) + (
                 sample / (sigma**2 + 1)
             )
-        elif self.prediction_type == "sample":
-            pred_original = model_output
-        else:
-            raise ValueError(f"Unknown prediction_type {self.prediction_type!r}.")
+        if self.prediction_type == "sample":
+            return model_output
+        raise ValueError(f"Unknown prediction_type {self.prediction_type!r}.")
+
+    def step(self, model_output, timestep, sample, **kwargs):
+        sigma = self.sigmas[self.step_index]
+        sigma_next = self.sigmas[self.step_index + 1]
+        pred_original = self.pred_original_sample(model_output, sigma, sample)
         derivative = (sample - pred_original) / sigma
         prev_sample = sample + derivative * (sigma_next - sigma)
         self.step_index += 1
         return prev_sample
+
+    def to_config(self):
+        config = super().to_config()
+        config["timestep_spacing"] = self.timestep_spacing
+        config["interpolation_type"] = self.interpolation_type
+        return config
 
 
 class EulerAncestralDiscreteScheduler(EulerDiscreteScheduler):
@@ -392,23 +467,15 @@ class EulerAncestralDiscreteScheduler(EulerDiscreteScheduler):
         self.seed_generator = keras_random.SeedGenerator(seed)
 
     def step(self, model_output, timestep, sample, **kwargs):
-        sigma = float(self.sigmas[self.step_index])
-        sigma_next = float(self.sigmas[self.step_index + 1])
-        if self.prediction_type == "epsilon":
-            pred_original = sample - sigma * model_output
-        elif self.prediction_type == "v_prediction":
-            pred_original = model_output * (-sigma / (sigma**2 + 1) ** 0.5) + (
-                sample / (sigma**2 + 1)
-            )
-        else:
-            raise ValueError(f"Unknown prediction_type {self.prediction_type!r}.")
-        sigma_up = min(
-            sigma_next,
+        sigma = self.sigmas[self.step_index]
+        sigma_next = self.sigmas[self.step_index + 1]
+        pred_original = self.pred_original_sample(model_output, sigma, sample)
+        sigma_up = (
             (sigma_next**2 * (sigma**2 - sigma_next**2) / sigma**2) ** 0.5
             if sigma > 0
-            else 0.0,
+            else np.float32(0.0)
         )
-        sigma_down = (max(sigma_next**2 - sigma_up**2, 0.0)) ** 0.5
+        sigma_down = (sigma_next**2 - sigma_up**2) ** 0.5
         derivative = (sample - pred_original) / sigma
         prev_sample = sample + derivative * (sigma_down - sigma)
         noise = keras_random.normal(

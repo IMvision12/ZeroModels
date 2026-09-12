@@ -25,6 +25,9 @@ from `BaseDiffusion`, the schedulers, both data formats. What changes is the con
 - **768px checkpoints** (`stable-diffusion-2`, `stable-diffusion-2-1`): built at a 96x96
   latent and trained with the **v-prediction** objective; their repos carry a
   v-prediction DDIM scheduler, which `generate` picks up from `scheduler_config`.
+- **SD-Turbo** (`sd-turbo`): SD 2.1 distilled with Adversarial Diffusion Distillation to
+  generate in 1 to 4 steps **without guidance**; its repo carries an Euler scheduler with
+  `trailing` timestep spacing and `generate_args` of 1 step, `guidance_scale=0.0`.
 
 The weights are converted once, offline, and hosted: on-the-fly `hf:` conversion is
 deliberately **not supported** for diffusion models. The original `stabilityai/*` repos are
@@ -43,7 +46,8 @@ See also [stable_diffusion.md](stable_diffusion.md), [clip.md](clip.md).
 Preconverted, float32 weights are hosted under `zeromodels/`. Load with
 `from_weights("zeromodels/<variant>")`. Each repo is one container: UNet (866M) + VAE
 (84M) + OpenCLIP text encoder (340M), 1.29B parameters, 5.16 GB (4.81 GiB, one
-`model.weights.h5`). All four are released under the CreativeML Open RAIL++-M license.
+`model.weights.h5`). The SD 2 checkpoints are released under the CreativeML Open RAIL++-M
+license; SD-Turbo under the Stability AI Non-Commercial Research Community License.
 
 | Variant | Hub | Resolution | Objective | Training |
 |---|---|---|---|---|
@@ -51,6 +55,7 @@ Preconverted, float32 weights are hosted under `zeromodels/`. Load with
 | `stable-diffusion-2` | [`zeromodels/stable-diffusion-2`](https://huggingface.co/zeromodels/stable-diffusion-2) | 768 | v-prediction | 2-base + 150k steps at 768px |
 | `stable-diffusion-2-1-base` | [`zeromodels/stable-diffusion-2-1-base`](https://huggingface.co/zeromodels/stable-diffusion-2-1-base) | 512 | epsilon | 2-base + 220k steps at 512px (punsafe 0.98) |
 | `stable-diffusion-2-1` | [`zeromodels/stable-diffusion-2-1`](https://huggingface.co/zeromodels/stable-diffusion-2-1) | 768 | v-prediction | 2 + 55k steps (punsafe 0.1) + 155k steps (punsafe 0.98) at 768px |
+| `sd-turbo` | [`zeromodels/sd-turbo`](https://huggingface.co/zeromodels/sd-turbo) | 512 | epsilon, 1 to 4 steps, no guidance | SD 2.1 distilled with Adversarial Diffusion Distillation (non-commercial) |
 
 Use the `-base` checkpoints for 512px images and the others for 768px; each repo's
 `zm_config.json` builds the graph at its native size.
@@ -145,9 +150,26 @@ tokenizer = StableDiffusion2Tokenizer.from_weights("zeromodels/stable-diffusion-
 images = model.generate(**tokenizer("a lighthouse on a cliff at dusk, oil painting"))  # (1, 768, 768, 3)
 ```
 
+### SD-Turbo
+
+One step, no guidance (the repo's defaults; up to 4 steps sharpen a little):
+
+```python
+model = StableDiffusion2TextToImage.from_weights("zeromodels/sd-turbo")
+tokenizer = StableDiffusion2Tokenizer.from_weights("zeromodels/sd-turbo")
+images = model.generate(**tokenizer("a cinematic shot of a baby raccoon wearing an intricate italian priest robe"))
+```
+
+<img src="../assets/stable_diffusion_2_sd_turbo_raccoon.jpg" alt="SD-Turbo, one step: a baby raccoon in an italian priest robe, 512px" width="380">
+
+The same prompt and latent through diffusers' `StableDiffusionPipeline` (fp32) match to
+1 uint8 level: 99.9% of pixels identical at 1 step (PSNR 82 dB), 99.8% at 4 steps.
+
 Negative prompts, batching, explicit `latents` for cross-backend reproducibility, other
 resolutions and the container-only use work exactly as on the
-[Stable Diffusion](stable_diffusion.md#end-to-end-example) page.
+[Stable Diffusion](stable_diffusion.md#end-to-end-example) page. Image-to-image
+(`generate(..., image=..., strength=...)`) works as described for
+[`BaseDiffusion`](main_classes.md#basediffusion).
 
 ### Verified against diffusers
 

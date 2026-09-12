@@ -7,16 +7,19 @@ from zeromodels.models.stable_diffusion.convert_stable_diffusion_diffusers_to_ke
     config_from_diffusers as stable_diffusion_config_from_diffusers,
 )
 
-# Stable Diffusion 2.x: one architecture, four checkpoints (the 768px ones are
-# v-prediction models built at sample_size 96). The stabilityai repos are no longer
-# on the Hub; sd2-community mirrors them in the same diffusers layout. This script
-# only converts weights, the SD 1.x way (see that converter); the hosting tooling
+# Stable Diffusion 2.x: one architecture, five checkpoints (the 768px ones are
+# v-prediction models built at sample_size 96; SD-Turbo is the 512px 2.1 distilled
+# to a few steps). The stabilityai SD 2 repos are no longer on the Hub;
+# sd2-community mirrors them in the same diffusers layout. This script only
+# converts weights, the SD 1.x way (see that converter); the hosting tooling
 # writes zm_config.json / tokenizer.json.
 STABLE_DIFFUSION_2_SOURCES = {
     "stable-diffusion-2-base": "sd2-community/stable-diffusion-2-base",
     "stable-diffusion-2": "sd2-community/stable-diffusion-2",
     "stable-diffusion-2-1-base": "sd2-community/stable-diffusion-2-1-base",
     "stable-diffusion-2-1": "sd2-community/stable-diffusion-2-1",
+    # SD 2.1 distilled for 1 to 4 steps without guidance (Euler, trailing spacing)
+    "sd-turbo": "stabilityai/sd-turbo",
 }
 
 

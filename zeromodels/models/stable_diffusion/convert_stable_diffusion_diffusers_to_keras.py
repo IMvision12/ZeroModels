@@ -102,9 +102,11 @@ def transfer_component(keras_model, state):
             raise WeightShapeMismatchError(
                 keras_weight.path, keras_weight.shape, key, torch_weight.shape
             )
-        if key.startswith("time_embedding.") and keras_weight.ndim == 2:
+        if key.startswith(("time_embedding.", "add_embedding.")) and (
+            keras_weight.ndim == 2
+        ):
             # transfer_weights treats any "embedding" 2D weight as a lookup table;
-            # the timestep MLP's linears are plain dense kernels
+            # the timestep / added-conditioning MLPs' linears are dense kernels
             keras_weight.assign(np.transpose(torch_weight))
             continue
         transfer_weights(key, keras_weight, torch_weight)
@@ -163,25 +165,13 @@ def config_from_diffusers(repo, token=None, config_cls=None):
         if k == "_class_name" or not k.startswith("_")
     }
 
-    # diffusers' "attention_head_dim" is the head count, scalar or one per level
-    heads = unet.get("num_attention_heads") or unet.get("attention_head_dim", 8)
-    if isinstance(heads, (list, tuple)):
-        heads = tuple(heads)
+    from zeromodels.models.stable_diffusion.stable_diffusion_model import (
+        UNet2DConditionModel,
+    )
+
     hidden = text["hidden_size"]
     return config_cls(
-        unet_config={
-            "sample_size": unet.get("sample_size", 64),
-            "in_channels": unet.get("in_channels", 4),
-            "out_channels": unet.get("out_channels", 4),
-            "down_block_types": tuple(unet["down_block_types"]),
-            "up_block_types": tuple(unet["up_block_types"]),
-            "block_out_channels": tuple(unet["block_out_channels"]),
-            "layers_per_block": unet.get("layers_per_block", 2),
-            "cross_attention_dim": unet.get("cross_attention_dim", 768),
-            "num_attention_heads": heads,
-            "norm_num_groups": unet.get("norm_num_groups", 32),
-            "use_linear_projection": unet.get("use_linear_projection", False),
-        },
+        unet_config=UNet2DConditionModel.kwargs_from_diffusers_config(unet),
         vae_config={
             "in_channels": vae.get("in_channels", 3),
             "out_channels": vae.get("out_channels", 3),
@@ -196,6 +186,7 @@ def config_from_diffusers(repo, token=None, config_cls=None):
             * 2 ** (len(vae["block_out_channels"]) - 1),
             "scaling_factor": vae.get("scaling_factor")
             or 0.18215,  # null in some repos
+            "force_upcast": bool(vae.get("force_upcast", False)),
         },
         text_config={
             "hidden_dim": hidden,

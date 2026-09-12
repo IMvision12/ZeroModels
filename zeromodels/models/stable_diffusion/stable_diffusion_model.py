@@ -3,6 +3,7 @@ from keras import layers, ops
 
 from zeromodels.base import BaseModel
 from zeromodels.base.base_diffusion import BaseDiffusion
+from zeromodels.base.base_mixin import build_dtype_scope
 from zeromodels.base.base_scheduler import PNDMScheduler, get_scheduler
 from zeromodels.models.clip import CLIPTextModel
 
@@ -50,18 +51,25 @@ class UNet2DConditionModel(BaseModel):
     latents to the text ``encoder_hidden_states``. It predicts the noise (or ``v``)
     on a latent, and is called once per denoising step by the pipeline.
 
-    Inputs are a dict ``{"sample", "timestep", "encoder_hidden_states"}``; the
-    output dict is ``{"sample": (B, H, W, out_channels)}``. Built for a fixed latent
-    resolution (``sample_size``), since the Transformer2D reshapes need static
-    spatial dims; the weights are resolution-independent, so rebuild the graph for
-    another size and reload.
+    Inputs are a dict ``{"sample", "timestep", "encoder_hidden_states"}`` (plus
+    ``"text_embeds"`` and ``"time_ids"`` for the SDXL ``text_time`` conditioning);
+    the output dict is ``{"sample": (B, H, W, out_channels)}``. Built for a fixed
+    latent resolution (``sample_size``), since the Transformer2D reshapes need
+    static spatial dims; the weights are resolution-independent, so rebuild the
+    graph for another size and reload.
 
     Args mirror the diffusers config: ``in_channels`` / ``out_channels`` (4),
     ``block_out_channels`` ((320, 640, 1280, 1280)), ``layers_per_block`` (2),
     ``cross_attention_dim`` (768), ``num_attention_heads`` (8, or one value per
     level), ``norm_num_groups`` (32), ``use_linear_projection`` (a linear token
-    projection instead of the 1x1 conv) and the ``down_block_types`` /
-    ``up_block_types`` lists.
+    projection instead of the 1x1 conv), ``transformer_layers_per_block`` (1, or
+    one value per level: SDXL stacks (1, 2, 10) blocks per Transformer2D) and the
+    ``down_block_types`` / ``up_block_types`` lists. ``addition_embed_type``
+    ``"text_time"`` adds SDXL's micro-conditioning to the timestep embedding: the
+    pooled text embedding and the ``num_time_ids`` size / crop values, each
+    sinusoidally embedded to ``addition_time_embed_dim``, concatenated
+    (``projection_class_embeddings_input_dim`` wide) and projected by the
+    ``add_embedding`` MLP.
     """
 
     HF_MODEL_TYPE = None
@@ -80,6 +88,11 @@ class UNet2DConditionModel(BaseModel):
         num_attention_heads=8,
         norm_num_groups=32,
         use_linear_projection=False,
+        transformer_layers_per_block=1,
+        addition_embed_type=None,
+        addition_time_embed_dim=256,
+        projection_class_embeddings_input_dim=None,
+        num_time_ids=6,
         text_seq_len=77,
         data_format=None,
         channels_axis=None,
@@ -89,11 +102,16 @@ class UNet2DConditionModel(BaseModel):
         data_format = data_format or keras.config.image_data_format()
         if channels_axis is None:
             channels_axis = -1 if data_format == "channels_last" else 1
+        levels = len(block_out_channels)
         # heads per level (diffusers' attention_head_dim list), mirrored on the way up
         if isinstance(num_attention_heads, (tuple, list)):
             heads_per_level = tuple(num_attention_heads)
         else:
-            heads_per_level = (num_attention_heads,) * len(block_out_channels)
+            heads_per_level = (num_attention_heads,) * levels
+        if isinstance(transformer_layers_per_block, (tuple, list)):
+            depth_per_level = tuple(transformer_layers_per_block)
+        else:
+            depth_per_level = (transformer_layers_per_block,) * levels
         time_embed_dim = block_out_channels[0] * 4
         sample_h, sample_w = (
             sample_size
@@ -114,6 +132,33 @@ class UNet2DConditionModel(BaseModel):
 
         temb = timestep_embedding(timestep_in, block_out_channels[0])
         temb = time_embedding_mlp(temb, time_embed_dim, name="time_embedding")
+
+        extra_inputs = {}
+        if addition_embed_type == "text_time":
+            # SDXL micro-conditioning: the pooled text embedding and the sinusoidal
+            # embeddings of the size / crop ids, projected and added to temb
+            pooled_dim = (
+                projection_class_embeddings_input_dim
+                - num_time_ids * addition_time_embed_dim
+            )
+            text_embeds_in = layers.Input(shape=(pooled_dim,), name="text_embeds")
+            time_ids_in = layers.Input(shape=(num_time_ids,), name="time_ids")
+            time_embeds = timestep_embedding(
+                ops.reshape(time_ids_in, (-1,)), addition_time_embed_dim
+            )
+            time_embeds = ops.reshape(
+                time_embeds, (-1, num_time_ids * addition_time_embed_dim)
+            )
+            add_embeds = ops.concatenate([text_embeds_in, time_embeds], axis=-1)
+            temb = temb + time_embedding_mlp(
+                add_embeds, time_embed_dim, name="add_embedding"
+            )
+            extra_inputs = {"text_embeds": text_embeds_in, "time_ids": time_ids_in}
+        elif addition_embed_type is not None:
+            raise ValueError(
+                f"Unsupported addition_embed_type {addition_embed_type!r}; expected "
+                "None or 'text_time'."
+            )
 
         sample = layers.Conv2D(
             block_out_channels[0],
@@ -141,6 +186,7 @@ class UNet2DConditionModel(BaseModel):
                         module_path=f"down_blocks.{i}.attentions.{j}",
                         groups=norm_num_groups,
                         use_linear_projection=use_linear_projection,
+                        num_layers=depth_per_level[i],
                         data_format=data_format,
                         channels_axis=channels_axis,
                     )([sample, context])
@@ -168,6 +214,7 @@ class UNet2DConditionModel(BaseModel):
             module_path="mid_block.attentions.0",
             groups=norm_num_groups,
             use_linear_projection=use_linear_projection,
+            num_layers=depth_per_level[-1],
             data_format=data_format,
             channels_axis=channels_axis,
         )([sample, context])
@@ -181,6 +228,7 @@ class UNet2DConditionModel(BaseModel):
 
         reversed_channels = list(reversed(block_out_channels))
         reversed_heads = list(reversed(heads_per_level))
+        reversed_depths = list(reversed(depth_per_level))
         for i, block_type in enumerate(up_block_types):
             out_ch = reversed_channels[i]
             for j in range(layers_per_block + 1):
@@ -199,6 +247,7 @@ class UNet2DConditionModel(BaseModel):
                         module_path=f"up_blocks.{i}.attentions.{j}",
                         groups=norm_num_groups,
                         use_linear_projection=use_linear_projection,
+                        num_layers=reversed_depths[i],
                         data_format=data_format,
                         channels_axis=channels_axis,
                     )([sample, context])
@@ -230,6 +279,7 @@ class UNet2DConditionModel(BaseModel):
                 "sample": sample_in,
                 "timestep": timestep_in,
                 "encoder_hidden_states": context,
+                **extra_inputs,
             },
             outputs={"sample": sample},
             name=name,
@@ -253,30 +303,58 @@ class UNet2DConditionModel(BaseModel):
         )
         self.norm_num_groups = norm_num_groups
         self.use_linear_projection = use_linear_projection
+        self.transformer_layers_per_block = (
+            tuple(transformer_layers_per_block)
+            if isinstance(transformer_layers_per_block, (tuple, list))
+            else transformer_layers_per_block
+        )
+        self.addition_embed_type = addition_embed_type
+        self.addition_time_embed_dim = addition_time_embed_dim
+        self.projection_class_embeddings_input_dim = (
+            projection_class_embeddings_input_dim
+        )
+        self.num_time_ids = num_time_ids
         self.text_seq_len = text_seq_len
 
     @classmethod
     def from_diffusers_config(cls, config, **kwargs):
         """Build from a diffusers ``unet/config.json`` dict."""
+        return cls(**cls.kwargs_from_diffusers_config(config), **kwargs)
+
+    @staticmethod
+    def kwargs_from_diffusers_config(config):
+        """The constructor kwargs a diffusers ``unet/config.json`` dict describes."""
         # diffusers' "attention_head_dim" is the head COUNT (legacy name), a scalar
         # or one value per level
         heads = config.get("num_attention_heads") or config.get("attention_head_dim", 8)
         if isinstance(heads, (list, tuple)):
             heads = tuple(heads)
-        return cls(
-            sample_size=config.get("sample_size", 64),
-            in_channels=config.get("in_channels", 4),
-            out_channels=config.get("out_channels", 4),
-            down_block_types=tuple(config["down_block_types"]),
-            up_block_types=tuple(config["up_block_types"]),
-            block_out_channels=tuple(config["block_out_channels"]),
-            layers_per_block=config.get("layers_per_block", 2),
-            cross_attention_dim=config.get("cross_attention_dim", 768),
-            num_attention_heads=heads,
-            norm_num_groups=config.get("norm_num_groups", 32),
-            use_linear_projection=config.get("use_linear_projection", False),
-            **kwargs,
-        )
+        depth = config.get("transformer_layers_per_block", 1)
+        if isinstance(depth, (list, tuple)):
+            depth = tuple(depth)
+        kwargs = {
+            "sample_size": config.get("sample_size", 64),
+            "in_channels": config.get("in_channels", 4),
+            "out_channels": config.get("out_channels", 4),
+            "down_block_types": tuple(config["down_block_types"]),
+            "up_block_types": tuple(config["up_block_types"]),
+            "block_out_channels": tuple(config["block_out_channels"]),
+            "layers_per_block": config.get("layers_per_block", 2),
+            "cross_attention_dim": config.get("cross_attention_dim", 768),
+            "num_attention_heads": heads,
+            "norm_num_groups": config.get("norm_num_groups", 32),
+            "use_linear_projection": config.get("use_linear_projection", False),
+            "transformer_layers_per_block": depth,
+        }
+        if config.get("addition_embed_type") is not None:
+            kwargs.update(
+                addition_embed_type=config["addition_embed_type"],
+                addition_time_embed_dim=config.get("addition_time_embed_dim", 256),
+                projection_class_embeddings_input_dim=config[
+                    "projection_class_embeddings_input_dim"
+                ],
+            )
+        return kwargs
 
     @classmethod
     def transfer_from_hf(cls, keras_model, state_dict):
@@ -297,6 +375,13 @@ class UNet2DConditionModel(BaseModel):
                 "num_attention_heads": self.num_attention_heads,
                 "norm_num_groups": self.norm_num_groups,
                 "use_linear_projection": self.use_linear_projection,
+                "transformer_layers_per_block": self.transformer_layers_per_block,
+                "addition_embed_type": self.addition_embed_type,
+                "addition_time_embed_dim": self.addition_time_embed_dim,
+                "projection_class_embeddings_input_dim": (
+                    self.projection_class_embeddings_input_dim
+                ),
+                "num_time_ids": self.num_time_ids,
                 "text_seq_len": self.text_seq_len,
                 "name": self.name,
             }
@@ -499,8 +584,9 @@ class AutoencoderKL(BaseModel):
     Args mirror the diffusers config: ``in_channels`` / ``out_channels`` (3),
     ``latent_channels`` (4), ``block_out_channels`` ((128, 256, 512, 512)),
     ``layers_per_block`` (2), ``norm_num_groups`` (32), ``sample_size`` (the image
-    resolution the encoder/decoder graphs are built for), and ``scaling_factor``
-    (0.18215).
+    resolution the encoder/decoder graphs are built for), ``scaling_factor``
+    (0.18215) and ``force_upcast`` (build this VAE in float32 whatever dtype the
+    rest of the model loads in: the SDXL VAE overflows in float16).
     """
 
     config_class = AutoencoderKLConfig
@@ -516,6 +602,7 @@ class AutoencoderKL(BaseModel):
         norm_num_groups=32,
         sample_size=512,
         scaling_factor=0.18215,
+        force_upcast=False,
         data_format=None,
         channels_axis=None,
         name="AutoencoderKL",
@@ -532,60 +619,63 @@ class AutoencoderKL(BaseModel):
         factor = 2 ** (len(block_out_channels) - 1)
         h_lat, w_lat = h_img // factor, w_img // factor
 
-        encoder = build_vae_encoder(
-            (h_img, w_img),
-            in_channels,
-            block_out_channels,
-            layers_per_block,
-            latent_channels,
-            norm_num_groups,
-            data_format,
-            channels_axis,
-        )
-        decoder = build_vae_decoder(
-            (h_lat, w_lat),
-            out_channels,
-            block_out_channels,
-            layers_per_block,
-            latent_channels,
-            norm_num_groups,
-            data_format,
-            channels_axis,
-        )
-        quant_conv = layers.Conv2D(
-            2 * latent_channels,
-            1,
-            data_format=data_format,
-            name="quant_conv",
-        )
-        post_quant_conv = layers.Conv2D(
-            latent_channels,
-            1,
-            data_format=data_format,
-            name="post_quant_conv",
-        )
+        # force_upcast: the layers are created under a float32 policy whatever the
+        # global (load) dtype is, as diffusers upcasts such a VAE around decode
+        with build_dtype_scope("float32" if force_upcast else None):
+            encoder = build_vae_encoder(
+                (h_img, w_img),
+                in_channels,
+                block_out_channels,
+                layers_per_block,
+                latent_channels,
+                norm_num_groups,
+                data_format,
+                channels_axis,
+            )
+            decoder = build_vae_decoder(
+                (h_lat, w_lat),
+                out_channels,
+                block_out_channels,
+                layers_per_block,
+                latent_channels,
+                norm_num_groups,
+                data_format,
+                channels_axis,
+            )
+            quant_conv = layers.Conv2D(
+                2 * latent_channels,
+                1,
+                data_format=data_format,
+                name="quant_conv",
+            )
+            post_quant_conv = layers.Conv2D(
+                latent_channels,
+                1,
+                data_format=data_format,
+                name="post_quant_conv",
+            )
 
-        image_in = layers.Input(
-            shape=(in_channels, h_img, w_img)
-            if data_format == "channels_first"
-            else (h_img, w_img, in_channels),
-            name="image",
-        )
-        latent_in = layers.Input(
-            shape=(latent_channels, h_lat, w_lat)
-            if data_format == "channels_first"
-            else (h_lat, w_lat, latent_channels),
-            name="latent",
-        )
-        moments = quant_conv(encoder(image_in))
-        decoded = decoder(post_quant_conv(latent_in))
+            image_in = layers.Input(
+                shape=(in_channels, h_img, w_img)
+                if data_format == "channels_first"
+                else (h_img, w_img, in_channels),
+                name="image",
+            )
+            latent_in = layers.Input(
+                shape=(latent_channels, h_lat, w_lat)
+                if data_format == "channels_first"
+                else (h_lat, w_lat, latent_channels),
+                name="latent",
+            )
+            moments = quant_conv(encoder(image_in))
+            decoded = decoder(post_quant_conv(latent_in))
 
-        super().__init__(
-            inputs={"image": image_in, "latent": latent_in},
-            outputs={"moments": moments, "sample": decoded},
-            name=name,
-            **kwargs,
-        )
+            super().__init__(
+                inputs={"image": image_in, "latent": latent_in},
+                outputs={"moments": moments, "sample": decoded},
+                name=name,
+                **kwargs,
+            )
 
         self.data_format = data_format
         self.channels_axis = channels_axis
@@ -597,6 +687,7 @@ class AutoencoderKL(BaseModel):
         self.norm_num_groups = norm_num_groups
         self.sample_size = sample_size
         self.scaling_factor = scaling_factor
+        self.force_upcast = force_upcast
         self.vae_scale_factor = factor
         self.encoder = encoder
         self.decoder = decoder
@@ -632,6 +723,7 @@ class AutoencoderKL(BaseModel):
             norm_num_groups=config.get("norm_num_groups", 32),
             sample_size=sample_size,
             scaling_factor=config.get("scaling_factor", 0.18215),
+            force_upcast=config.get("force_upcast", False),
             **kwargs,
         )
 
@@ -678,11 +770,23 @@ class StableDiffusionModel(BaseModel):
     def __init__(self, name="StableDiffusionModel", **kwargs):
         keras_kwargs = {k: kwargs.pop(k) for k in ("trainable", "dtype") if k in kwargs}
         config = self.config_class.from_dict(kwargs)  # regroup the flat kwargs
-        u, v, t = config.unet_config, config.vae_config, config.text_config
 
         data_format = keras.config.image_data_format()
         channels_axis = -1 if data_format == "channels_last" else 1
 
+        components = self.build_components(config, data_format, channels_axis)
+        inputs, outputs = self.build_graph(config, components, data_format)
+        super().__init__(inputs=inputs, outputs=outputs, name=name, **keras_kwargs)
+
+        self.data_format = data_format
+        self.channels_axis = channels_axis
+        for attr, component in components.items():
+            setattr(self, attr, component)
+
+    def build_components(self, config, data_format, channels_axis):
+        """The trained components, ``{attribute name: model}``: the UNet, the VAE
+        and the CLIP text tower (subclasses swap or add towers)."""
+        u, v, t = config.unet_config, config.vae_config, config.text_config
         unet = UNet2DConditionModel(
             u, data_format=data_format, channels_axis=channels_axis
         )
@@ -701,7 +805,12 @@ class StableDiffusionModel(BaseModel):
             hidden_act=config.hidden_act,
             layer_norm_eps=config.layer_norm_eps,
         )
+        return {"unet": unet, "vae": vae, "text_encoder": text_encoder}
 
+    def unet_vae_inputs(self, config, components, data_format):
+        """The UNet's and the VAE's ``keras.Input`` dict (shared by every SD family)."""
+        u, v = config.unet_config, config.vae_config
+        vae = components["vae"]
         sample_h, sample_w = (
             u.sample_size
             if isinstance(u.sample_size, (tuple, list))
@@ -713,69 +822,68 @@ class StableDiffusionModel(BaseModel):
             else (v.sample_size, v.sample_size)
         )
         lat_h, lat_w = img_h // vae.vae_scale_factor, img_w // vae.vae_scale_factor
+        inputs = {
+            "sample": layers.Input(
+                shape=(u.in_channels, sample_h, sample_w)
+                if data_format == "channels_first"
+                else (sample_h, sample_w, u.in_channels),
+                name="sample",
+            ),
+            "timestep": layers.Input(shape=(), name="timestep"),
+            "encoder_hidden_states": layers.Input(
+                shape=(u.text_seq_len, u.cross_attention_dim),
+                name="encoder_hidden_states",
+            ),
+            "image": layers.Input(
+                shape=(v.in_channels, img_h, img_w)
+                if data_format == "channels_first"
+                else (img_h, img_w, v.in_channels),
+                name="image",
+            ),
+            "latent": layers.Input(
+                shape=(v.latent_channels, lat_h, lat_w)
+                if data_format == "channels_first"
+                else (lat_h, lat_w, v.latent_channels),
+                name="latent",
+            ),
+        }
+        return inputs
 
-        sample_in = layers.Input(
-            shape=(u.in_channels, sample_h, sample_w)
-            if data_format == "channels_first"
-            else (sample_h, sample_w, u.in_channels),
-            name="sample",
+    def build_graph(self, config, components, data_format):
+        """Wire the components into the container's ``(inputs, outputs)`` dicts:
+        three disconnected paths, one per component."""
+        t = config.text_config
+        unet, vae, text_encoder = (
+            components["unet"],
+            components["vae"],
+            components["text_encoder"],
         )
-        timestep_in = layers.Input(shape=(), name="timestep")
-        context_in = layers.Input(
-            shape=(u.text_seq_len, u.cross_attention_dim), name="encoder_hidden_states"
+        inputs = self.unet_vae_inputs(config, components, data_format)
+        inputs["token_ids"] = layers.Input(
+            shape=(t.max_seq_len,), dtype="int32", name="token_ids"
         )
-        image_in = layers.Input(
-            shape=(v.in_channels, img_h, img_w)
-            if data_format == "channels_first"
-            else (img_h, img_w, v.in_channels),
-            name="image",
+        inputs["padding_mask"] = layers.Input(
+            shape=(t.max_seq_len,), dtype="int32", name="padding_mask"
         )
-        latent_in = layers.Input(
-            shape=(v.latent_channels, lat_h, lat_w)
-            if data_format == "channels_first"
-            else (lat_h, lat_w, v.latent_channels),
-            name="latent",
-        )
-        token_ids_in = layers.Input(shape=(t.max_seq_len,), name="token_ids")
-        padding_mask_in = layers.Input(shape=(t.max_seq_len,), name="padding_mask")
 
         noise_pred = unet(
             {
-                "sample": sample_in,
-                "timestep": timestep_in,
-                "encoder_hidden_states": context_in,
+                "sample": inputs["sample"],
+                "timestep": inputs["timestep"],
+                "encoder_hidden_states": inputs["encoder_hidden_states"],
             }
         )["sample"]
-        vae_out = vae({"image": image_in, "latent": latent_in})
+        vae_out = vae({"image": inputs["image"], "latent": inputs["latent"]})
         text_embeds = text_encoder(
-            {"token_ids": token_ids_in, "padding_mask": padding_mask_in}
+            {"token_ids": inputs["token_ids"], "padding_mask": inputs["padding_mask"]}
         )["last_hidden_state"]
-
-        super().__init__(
-            inputs={
-                "sample": sample_in,
-                "timestep": timestep_in,
-                "encoder_hidden_states": context_in,
-                "image": image_in,
-                "latent": latent_in,
-                "token_ids": token_ids_in,
-                "padding_mask": padding_mask_in,
-            },
-            outputs={
-                "noise_pred": noise_pred,
-                "moments": vae_out["moments"],
-                "image": vae_out["sample"],
-                "text_embeds": text_embeds,
-            },
-            name=name,
-            **keras_kwargs,
-        )
-
-        self.data_format = data_format
-        self.channels_axis = channels_axis
-        self.unet = unet
-        self.vae = vae
-        self.text_encoder = text_encoder
+        outputs = {
+            "noise_pred": noise_pred,
+            "moments": vae_out["moments"],
+            "image": vae_out["sample"],
+            "text_embeds": text_embeds,
+        }
+        return inputs, outputs
 
     @classmethod
     def from_hf(cls, repo, **kwargs):
@@ -847,9 +955,13 @@ class StableDiffusionTextToImage(StableDiffusionModel, BaseDiffusion):
             scheduler = (
                 get_scheduler(scheduler_config)
                 if scheduler_config
-                else PNDMScheduler(steps_offset=1)
+                else self.default_scheduler()
             )
         self.scheduler = scheduler
+
+    def default_scheduler(self):
+        """The family's sampler when the config carries no ``scheduler_config``."""
+        return PNDMScheduler(steps_offset=1)
 
     @property
     def latent_shape(self):
@@ -887,3 +999,11 @@ class StableDiffusionTextToImage(StableDiffusionModel, BaseDiffusion):
         if self.data_format == "channels_first":
             image = ops.transpose(image, (0, 2, 3, 1))  # generate() hands out HWC
         return image
+
+    def encode_latents(self, image):
+        # the posterior mean, scaled: the image-to-image starting point (the
+        # reference samples the posterior; its noise is negligible next to the
+        # noise added for the strength)
+        if self.data_format == "channels_first":
+            image = ops.transpose(image, (0, 3, 1, 2))  # generate() hands in HWC
+        return self.vae.encode(image) * self.vae.scaling_factor

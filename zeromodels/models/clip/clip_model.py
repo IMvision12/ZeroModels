@@ -240,7 +240,7 @@ def clip_text_backbone(
     )(encoded_output)
 
     indices = ops.argmax(inputs, axis=-1)
-    one_hot_indices = ops.one_hot(indices, max_seq_len)
+    one_hot_indices = ops.one_hot(indices, max_seq_len, dtype=last_hidden_state.dtype)
     pooler_output = ops.einsum("bi,bij->bj", one_hot_indices, last_hidden_state)
 
     return last_hidden_state, pooler_output
@@ -508,15 +508,21 @@ class CLIPTextModel(BaseModel):
         if isinstance(input_tensor, dict):
             token_ids_input = input_tensor.get("token_ids")
             if token_ids_input is None:
-                token_ids_input = layers.Input(shape=[max_seq_len], name="token_ids")
+                token_ids_input = layers.Input(
+                    shape=[max_seq_len], dtype="int32", name="token_ids"
+                )
             padding_mask_input = input_tensor.get("padding_mask")
             if padding_mask_input is None:
                 padding_mask_input = layers.Input(
-                    shape=[max_seq_len], name="padding_mask"
+                    shape=[max_seq_len], dtype="int32", name="padding_mask"
                 )
         else:
-            token_ids_input = layers.Input(shape=[max_seq_len], name="token_ids")
-            padding_mask_input = layers.Input(shape=[max_seq_len], name="padding_mask")
+            token_ids_input = layers.Input(
+                shape=[max_seq_len], dtype="int32", name="token_ids"
+            )
+            padding_mask_input = layers.Input(
+                shape=[max_seq_len], dtype="int32", name="padding_mask"
+            )
 
         last_hidden_state, pooler_output = clip_text_backbone(
             token_ids_input,
@@ -837,15 +843,21 @@ class CLIPTextEmbed(BaseModel):
         if isinstance(input_tensor, dict):
             token_ids_input = input_tensor.get("token_ids")
             if token_ids_input is None:
-                token_ids_input = layers.Input(shape=[max_seq_len], name="token_ids")
+                token_ids_input = layers.Input(
+                    shape=[max_seq_len], dtype="int32", name="token_ids"
+                )
             padding_mask_input = input_tensor.get("padding_mask")
             if padding_mask_input is None:
                 padding_mask_input = layers.Input(
-                    shape=[max_seq_len], name="padding_mask"
+                    shape=[max_seq_len], dtype="int32", name="padding_mask"
                 )
         else:
-            token_ids_input = layers.Input(shape=[max_seq_len], name="token_ids")
-            padding_mask_input = layers.Input(shape=[max_seq_len], name="padding_mask")
+            token_ids_input = layers.Input(
+                shape=[max_seq_len], dtype="int32", name="token_ids"
+            )
+            padding_mask_input = layers.Input(
+                shape=[max_seq_len], dtype="int32", name="padding_mask"
+            )
 
         text_model = CLIPTextModel(
             max_seq_len=max_seq_len,
@@ -1034,16 +1046,22 @@ class CLIPModel(BaseModel):
                 images_input = layers.Input(shape=input_shape, name="images")
             token_ids_input = input_tensor.get("token_ids")
             if token_ids_input is None:
-                token_ids_input = layers.Input(shape=[max_seq_len], name="token_ids")
+                token_ids_input = layers.Input(
+                    shape=[max_seq_len], dtype="int32", name="token_ids"
+                )
             padding_mask_input = input_tensor.get("padding_mask")
             if padding_mask_input is None:
                 padding_mask_input = layers.Input(
-                    shape=[max_seq_len], name="padding_mask"
+                    shape=[max_seq_len], dtype="int32", name="padding_mask"
                 )
         else:
             images_input = layers.Input(shape=input_shape, name="images")
-            token_ids_input = layers.Input(shape=[max_seq_len], name="token_ids")
-            padding_mask_input = layers.Input(shape=[max_seq_len], name="padding_mask")
+            token_ids_input = layers.Input(
+                shape=[max_seq_len], dtype="int32", name="token_ids"
+            )
+            padding_mask_input = layers.Input(
+                shape=[max_seq_len], dtype="int32", name="padding_mask"
+            )
 
         vision_model = CLIPVisionModel(
             image_size=image_size,

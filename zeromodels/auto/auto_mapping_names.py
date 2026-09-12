@@ -272,6 +272,8 @@ MODEL_TASK_MAPPING_NAMES = {
         "siglip2": "SigLIP2Model",
         "stable_diffusion": "StableDiffusionModel",
         "stable_diffusion_2": "StableDiffusion2Model",
+        "stable_diffusion_xl": "StableDiffusionXLModel",
+        "stable_diffusion_xl_refiner": "StableDiffusionXLRefinerModel",
         "swin": "SwinModel",
         "swinv2": "SwinV2Model",
         "t5": "T5Model",
@@ -401,6 +403,10 @@ MODEL_TASK_MAPPING_NAMES = {
     "TextToImage": {
         "stable_diffusion": "StableDiffusionTextToImage",
         "stable_diffusion_2": "StableDiffusion2TextToImage",
+        "stable_diffusion_xl": "StableDiffusionXLTextToImage",
+    },
+    "ImageToImage": {
+        "stable_diffusion_xl_refiner": "StableDiffusionXLRefinerImageToImage",
     },
     "TokenClassify": {
         "bert": "BertTokenClassify",
@@ -658,6 +664,8 @@ CONFIG_MAPPING_NAMES = {
     "speech_to_text_text": "Speech2TextTextConfig",
     "stable_diffusion": "StableDiffusionConfig",
     "stable_diffusion_2": "StableDiffusion2Config",
+    "stable_diffusion_xl": "StableDiffusionXLConfig",
+    "stable_diffusion_xl_refiner": "StableDiffusionXLRefinerConfig",
     "swin": "SwinConfig",
     "swinv2": "SwinV2Config",
     "t5": "T5Config",
@@ -754,6 +762,8 @@ TOKENIZER_MAPPING_NAMES = {
     "speech_to_text": "Speech2TextTokenizer",
     "stable_diffusion": "StableDiffusionTokenizer",
     "stable_diffusion_2": "StableDiffusion2Tokenizer",
+    "stable_diffusion_xl": "StableDiffusionXLTokenizer",
+    "stable_diffusion_xl_refiner": "StableDiffusionXLTokenizer",
     "t5": "T5Tokenizer",
     "tipsv2": "Tipsv2Tokenizer",
     "whisper": "WhisperTokenizer",

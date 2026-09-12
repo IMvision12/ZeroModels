@@ -42,6 +42,7 @@ _TASK_SUFFIXES = sorted(
         "PanopticSegment",
         "UniversalSegment",
         "TextToImage",
+        "ImageToImage",
         "DptDepthEstimation",
         "DptSemanticSegment",
         "DptDensePredict",

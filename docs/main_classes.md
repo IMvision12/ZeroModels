@@ -248,16 +248,27 @@ model.generate(
     guidance_scale=None,
     seed=None,
     latents=None,
+    image=None,
+    strength=None,
+    denoising_start=None,
+    denoising_end=None,
+    output_type="image",
+    **conditioning,
 )
 ```
 
-The diffusion flavor, used by [Stable Diffusion](stable_diffusion.md) and
-[Stable Diffusion 2](stable_diffusion_2.md). Where the LM
+The diffusion flavor, used by [Stable Diffusion](stable_diffusion.md),
+[Stable Diffusion 2](stable_diffusion_2.md) and
+[Stable Diffusion XL](stable_diffusion_xl.md). Where the LM
 mixins decode tokens, this one runs a scheduler's denoising loop with classifier-free
 guidance over a latent and decodes it to `(batch, H, W, 3)` uint8 images. A model
 supplies five hooks (`encode_prompt`, `unconditional_ids`, `predict_noise`,
 `decode_latents`, `latent_shape`) and a `scheduler`; the mixin owns the guidance batching,
-the initial latent, the loop and the postprocess. The denoiser call is compiled per
+the initial latent, the loop and the postprocess. `encode_prompt` may return a nested
+structure of tensors rather than one (SDXL's context, pooled embedding and size ids),
+which the guidance batching and the compiled step carry through unchanged; a model whose
+unconditional branch is not an encoded prompt overrides `encode_negative_prompt` (SDXL
+zeroes it). The denoiser call is compiled per
 backend (`jax.jit`, `tf.function(jit_compile=True)`, eager on Torch) and cached on the
 instance, like the LM decode loop.
 
@@ -271,7 +282,21 @@ instance, like the LM decode loop.
   guidance off.
 - **seed** (`int`, *optional*): seeds the initial latent, reproducible per backend.
 - **latents** (*optional*): an explicit initial latent, for results identical across
-  backends.
+  backends; with `strength` or `denoising_start`, the clean latent to start from.
+- **image** / **strength** (*optional*): image-to-image (diffusers' `Img2ImgPipeline`):
+  the `(batch, H, W, 3)` uint8 or `[0, 1]` float image is VAE-encoded (the
+  `encode_latents` hook), noised to the `strength` point of the schedule and the
+  remaining steps are run; `strength` defaults to the repo's `generate_args` (0.8, the
+  SDXL refiner 0.3).
+- **denoising_end** / **denoising_start** (*optional*): stop after, or resume from, a
+  fraction of the schedule with no noise added: the SDXL base + refiner ensemble
+  (`output_type="latent"` hands the base's latent over).
+- **output_type** (*optional*): `"image"` (uint8 images) or `"latent"`.
+- **conditioning** (*optional*): any further keyword argument is model-specific
+  conditioning handed to `encode_prompt` (SDXL's `original_size` /
+  `crops_coords_top_left` / `target_size`); a `negative_<name>` twin applies to the
+  negative branch only and defaults to the positive value, the way `negative_input_ids`
+  pairs with `input_ids`.
 
 ### BaseScheduler
 
@@ -281,7 +306,9 @@ The samplers a diffusion model steps with (`PNDMScheduler`, `DDIMScheduler`,
 `set_timesteps(n)`, `scale_model_input(sample, t)`, `step(noise_pred, t, sample)` and
 `init_noise_sigma`. `get_scheduler(config)` builds the one a diffusers scheduler config
 dict names, which is what a repo's `scheduler_config` goes through; `model.scheduler` can
-be swapped between calls.
+be swapped between calls. The Euler samplers take the diffusers `timestep_spacing`
+(`linspace`, `leading`, `trailing`) and `interpolation_type` (`linear`, `log_linear`), and
+the schedules (betas, `alphas_cumprod`, sigmas, timesteps) match diffusers to the bit.
 
 ## Preprocessing
 
