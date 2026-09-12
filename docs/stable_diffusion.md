@@ -324,7 +324,9 @@ import keras
 keras.config.set_image_data_format("channels_first")
 
 model = StableDiffusionTextToImage.from_weights("zeromodels/stable-diffusion-v1-5")
-images = model.generate(**tokenizer("a bowl of ramen"), seed=0)  # still (1, 512, 512, 3)
+images = model.generate(
+    **tokenizer("a bowl of ramen"), seed=0
+)  # still (1, 512, 512, 3)
 ```
 
 Note that `keras.config.set_image_data_format` is global state. Set it once at the top
