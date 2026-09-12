@@ -4319,6 +4319,54 @@ MODEL_TEST_CONFIGS["Gemma3nConditionalGenerate"] = {
 }
 
 
+# Stable Diffusion 1.x: the hosted container (UNet + VAE + CLIP text, three
+# disconnected paths in one functional graph) and the text-to-image task, which is
+# the same graph plus the denoising loop. Tiny 2-level UNet at an 8x8 latent, a
+# 16px two-level VAE (x2), a 1-layer text tower padded to 16 tokens.
+_sd_tiny = {
+    "unet_sample_size": 8,
+    "unet_down_block_types": ("CrossAttnDownBlock2D", "DownBlock2D"),
+    "unet_up_block_types": ("UpBlock2D", "CrossAttnUpBlock2D"),
+    "unet_block_out_channels": (32, 64),
+    "unet_layers_per_block": 1,
+    "unet_cross_attention_dim": 32,
+    "unet_num_attention_heads": 2,
+    "unet_norm_num_groups": 8,
+    "unet_text_seq_len": 16,
+    "vae_sample_size": 16,
+    "vae_block_out_channels": (16, 32),
+    "vae_layers_per_block": 1,
+    "vae_norm_num_groups": 8,
+    "text_hidden_dim": 32,
+    "text_num_heads": 2,
+    "text_num_layers": 1,
+    "max_seq_len": 16,
+    "vocab_size": 128,
+}
+_sd_outputs = {
+    "noise_pred": (2, 8, 8, 4),
+    "moments": (2, 8, 8, 8),  # 16px VAE with two levels: x2 downsample
+    "image": (2, 16, 16, 3),
+    "text_embeds": (2, 16, 32),
+}
+MODEL_TEST_CONFIGS["StableDiffusionModel"] = {
+    "module": "zeromodels.models.stable_diffusion",
+    "model_cls": "StableDiffusionModel",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sd_tiny),
+    "input_factory": "stable_diffusion_input",
+    "expected_output_shape": dict(_sd_outputs),
+}
+MODEL_TEST_CONFIGS["StableDiffusionTextToImage"] = {
+    "module": "zeromodels.models.stable_diffusion",
+    "model_cls": "StableDiffusionTextToImage",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sd_tiny),
+    "input_factory": "stable_diffusion_input",
+    "expected_output_shape": dict(_sd_outputs),
+}
+
+
 def get_all_model_ids():
     return list(MODEL_TEST_CONFIGS.keys())
 

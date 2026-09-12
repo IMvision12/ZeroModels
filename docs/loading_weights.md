@@ -17,7 +17,7 @@ load, and how long it takes.
 
 | # | Way | What happens | Used by |
 |---|---|---|---|
-| 1 | [**HuggingFace Hub**](#1-hub-keras-weights) | `zeromodels/<variant>`. The repo's `zm_config.json` rebuilds the model and `model.weights.h5` (or a sharded `.weights.json`) loads with no conversion. | Vision, detection, segmentation, depth, speech, text encoders, CLIP-family, classification backbones |
+| 1 | [**HuggingFace Hub**](#1-hub-keras-weights) | `zeromodels/<variant>`. The repo's `zm_config.json` rebuilds the model and `model.weights.h5` (or a sharded `.weights.json`) loads with no conversion. | Vision, detection, segmentation, depth, speech, text encoders, CLIP-family, classification backbones, diffusion (Stable Diffusion, hosted only: no way 2 / 3) |
 | 2 | [**On the fly**](#2-on-the-fly-conversion) | A bare variant whose entry carries an `hf_id`. Upstream safetensors are downloaded and converted in process. | The LLMs and VLMs: Qwen, Llama, Gemma, DeepSeek, GLM, Mistral, ... |
 | 3 | [**`hf:` prefix**](#3-the-hf-prefix) | Any Hub repo, named explicitly. Same conversion machinery as way 2, but you pick the repo. | Fine-tunes and community weights, for any architecture |
 

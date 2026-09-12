@@ -120,6 +120,7 @@ from zeromodels.models import (
     siglip,
     siglip2,
     speech2text,
+    stable_diffusion,
     swin,
     swinv2,
     t5,

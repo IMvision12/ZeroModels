@@ -71,12 +71,17 @@ def _adapt_input_shape_for_format(init_kwargs, data_format):
     return kwargs
 
 
+# Dict keys of 4-D spatial inputs: pixel / image tensors, plus a diffusion model's
+# noisy "sample" and VAE "latent" (both (B, H, W, 4) grids).
+_SPATIAL_INPUT_KEYS = ("pixel", "image", "sample", "latent")
+
+
 def _is_channels_last_image(key, value):
     if not (hasattr(value, "shape") and len(value.shape) == 4):
         return False
     if int(value.shape[-1]) not in (1, 3, 4):
         return False
-    return key is None or "pixel" in key or "image" in key
+    return key is None or any(k in key for k in _SPATIAL_INPUT_KEYS)
 
 
 def _has_transposable_image(input_data):

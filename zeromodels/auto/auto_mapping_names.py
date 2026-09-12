@@ -270,11 +270,13 @@ MODEL_TASK_MAPPING_NAMES = {
         "senet": "SENetModel",
         "siglip": "SigLIPModel",
         "siglip2": "SigLIP2Model",
+        "stable_diffusion": "StableDiffusionModel",
         "swin": "SwinModel",
         "swinv2": "SwinV2Model",
         "t5": "T5Model",
         "table-transformer": "TableTransformerModel",
         "tipsv2": "Tipsv2Model",
+        "unet_2d_condition": "UNet2DConditionModel",
         "vgg": "VGGModel",
         "vit": "ViTModel",
         "whisper": "WhisperModel",
@@ -395,6 +397,9 @@ MODEL_TASK_MAPPING_NAMES = {
         "speech_to_text": "Speech2TextModel",
         "tipsv2": "Tipsv2TextModel",
     },
+    "TextToImage": {
+        "stable_diffusion": "StableDiffusionTextToImage",
+    },
     "TokenClassify": {
         "bert": "BertTokenClassify",
         "deberta": "DebertaTokenClassify",
@@ -471,6 +476,7 @@ AMBIGUOUS_HF_TYPES = {
 }
 
 CONFIG_MAPPING_NAMES = {
+    "autoencoder_kl": "AutoencoderKLConfig",
     "beit": "BeitConfig",
     "bert": "BertConfig",
     "cait": "CaiTConfig",
@@ -648,6 +654,7 @@ CONFIG_MAPPING_NAMES = {
     "speech_to_text": "Speech2TextConfig",
     "speech_to_text_audio": "Speech2TextAudioConfig",
     "speech_to_text_text": "Speech2TextTextConfig",
+    "stable_diffusion": "StableDiffusionConfig",
     "swin": "SwinConfig",
     "swinv2": "SwinV2Config",
     "t5": "T5Config",
@@ -656,6 +663,7 @@ CONFIG_MAPPING_NAMES = {
     "tipsv2_dpt": "Tipsv2DptConfig",
     "tipsv2_text": "Tipsv2TextConfig",
     "tipsv2_vision": "Tipsv2VisionConfig",
+    "unet_2d_condition": "UNet2DConditionConfig",
     "vgg": "VGGConfig",
     "vit": "ViTConfig",
     "whisper": "WhisperConfig",
@@ -741,6 +749,7 @@ TOKENIZER_MAPPING_NAMES = {
     "siglip": "SigLIPTokenizer",
     "siglip2": "SigLIP2Tokenizer",
     "speech_to_text": "Speech2TextTokenizer",
+    "stable_diffusion": "StableDiffusionTokenizer",
     "t5": "T5Tokenizer",
     "tipsv2": "Tipsv2Tokenizer",
     "whisper": "WhisperTokenizer",

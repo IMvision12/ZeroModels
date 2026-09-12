@@ -76,7 +76,7 @@ Speech recognition, and speech-aware language models that take audio and text to
 
 ## Multimodal models
 
-Vision-language encoders, generative VLMs, and grounding across detection, OCR, pointing and referring.
+Vision-language encoders, generative VLMs, grounding across detection, OCR, pointing and referring, and text-to-image diffusion.
 
 - [CLIP](clip.md)
 - [DeepSeek-VL](deepseek_vl.md)
@@ -105,3 +105,4 @@ Vision-language encoders, generative VLMs, and grounding across detection, OCR, 
 - [SAM 3](sam3.md)
 - [SigLIP](siglip.md)
 - [SigLIP 2](siglip2.md)
+- [Stable Diffusion](stable_diffusion.md)

@@ -142,6 +142,24 @@ def siglip_input(batch_size=2, image_size=64, max_seq_len=64):
     }
 
 
+def stable_diffusion_input(
+    batch_size=2, sample_size=8, image_size=16, max_seq_len=16, cross_attention_dim=32
+):
+    # the container's three disconnected paths: UNet (sample / timestep / text
+    # context), VAE (image to encode, latent to decode) and the CLIP text tower
+    return {
+        "sample": ops.ones((batch_size, sample_size, sample_size, 4)),
+        "timestep": ops.ones((batch_size,)),
+        "encoder_hidden_states": ops.ones(
+            (batch_size, max_seq_len, cross_attention_dim)
+        ),
+        "image": ops.ones((batch_size, image_size, image_size, 3)),
+        "latent": ops.ones((batch_size, sample_size, sample_size, 4)),
+        "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "padding_mask": ops.ones((batch_size, max_seq_len), dtype="int32"),
+    }
+
+
 def tips_v2_text_input(batch_size=2, max_seq_len=16):
     return {
         "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),
