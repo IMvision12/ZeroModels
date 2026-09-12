@@ -56,8 +56,6 @@ class RenamedStateDict(collections.abc.Mapping):
 
 WEIGHT_SUFFIX = {"kernel": "weight", "bias": "bias", "gamma": "weight", "beta": "bias"}
 
-SUBMODEL_PREFIX = {"vae_encoder": "encoder.", "vae_decoder": "decoder."}
-
 ATTN_NAME_REPLACE = {
     "..": ".",
     "down.blocks": "down_blocks",
@@ -74,34 +72,24 @@ ATTN_NAME_REPLACE = {
 }
 
 
-def torch_key(keras_weight_name, keras_weight):
-    top_layer = keras_weight_name.rsplit("_", 1)[0]
+def torch_key(keras_weight):
     leaf, variable = keras_weight.path.split("/")[-2:]
-    prefix = SUBMODEL_PREFIX.get(top_layer, "")
-    return f"{prefix}{leaf.replace('__', '.')}.{WEIGHT_SUFFIX[variable]}"
+    return f"{leaf.replace('__', '.')}.{WEIGHT_SUFFIX[variable]}"
 
 
 def transfer_component(keras_model, state):
-    scoped = {
-        prefix: {k[len(prefix) :]: v for k, v in state.items() if k.startswith(prefix)}
-        for prefix in set(SUBMODEL_PREFIX.values())
-    }
     consumed = set()
     trainable, non_trainable = split_model_weights(keras_model)
 
-    for keras_weight, keras_weight_name in tqdm(
+    for keras_weight, _ in tqdm(
         trainable + non_trainable, desc="Transferring weights to Keras"
     ):
-        key = torch_key(keras_weight_name, keras_weight)
-        prefix = SUBMODEL_PREFIX.get(keras_weight_name.rsplit("_", 1)[0], "")
+        key = torch_key(keras_weight)
         consumed.add(key)
 
         if "attention" in key:
             transfer_attention_weights(
-                keras_weight.path,
-                keras_weight,
-                scoped[prefix] if prefix else state,
-                ATTN_NAME_REPLACE,
+                keras_weight.path, keras_weight, state, ATTN_NAME_REPLACE
             )
             continue
 

@@ -22,9 +22,11 @@ is deliberately **not supported** for diffusion models.
 
 Key facts of the port:
 
-- **Channels-last everywhere**: the Transformer2D `(B, H, W, C) <-> (B, H*W, C)` reshape
-  is a plain flatten and every conv is a standard `Conv2D`, so the converter is a
-  `(O, I, H, W) -> (H, W, I, O)` kernel transpose and nothing else.
+- **Both data formats**: the UNet and VAE follow `keras.config.image_data_format()`
+  (every conv takes it, GroupNorm normalizes the layout's channel axis, and the two
+  token <-> grid boundaries transpose around their flatten under `channels_first`).
+  Weights are layout-independent, so one hosted checkpoint serves both, and the
+  converter is a `(O, I, H, W) -> (H, W, I, O)` kernel transpose and nothing else.
 - **Block-level layers**: the UNet and VAE are built from composite Keras layers
   (`ResnetBlock2D`, `Transformer2DModel`, `CrossAttention`, ...). A functional graph keeps
   every node's output alive until the forward ends, and at 512px the UNet's per-op
@@ -234,7 +236,10 @@ Prompts batch through the tokenizer; a negative prompt is tokenized the same way
 passed as `negative_input_ids` (one per prompt, or one broadcast row).
 
 ```python
-prompts = ["a watercolor painting of a lighthouse at sunset", "a red vintage car on a coastal road"]
+prompts = [
+    "a watercolor painting of a lighthouse at sunset",
+    "a red vintage car on a coastal road",
+]
 inputs = tokenizer(prompts)  # {"input_ids": (2, 77), "attention_mask": (2, 77)}
 negative = tokenizer(["blurry, low quality"] * len(prompts))["input_ids"]
 
@@ -296,11 +301,35 @@ images = model.generate(**tokenizer("a mountain lake at dawn"))  # (1, 768, 768,
 
 ## Data Format
 
-Stable Diffusion is **`channels_last` only**: the Transformer2D blocks flatten the
-spatial grid to tokens and GroupNorm runs over the last axis. Leave
-`keras.config.image_data_format()` at its default (`"channels_last"`). Generated images
-are `(batch, height, width, 3)` uint8; `AutoencoderKL.encode` takes `(batch, H, W, 3)`
-in `[-1, 1]`.
+**Both `channels_last` and `channels_first` are supported.** The models read
+`keras.config.image_data_format()` when they are constructed (there is no
+`data_format` argument), so set it once, before `from_weights`, and every tensor that
+crosses the model boundary follows it:
+
+| | `channels_last` (default) | `channels_first` |
+|---|---|---|
+| `latents` passed to `generate` | `(batch, 64, 64, 4)` | `(batch, 4, 64, 64)` |
+| `AutoencoderKL.encode` input / `decode` output | `(batch, 512, 512, 3)` | `(batch, 3, 512, 512)` |
+| UNet `sample` | `(batch, 64, 64, 4)` | `(batch, 4, 64, 64)` |
+
+`generate` itself always hands back `(batch, height, width, 3)` uint8 images, whatever
+the layout, so the PIL step is the same in both. The same hosted `model.weights.h5`
+loads under either layout (conv kernels are `(kh, kw, in, out)` in both), and the two
+runs agree to within 1 uint8 level (99.7% of pixels identical, the rest being the
+NCHW / NHWC convolution kernels' rounding).
+
+```python
+import keras
+
+keras.config.set_image_data_format("channels_first")
+
+model = StableDiffusionTextToImage.from_weights("zeromodels/stable-diffusion-v1-5")
+images = model.generate(**tokenizer("a bowl of ramen"), seed=0)  # still (1, 512, 512, 3)
+```
+
+Note that `keras.config.set_image_data_format` is global state. Set it once at the top
+of a script rather than toggling it between calls, since already-built models keep the
+layout they were constructed with.
 
 ## Memory and speed
 

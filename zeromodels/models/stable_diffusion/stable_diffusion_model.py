@@ -23,6 +23,7 @@ from .stable_diffusion_layers import (
     Upsample2D,
     VaeAttentionBlock,
     group_norm,
+    safe_name,
     time_embedding_mlp,
     timestep_embedding,
 )
@@ -77,9 +78,14 @@ class UNet2DConditionModel(BaseModel):
         num_attention_heads=8,
         norm_num_groups=32,
         text_seq_len=77,
+        data_format=None,
+        channels_axis=None,
         name="UNet2DConditionModel",
         **kwargs,
     ):
+        data_format = data_format or keras.config.image_data_format()
+        if channels_axis is None:
+            channels_axis = -1 if data_format == "channels_last" else 1
         heads = num_attention_heads
         time_embed_dim = block_out_channels[0] * 4
         sample_h, sample_w = (
@@ -88,7 +94,12 @@ class UNet2DConditionModel(BaseModel):
             else (sample_size, sample_size)
         )
 
-        sample_in = layers.Input(shape=(sample_h, sample_w, in_channels), name="sample")
+        sample_in = layers.Input(
+            shape=(in_channels, sample_h, sample_w)
+            if data_format == "channels_first"
+            else (sample_h, sample_w, in_channels),
+            name="sample",
+        )
         timestep_in = layers.Input(shape=(), name="timestep")
         context = layers.Input(
             shape=(text_seq_len, cross_attention_dim), name="encoder_hidden_states"
@@ -98,7 +109,11 @@ class UNet2DConditionModel(BaseModel):
         temb = time_embedding_mlp(temb, time_embed_dim, name="time_embedding")
 
         sample = layers.Conv2D(
-            block_out_channels[0], 3, padding="same", name="conv_in"
+            block_out_channels[0],
+            3,
+            padding="same",
+            data_format=data_format,
+            name="conv_in",
         )(sample_in)
 
         skips = [sample]
@@ -109,6 +124,8 @@ class UNet2DConditionModel(BaseModel):
                     out_ch,
                     module_path=f"down_blocks.{i}.resnets.{j}",
                     groups=norm_num_groups,
+                    data_format=data_format,
+                    channels_axis=channels_axis,
                 )([sample, temb])
                 if block_type == CROSS_ATTN_DOWN:
                     sample = Transformer2DModel(
@@ -116,34 +133,54 @@ class UNet2DConditionModel(BaseModel):
                         heads,
                         module_path=f"down_blocks.{i}.attentions.{j}",
                         groups=norm_num_groups,
+                        data_format=data_format,
+                        channels_axis=channels_axis,
                     )([sample, context])
                 skips.append(sample)
             if i != len(down_block_types) - 1:
                 sample = Downsample2D(
-                    out_ch, module_path=f"down_blocks.{i}.downsamplers.0"
+                    out_ch,
+                    module_path=f"down_blocks.{i}.downsamplers.0",
+                    data_format=data_format,
+                    channels_axis=channels_axis,
                 )(sample)
                 skips.append(sample)
 
         mid_ch = block_out_channels[-1]
         sample = ResnetBlock2D(
-            mid_ch, module_path="mid_block.resnets.0", groups=norm_num_groups
+            mid_ch,
+            module_path="mid_block.resnets.0",
+            groups=norm_num_groups,
+            data_format=data_format,
+            channels_axis=channels_axis,
         )([sample, temb])
         sample = Transformer2DModel(
-            mid_ch, heads, module_path="mid_block.attentions.0", groups=norm_num_groups
+            mid_ch,
+            heads,
+            module_path="mid_block.attentions.0",
+            groups=norm_num_groups,
+            data_format=data_format,
+            channels_axis=channels_axis,
         )([sample, context])
         sample = ResnetBlock2D(
-            mid_ch, module_path="mid_block.resnets.1", groups=norm_num_groups
+            mid_ch,
+            module_path="mid_block.resnets.1",
+            groups=norm_num_groups,
+            data_format=data_format,
+            channels_axis=channels_axis,
         )([sample, temb])
 
         reversed_channels = list(reversed(block_out_channels))
         for i, block_type in enumerate(up_block_types):
             out_ch = reversed_channels[i]
             for j in range(layers_per_block + 1):
-                sample = layers.Concatenate(axis=-1)([sample, skips.pop()])
+                sample = layers.Concatenate(axis=channels_axis)([sample, skips.pop()])
                 sample = ResnetBlock2D(
                     out_ch,
                     module_path=f"up_blocks.{i}.resnets.{j}",
                     groups=norm_num_groups,
+                    data_format=data_format,
+                    channels_axis=channels_axis,
                 )([sample, temb])
                 if block_type == CROSS_ATTN_UP:
                     sample = Transformer2DModel(
@@ -151,15 +188,31 @@ class UNet2DConditionModel(BaseModel):
                         heads,
                         module_path=f"up_blocks.{i}.attentions.{j}",
                         groups=norm_num_groups,
+                        data_format=data_format,
+                        channels_axis=channels_axis,
                     )([sample, context])
             if i != len(up_block_types) - 1:
-                sample = Upsample2D(out_ch, module_path=f"up_blocks.{i}.upsamplers.0")(
-                    sample
-                )
+                sample = Upsample2D(
+                    out_ch,
+                    module_path=f"up_blocks.{i}.upsamplers.0",
+                    data_format=data_format,
+                    channels_axis=channels_axis,
+                )(sample)
 
-        sample = group_norm(sample, name="conv_norm_out", groups=norm_num_groups)
+        sample = group_norm(
+            sample,
+            name="conv_norm_out",
+            channels_axis=channels_axis,
+            groups=norm_num_groups,
+        )
         sample = ops.silu(sample)
-        sample = layers.Conv2D(out_channels, 3, padding="same", name="conv_out")(sample)
+        sample = layers.Conv2D(
+            out_channels,
+            3,
+            padding="same",
+            data_format=data_format,
+            name="conv_out",
+        )(sample)
 
         super().__init__(
             inputs={
@@ -172,6 +225,8 @@ class UNet2DConditionModel(BaseModel):
             **kwargs,
         )
 
+        self.data_format = data_format
+        self.channels_axis = channels_axis
         self.sample_size = sample_size
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -229,7 +284,7 @@ class UNet2DConditionModel(BaseModel):
         return config
 
 
-def vae_resnet(channels, module_path, groups):
+def vae_resnet(channels, module_path, groups, data_format, channels_axis):
     """A VAE ``ResnetBlock2D``: no timestep conditioning, GroupNorm eps 1e-6."""
     return ResnetBlock2D(
         channels,
@@ -237,6 +292,8 @@ def vae_resnet(channels, module_path, groups):
         groups=groups,
         eps=GROUP_EPS,
         time_embedding=False,
+        data_format=data_format,
+        channels_axis=channels_axis,
     )
 
 
@@ -247,35 +304,77 @@ def build_vae_encoder(
     layers_per_block,
     latent_channels,
     groups,
+    data_format,
+    channels_axis,
     name="vae_encoder",
 ):
-    """Functional VAE encoder ``image -> 2*latent_channels moments`` (channels-last).
-
-    Layer names carry no ``encoder.`` prefix; the converter supplies it, so this
-    graph loads the ``encoder.*`` keys of a diffusers ``AutoencoderKL``.
-    """
+    """Functional VAE encoder ``image -> 2*latent_channels moments``; its leaves are
+    named with the ``encoder.*`` keys of a diffusers ``AutoencoderKL``."""
     h_img, w_img = (
         image_size
         if isinstance(image_size, (tuple, list))
         else (image_size, image_size)
     )
-    img = layers.Input(shape=(h_img, w_img, in_channels), name="image")
-    x = layers.Conv2D(block_out_channels[0], 3, padding="same", name="conv_in")(img)
+    img = layers.Input(
+        shape=(in_channels, h_img, w_img)
+        if data_format == "channels_first"
+        else (h_img, w_img, in_channels),
+        name="image",
+    )
+    x = layers.Conv2D(
+        block_out_channels[0],
+        3,
+        padding="same",
+        data_format=data_format,
+        name=safe_name("encoder.conv_in"),
+    )(img)
     for i, ch in enumerate(block_out_channels):
         for j in range(layers_per_block):
-            x = vae_resnet(ch, f"down_blocks.{i}.resnets.{j}", groups)(x)
+            x = vae_resnet(
+                ch,
+                f"encoder.down_blocks.{i}.resnets.{j}",
+                groups,
+                data_format,
+                channels_axis,
+            )(x)
         if i != len(block_out_channels) - 1:
             # the VAE pads bottom/right only before its stride-2 conv (padding=0)
             x = Downsample2D(
-                ch, module_path=f"down_blocks.{i}.downsamplers.0", padding=0
+                ch,
+                module_path=f"encoder.down_blocks.{i}.downsamplers.0",
+                padding=0,
+                data_format=data_format,
+                channels_axis=channels_axis,
             )(x)
     mid = block_out_channels[-1]
-    x = vae_resnet(mid, "mid_block.resnets.0", groups)(x)
-    x = VaeAttentionBlock(mid, module_path="mid_block.attentions.0", groups=groups)(x)
-    x = vae_resnet(mid, "mid_block.resnets.1", groups)(x)
-    x = group_norm(x, name="conv_norm_out", groups=groups, eps=GROUP_EPS)
+    x = vae_resnet(
+        mid, "encoder.mid_block.resnets.0", groups, data_format, channels_axis
+    )(x)
+    x = VaeAttentionBlock(
+        mid,
+        module_path="encoder.mid_block.attentions.0",
+        groups=groups,
+        data_format=data_format,
+        channels_axis=channels_axis,
+    )(x)
+    x = vae_resnet(
+        mid, "encoder.mid_block.resnets.1", groups, data_format, channels_axis
+    )(x)
+    x = group_norm(
+        x,
+        name="encoder.conv_norm_out",
+        channels_axis=channels_axis,
+        groups=groups,
+        eps=GROUP_EPS,
+    )
     x = ops.silu(x)
-    x = layers.Conv2D(2 * latent_channels, 3, padding="same", name="conv_out")(x)
+    x = layers.Conv2D(
+        2 * latent_channels,
+        3,
+        padding="same",
+        data_format=data_format,
+        name=safe_name("encoder.conv_out"),
+    )(x)
     return keras.Model(img, x, name=name)
 
 
@@ -286,29 +385,76 @@ def build_vae_decoder(
     layers_per_block,
     latent_channels,
     groups,
+    data_format,
+    channels_axis,
     name="vae_decoder",
 ):
-    """Functional VAE decoder ``latent -> image`` (channels-last), ``decoder.*`` keys."""
+    """Functional VAE decoder ``latent -> image``; its leaves are named with the
+    ``decoder.*`` keys of a diffusers ``AutoencoderKL``."""
     h_lat, w_lat = (
         latent_size
         if isinstance(latent_size, (tuple, list))
         else (latent_size, latent_size)
     )
-    z = layers.Input(shape=(h_lat, w_lat, latent_channels), name="latent")
+    z = layers.Input(
+        shape=(latent_channels, h_lat, w_lat)
+        if data_format == "channels_first"
+        else (h_lat, w_lat, latent_channels),
+        name="latent",
+    )
     mid = block_out_channels[-1]
-    x = layers.Conv2D(mid, 3, padding="same", name="conv_in")(z)
-    x = vae_resnet(mid, "mid_block.resnets.0", groups)(x)
-    x = VaeAttentionBlock(mid, module_path="mid_block.attentions.0", groups=groups)(x)
-    x = vae_resnet(mid, "mid_block.resnets.1", groups)(x)
+    x = layers.Conv2D(
+        mid,
+        3,
+        padding="same",
+        data_format=data_format,
+        name=safe_name("decoder.conv_in"),
+    )(z)
+    x = vae_resnet(
+        mid, "decoder.mid_block.resnets.0", groups, data_format, channels_axis
+    )(x)
+    x = VaeAttentionBlock(
+        mid,
+        module_path="decoder.mid_block.attentions.0",
+        groups=groups,
+        data_format=data_format,
+        channels_axis=channels_axis,
+    )(x)
+    x = vae_resnet(
+        mid, "decoder.mid_block.resnets.1", groups, data_format, channels_axis
+    )(x)
     reversed_channels = list(reversed(block_out_channels))
     for i, ch in enumerate(reversed_channels):
         for j in range(layers_per_block + 1):
-            x = vae_resnet(ch, f"up_blocks.{i}.resnets.{j}", groups)(x)
+            x = vae_resnet(
+                ch,
+                f"decoder.up_blocks.{i}.resnets.{j}",
+                groups,
+                data_format,
+                channels_axis,
+            )(x)
         if i != len(reversed_channels) - 1:
-            x = Upsample2D(ch, module_path=f"up_blocks.{i}.upsamplers.0")(x)
-    x = group_norm(x, name="conv_norm_out", groups=groups, eps=GROUP_EPS)
+            x = Upsample2D(
+                ch,
+                module_path=f"decoder.up_blocks.{i}.upsamplers.0",
+                data_format=data_format,
+                channels_axis=channels_axis,
+            )(x)
+    x = group_norm(
+        x,
+        name="decoder.conv_norm_out",
+        channels_axis=channels_axis,
+        groups=groups,
+        eps=GROUP_EPS,
+    )
     x = ops.silu(x)
-    x = layers.Conv2D(out_channels, 3, padding="same", name="conv_out")(x)
+    x = layers.Conv2D(
+        out_channels,
+        3,
+        padding="same",
+        data_format=data_format,
+        name=safe_name("decoder.conv_out"),
+    )(x)
     return keras.Model(z, x, name=name)
 
 
@@ -350,9 +496,14 @@ class AutoencoderKL(BaseModel):
         norm_num_groups=32,
         sample_size=512,
         scaling_factor=0.18215,
+        data_format=None,
+        channels_axis=None,
         name="AutoencoderKL",
         **kwargs,
     ):
+        data_format = data_format or keras.config.image_data_format()
+        if channels_axis is None:
+            channels_axis = -1 if data_format == "channels_last" else 1
         h_img, w_img = (
             sample_size
             if isinstance(sample_size, (tuple, list))
@@ -368,6 +519,8 @@ class AutoencoderKL(BaseModel):
             layers_per_block,
             latent_channels,
             norm_num_groups,
+            data_format,
+            channels_axis,
         )
         decoder = build_vae_decoder(
             (h_lat, w_lat),
@@ -376,12 +529,34 @@ class AutoencoderKL(BaseModel):
             layers_per_block,
             latent_channels,
             norm_num_groups,
+            data_format,
+            channels_axis,
         )
-        quant_conv = layers.Conv2D(2 * latent_channels, 1, name="quant_conv")
-        post_quant_conv = layers.Conv2D(latent_channels, 1, name="post_quant_conv")
+        quant_conv = layers.Conv2D(
+            2 * latent_channels,
+            1,
+            data_format=data_format,
+            name="quant_conv",
+        )
+        post_quant_conv = layers.Conv2D(
+            latent_channels,
+            1,
+            data_format=data_format,
+            name="post_quant_conv",
+        )
 
-        image_in = layers.Input(shape=(h_img, w_img, in_channels), name="image")
-        latent_in = layers.Input(shape=(h_lat, w_lat, latent_channels), name="latent")
+        image_in = layers.Input(
+            shape=(in_channels, h_img, w_img)
+            if data_format == "channels_first"
+            else (h_img, w_img, in_channels),
+            name="image",
+        )
+        latent_in = layers.Input(
+            shape=(latent_channels, h_lat, w_lat)
+            if data_format == "channels_first"
+            else (h_lat, w_lat, latent_channels),
+            name="latent",
+        )
         moments = quant_conv(encoder(image_in))
         decoded = decoder(post_quant_conv(latent_in))
 
@@ -392,6 +567,8 @@ class AutoencoderKL(BaseModel):
             **kwargs,
         )
 
+        self.data_format = data_format
+        self.channels_axis = channels_axis
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.latent_channels = latent_channels
@@ -408,7 +585,7 @@ class AutoencoderKL(BaseModel):
 
     def encode(self, image, sample=False, seed=None):
         moments = self.quant_conv(self.encoder(image))
-        mean, logvar = ops.split(moments, 2, axis=-1)
+        mean, logvar = ops.split(moments, 2, axis=self.channels_axis)
         if not sample:
             return mean
         logvar = ops.clip(logvar, -30.0, 20.0)
@@ -483,8 +660,17 @@ class StableDiffusionModel(BaseModel):
         config = StableDiffusionConfig.from_dict(kwargs)  # regroup the flat kwargs
         u, v, t = config.unet_config, config.vae_config, config.text_config
 
-        unet = UNet2DConditionModel(u)
-        vae = AutoencoderKL(**v.constructor_kwargs())
+        data_format = keras.config.image_data_format()
+        channels_axis = -1 if data_format == "channels_last" else 1
+
+        unet = UNet2DConditionModel(
+            u, data_format=data_format, channels_axis=channels_axis
+        )
+        vae = AutoencoderKL(
+            **v.constructor_kwargs(),
+            data_format=data_format,
+            channels_axis=channels_axis,
+        )
         text_encoder = CLIPTextModel(
             max_seq_len=t.max_seq_len,
             vocab_size=t.vocab_size,
@@ -509,14 +695,27 @@ class StableDiffusionModel(BaseModel):
         lat_h, lat_w = img_h // vae.vae_scale_factor, img_w // vae.vae_scale_factor
 
         sample_in = layers.Input(
-            shape=(sample_h, sample_w, u.in_channels), name="sample"
+            shape=(u.in_channels, sample_h, sample_w)
+            if data_format == "channels_first"
+            else (sample_h, sample_w, u.in_channels),
+            name="sample",
         )
         timestep_in = layers.Input(shape=(), name="timestep")
         context_in = layers.Input(
             shape=(u.text_seq_len, u.cross_attention_dim), name="encoder_hidden_states"
         )
-        image_in = layers.Input(shape=(img_h, img_w, v.in_channels), name="image")
-        latent_in = layers.Input(shape=(lat_h, lat_w, v.latent_channels), name="latent")
+        image_in = layers.Input(
+            shape=(v.in_channels, img_h, img_w)
+            if data_format == "channels_first"
+            else (img_h, img_w, v.in_channels),
+            name="image",
+        )
+        latent_in = layers.Input(
+            shape=(v.latent_channels, lat_h, lat_w)
+            if data_format == "channels_first"
+            else (lat_h, lat_w, v.latent_channels),
+            name="latent",
+        )
         token_ids_in = layers.Input(shape=(t.max_seq_len,), name="token_ids")
         padding_mask_in = layers.Input(shape=(t.max_seq_len,), name="padding_mask")
 
@@ -552,6 +751,8 @@ class StableDiffusionModel(BaseModel):
             **keras_kwargs,
         )
 
+        self.data_format = data_format
+        self.channels_axis = channels_axis
         self.unet = unet
         self.vae = vae
         self.text_encoder = text_encoder
@@ -634,6 +835,8 @@ class StableDiffusionTextToImage(StableDiffusionModel, BaseDiffusion):
     def latent_shape(self):
         size = self.unet.sample_size
         height, width = size if isinstance(size, (tuple, list)) else (size, size)
+        if self.data_format == "channels_first":
+            return (self.unet.in_channels, height, width)
         return (height, width, self.unet.in_channels)
 
     def unconditional_ids(self, batch):
@@ -660,4 +863,7 @@ class StableDiffusionTextToImage(StableDiffusionModel, BaseDiffusion):
         )["sample"]
 
     def decode_latents(self, latents):
-        return self.vae.decode(latents / self.vae.scaling_factor)
+        image = self.vae.decode(latents / self.vae.scaling_factor)
+        if self.data_format == "channels_first":
+            image = ops.transpose(image, (0, 2, 3, 1))  # generate() hands out HWC
+        return image

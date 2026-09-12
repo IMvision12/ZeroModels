@@ -44,14 +44,10 @@ def time_embedding_mlp(temb, dim, name):
     return temb
 
 
-def group_norm(x, name, groups=GROUPS, eps=1e-5):
+def group_norm(x, name, channels_axis, groups=GROUPS, eps=1e-5):
     return layers.GroupNormalization(
-        groups=groups, axis=-1, epsilon=eps, name=safe_name(name)
+        groups=groups, axis=channels_axis, epsilon=eps, name=safe_name(name)
     )(x)
-
-
-def spatial_dims(shape):
-    return int(shape[1]), int(shape[2])
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
@@ -68,6 +64,9 @@ class ResnetBlock2D(layers.Layer):
         eps: GroupNorm epsilon (1e-5 in the UNet, 1e-6 in the VAE).
         time_embedding: Whether the block is conditioned on a timestep embedding
             (``call([x, temb])``); the VAE's blocks are not (``call(x)``).
+        data_format: ``"channels_last"`` or ``"channels_first"``; defaults to
+            ``keras.config.image_data_format()``.
+        channels_axis: The channel axis of that layout (``-1`` or ``1``).
     """
 
     def __init__(
@@ -77,6 +76,8 @@ class ResnetBlock2D(layers.Layer):
         groups=GROUPS,
         eps=1e-5,
         time_embedding=True,
+        data_format=None,
+        channels_axis=None,
         **kwargs,
     ):
         kwargs.setdefault("name", safe_name(module_path))
@@ -86,12 +87,25 @@ class ResnetBlock2D(layers.Layer):
         self.groups = groups
         self.eps = eps
         self.time_embedding = time_embedding
+        self.data_format = data_format or keras.config.image_data_format()
+        self.channels_axis = (
+            channels_axis
+            if channels_axis is not None
+            else (-1 if self.data_format == "channels_last" else 1)
+        )
 
         self.norm1 = layers.GroupNormalization(
-            groups=groups, axis=-1, epsilon=eps, name=safe_name(f"{module_path}.norm1")
+            groups=groups,
+            axis=self.channels_axis,
+            epsilon=eps,
+            name=safe_name(f"{module_path}.norm1"),
         )
         self.conv1 = layers.Conv2D(
-            out_channels, 3, padding="same", name=safe_name(f"{module_path}.conv1")
+            out_channels,
+            3,
+            padding="same",
+            data_format=self.data_format,
+            name=safe_name(f"{module_path}.conv1"),
         )
         self.time_emb_proj = (
             layers.Dense(out_channels, name=safe_name(f"{module_path}.time_emb_proj"))
@@ -99,19 +113,29 @@ class ResnetBlock2D(layers.Layer):
             else None
         )
         self.norm2 = layers.GroupNormalization(
-            groups=groups, axis=-1, epsilon=eps, name=safe_name(f"{module_path}.norm2")
+            groups=groups,
+            axis=self.channels_axis,
+            epsilon=eps,
+            name=safe_name(f"{module_path}.norm2"),
         )
         self.conv2 = layers.Conv2D(
-            out_channels, 3, padding="same", name=safe_name(f"{module_path}.conv2")
+            out_channels,
+            3,
+            padding="same",
+            data_format=self.data_format,
+            name=safe_name(f"{module_path}.conv2"),
         )
         self.conv_shortcut = None
 
     def build(self, input_shape):
         x_shape = input_shape[0] if self.time_embedding else input_shape
-        in_channels = int(x_shape[-1])
+        in_channels = int(x_shape[self.channels_axis])
+        if self.data_format == "channels_first":
+            mid_shape = (x_shape[0], self.out_channels, x_shape[2], x_shape[3])
+        else:
+            mid_shape = (x_shape[0], x_shape[1], x_shape[2], self.out_channels)
         self.norm1.build(x_shape)
         self.conv1.build(x_shape)
-        mid_shape = tuple(x_shape[:-1]) + (self.out_channels,)
         if self.time_embedding:
             self.time_emb_proj.build(input_shape[1])
         self.norm2.build(mid_shape)
@@ -121,6 +145,7 @@ class ResnetBlock2D(layers.Layer):
                 self.out_channels,
                 1,
                 padding="valid",
+                data_format=self.data_format,
                 name=safe_name(f"{self.module_path}.conv_shortcut"),
             )
             self.conv_shortcut.build(x_shape)
@@ -130,14 +155,20 @@ class ResnetBlock2D(layers.Layer):
         x, temb = inputs if self.time_embedding else (inputs, None)
         h = self.conv1(ops.silu(self.norm1(x)))
         if temb is not None:
-            h = h + self.time_emb_proj(ops.silu(temb))[:, None, None, :]
+            t = self.time_emb_proj(ops.silu(temb))
+            if self.data_format == "channels_first":
+                h = h + t[:, :, None, None]
+            else:
+                h = h + t[:, None, None, :]
         h = self.conv2(ops.silu(self.norm2(h)))
         residual = x if self.conv_shortcut is None else self.conv_shortcut(x)
         return residual + h
 
     def compute_output_shape(self, input_shape):
         x_shape = input_shape[0] if self.time_embedding else input_shape
-        return tuple(x_shape[:-1]) + (self.out_channels,)
+        if self.data_format == "channels_first":
+            return (x_shape[0], self.out_channels, x_shape[2], x_shape[3])
+        return (x_shape[0], x_shape[1], x_shape[2], self.out_channels)
 
     def get_config(self):
         config = super().get_config()
@@ -148,6 +179,8 @@ class ResnetBlock2D(layers.Layer):
                 "groups": self.groups,
                 "eps": self.eps,
                 "time_embedding": self.time_embedding,
+                "data_format": self.data_format,
+                "channels_axis": self.channels_axis,
             }
         )
         return config
@@ -329,55 +362,95 @@ class BasicTransformerBlock(layers.Layer):
 class Transformer2DModel(layers.Layer):
     """Diffusers ``Transformer2DModel``: GroupNorm, 1x1 in-proj, one
     ``BasicTransformerBlock`` over the flattened spatial tokens, 1x1 out-proj,
-    residual. ``call([x, context])`` with ``x`` channels-last.
+    residual. ``call([x, context])`` with ``x`` in the active image data format.
 
     Args:
         channels: Feature-map channels (token width).
         heads: Attention heads.
         module_path: Diffusers module path (``down_blocks.0.attentions.0``).
         groups: GroupNorm groups.
+        data_format: ``"channels_last"`` or ``"channels_first"``; defaults to
+            ``keras.config.image_data_format()``.
+        channels_axis: The channel axis of that layout (``-1`` or ``1``).
     """
 
-    def __init__(self, channels, heads, module_path, groups=GROUPS, **kwargs):
+    def __init__(
+        self,
+        channels,
+        heads,
+        module_path,
+        groups=GROUPS,
+        data_format=None,
+        channels_axis=None,
+        **kwargs,
+    ):
         kwargs.setdefault("name", safe_name(module_path))
         super().__init__(**kwargs)
         self.channels = channels
         self.heads = heads
         self.module_path = module_path
         self.groups = groups
+        self.data_format = data_format or keras.config.image_data_format()
+        self.channels_axis = (
+            channels_axis
+            if channels_axis is not None
+            else (-1 if self.data_format == "channels_last" else 1)
+        )
         self.norm = layers.GroupNormalization(
             groups=groups,
-            axis=-1,
+            axis=self.channels_axis,
             epsilon=GROUP_EPS,
             name=safe_name(f"{module_path}.norm"),
         )
         self.proj_in = layers.Conv2D(
-            channels, 1, padding="valid", name=safe_name(f"{module_path}.proj_in")
+            channels,
+            1,
+            padding="valid",
+            data_format=self.data_format,
+            name=safe_name(f"{module_path}.proj_in"),
         )
         self.transformer_block = BasicTransformerBlock(
             channels, heads, module_path=f"{module_path}.transformer_blocks.0"
         )
         self.proj_out = layers.Conv2D(
-            channels, 1, padding="valid", name=safe_name(f"{module_path}.proj_out")
+            channels,
+            1,
+            padding="valid",
+            data_format=self.data_format,
+            name=safe_name(f"{module_path}.proj_out"),
         )
 
     def build(self, input_shape):
         x_shape, context_shape = input_shape
-        height, width = spatial_dims(x_shape)
+        if self.data_format == "channels_first":
+            height, width = x_shape[2], x_shape[3]
+            proj_shape = (x_shape[0], self.channels, height, width)
+        else:
+            height, width = x_shape[1], x_shape[2]
+            proj_shape = (x_shape[0], height, width, self.channels)
         self.norm.build(x_shape)
         self.proj_in.build(x_shape)
-        tokens_shape = (x_shape[0], height * width, self.channels)
-        self.transformer_block.build((tokens_shape, context_shape))
-        self.proj_out.build(tuple(x_shape[:-1]) + (self.channels,))
+        self.transformer_block.build(
+            ((x_shape[0], height * width, self.channels), context_shape)
+        )
+        self.proj_out.build(proj_shape)
         self.built = True
 
     def call(self, inputs):
         x, context = inputs
-        height, width = spatial_dims(ops.shape(x))
         h = self.proj_in(self.norm(x))
+        shape = ops.shape(h)
+        if self.data_format == "channels_first":
+            # (B, C, H, W) -> (B, H*W, C)
+            height, width = shape[2], shape[3]
+            h = ops.transpose(h, (0, 2, 3, 1))
+        else:
+            height, width = shape[1], shape[2]
         h = ops.reshape(h, (-1, height * width, self.channels))
         h = self.transformer_block([h, context])
         h = ops.reshape(h, (-1, height, width, self.channels))
+        if self.data_format == "channels_first":
+            h = ops.transpose(h, (0, 3, 1, 2))
         return x + self.proj_out(h)
 
     def compute_output_shape(self, input_shape):
@@ -391,6 +464,8 @@ class Transformer2DModel(layers.Layer):
                 "heads": self.heads,
                 "module_path": self.module_path,
                 "groups": self.groups,
+                "data_format": self.data_format,
+                "channels_axis": self.channels_axis,
             }
         )
         return config
@@ -405,46 +480,70 @@ class Downsample2D(layers.Layer):
         module_path: Diffusers module path (``down_blocks.0.downsamplers.0``).
         padding: 1 for the UNet (symmetric), 0 for the VAE encoder, which pads only
             the bottom/right edge before its unpadded stride-2 conv.
+        data_format: ``"channels_last"`` or ``"channels_first"``; defaults to
+            ``keras.config.image_data_format()``.
+        channels_axis: The channel axis of that layout (``-1`` or ``1``).
     """
 
-    def __init__(self, channels, module_path, padding=1, **kwargs):
+    def __init__(
+        self,
+        channels,
+        module_path,
+        padding=1,
+        data_format=None,
+        channels_axis=None,
+        **kwargs,
+    ):
         kwargs.setdefault("name", safe_name(module_path))
         super().__init__(**kwargs)
         self.channels = channels
         self.module_path = module_path
         self.padding = padding
+        self.data_format = data_format or keras.config.image_data_format()
+        self.channels_axis = (
+            channels_axis
+            if channels_axis is not None
+            else (-1 if self.data_format == "channels_last" else 1)
+        )
         self.conv = layers.Conv2D(
             channels,
             3,
             strides=2,
             padding="valid",
+            data_format=self.data_format,
             name=safe_name(f"{module_path}.conv"),
         )
 
     def pad_amounts(self):
         return ((1, 1), (1, 1)) if self.padding == 1 else ((0, 1), (0, 1))
 
-    def build(self, input_shape):
+    def padded_shape(self, input_shape):
         (top, bottom), (left, right) = self.pad_amounts()
-        padded = (
-            input_shape[0],
-            input_shape[1] + top + bottom,
-            input_shape[2] + left + right,
-            input_shape[3],
-        )
-        self.conv.build(padded)
+        if self.data_format == "channels_first":
+            batch, channels, height, width = input_shape
+            return (batch, channels, height + top + bottom, width + left + right)
+        batch, height, width, channels = input_shape
+        return (batch, height + top + bottom, width + left + right, channels)
+
+    def build(self, input_shape):
+        self.conv.build(self.padded_shape(input_shape))
         self.built = True
 
     def call(self, x):
         (top, bottom), (left, right) = self.pad_amounts()
-        x = ops.pad(x, ((0, 0), (top, bottom), (left, right), (0, 0)))
+        if self.data_format == "channels_first":
+            x = ops.pad(x, ((0, 0), (0, 0), (top, bottom), (left, right)))
+        else:
+            x = ops.pad(x, ((0, 0), (top, bottom), (left, right), (0, 0)))
         return self.conv(x)
 
     def compute_output_shape(self, input_shape):
-        (top, bottom), (left, right) = self.pad_amounts()
-        height = (input_shape[1] + top + bottom - 3) // 2 + 1
-        width = (input_shape[2] + left + right - 3) // 2 + 1
-        return (input_shape[0], height, width, self.channels)
+        padded = self.padded_shape(input_shape)
+        if self.data_format == "channels_first":
+            batch, _, height, width = padded
+            return (batch, self.channels, (height - 3) // 2 + 1, (width - 3) // 2 + 1)
+        batch, height, width, _ = padded
+        return (batch, (height - 3) // 2 + 1, (width - 3) // 2 + 1, self.channels)
 
     def get_config(self):
         config = super().get_config()
@@ -453,6 +552,8 @@ class Downsample2D(layers.Layer):
                 "channels": self.channels,
                 "module_path": self.module_path,
                 "padding": self.padding,
+                "data_format": self.data_format,
+                "channels_axis": self.channels_axis,
             }
         )
         return config
@@ -465,33 +566,64 @@ class Upsample2D(layers.Layer):
     Args:
         channels: Output channels.
         module_path: Diffusers module path (``up_blocks.0.upsamplers.0``).
+        data_format: ``"channels_last"`` or ``"channels_first"``; defaults to
+            ``keras.config.image_data_format()``.
+        channels_axis: The channel axis of that layout (``-1`` or ``1``).
     """
 
-    def __init__(self, channels, module_path, **kwargs):
+    def __init__(
+        self, channels, module_path, data_format=None, channels_axis=None, **kwargs
+    ):
         kwargs.setdefault("name", safe_name(module_path))
         super().__init__(**kwargs)
         self.channels = channels
         self.module_path = module_path
+        self.data_format = data_format or keras.config.image_data_format()
+        self.channels_axis = (
+            channels_axis
+            if channels_axis is not None
+            else (-1 if self.data_format == "channels_last" else 1)
+        )
         self.conv = layers.Conv2D(
-            channels, 3, padding="same", name=safe_name(f"{module_path}.conv")
+            channels,
+            3,
+            padding="same",
+            data_format=self.data_format,
+            name=safe_name(f"{module_path}.conv"),
         )
 
+    def upsampled_shape(self, input_shape, channels):
+        if self.data_format == "channels_first":
+            batch, _, height, width = input_shape
+            return (batch, channels, height * 2, width * 2)
+        batch, height, width, _ = input_shape
+        return (batch, height * 2, width * 2, channels)
+
     def build(self, input_shape):
-        self.conv.build(
-            (input_shape[0], input_shape[1] * 2, input_shape[2] * 2, input_shape[3])
-        )
+        channels = input_shape[self.channels_axis]
+        self.conv.build(self.upsampled_shape(input_shape, channels))
         self.built = True
 
     def call(self, x):
-        x = ops.repeat(ops.repeat(x, 2, axis=1), 2, axis=2)
+        if self.data_format == "channels_first":
+            x = ops.repeat(ops.repeat(x, 2, axis=2), 2, axis=3)
+        else:
+            x = ops.repeat(ops.repeat(x, 2, axis=1), 2, axis=2)
         return self.conv(x)
 
     def compute_output_shape(self, input_shape):
-        return (input_shape[0], input_shape[1] * 2, input_shape[2] * 2, self.channels)
+        return self.upsampled_shape(input_shape, self.channels)
 
     def get_config(self):
         config = super().get_config()
-        config.update({"channels": self.channels, "module_path": self.module_path})
+        config.update(
+            {
+                "channels": self.channels,
+                "module_path": self.module_path,
+                "data_format": self.data_format,
+                "channels_axis": self.channels_axis,
+            }
+        )
         return config
 
 
@@ -504,17 +636,34 @@ class VaeAttentionBlock(layers.Layer):
         channels: Feature-map channels.
         module_path: Diffusers module path (``mid_block.attentions.0``).
         groups: GroupNorm groups.
+        data_format: ``"channels_last"`` or ``"channels_first"``; defaults to
+            ``keras.config.image_data_format()``.
+        channels_axis: The channel axis of that layout (``-1`` or ``1``).
     """
 
-    def __init__(self, channels, module_path, groups=GROUPS, **kwargs):
+    def __init__(
+        self,
+        channels,
+        module_path,
+        groups=GROUPS,
+        data_format=None,
+        channels_axis=None,
+        **kwargs,
+    ):
         kwargs.setdefault("name", safe_name(module_path))
         super().__init__(**kwargs)
         self.channels = channels
         self.module_path = module_path
         self.groups = groups
+        self.data_format = data_format or keras.config.image_data_format()
+        self.channels_axis = (
+            channels_axis
+            if channels_axis is not None
+            else (-1 if self.data_format == "channels_last" else 1)
+        )
         self.group_norm = layers.GroupNormalization(
             groups=groups,
-            axis=-1,
+            axis=self.channels_axis,
             epsilon=GROUP_EPS,
             name=safe_name(f"{module_path}.group_norm"),
         )
@@ -527,16 +676,28 @@ class VaeAttentionBlock(layers.Layer):
         )
 
     def build(self, input_shape):
-        height, width = spatial_dims(input_shape)
+        if self.data_format == "channels_first":
+            height, width = input_shape[2], input_shape[3]
+        else:
+            height, width = input_shape[1], input_shape[2]
         self.group_norm.build(input_shape)
         self.attention.build((input_shape[0], height * width, self.channels))
         self.built = True
 
     def call(self, x):
-        height, width = spatial_dims(ops.shape(x))
-        h = ops.reshape(self.group_norm(x), (-1, height * width, self.channels))
-        h = self.attention(h)
-        return x + ops.reshape(h, (-1, height, width, self.channels))
+        h = self.group_norm(x)
+        shape = ops.shape(h)
+        if self.data_format == "channels_first":
+            # (B, C, H, W) -> (B, H*W, C)
+            height, width = shape[2], shape[3]
+            h = ops.transpose(h, (0, 2, 3, 1))
+        else:
+            height, width = shape[1], shape[2]
+        h = self.attention(ops.reshape(h, (-1, height * width, self.channels)))
+        h = ops.reshape(h, (-1, height, width, self.channels))
+        if self.data_format == "channels_first":
+            h = ops.transpose(h, (0, 3, 1, 2))
+        return x + h
 
     def compute_output_shape(self, input_shape):
         return tuple(input_shape)
@@ -548,6 +709,8 @@ class VaeAttentionBlock(layers.Layer):
                 "channels": self.channels,
                 "module_path": self.module_path,
                 "groups": self.groups,
+                "data_format": self.data_format,
+                "channels_axis": self.channels_axis,
             }
         )
         return config
