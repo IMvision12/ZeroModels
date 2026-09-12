@@ -123,8 +123,11 @@ def numpy_state_dict(module):
 
 def diffusers_configs(repo, token=None):
     from diffusers import AutoencoderKL, PNDMScheduler, UNet2DConditionModel
-    from transformers import CLIPTextConfig
+    from transformers import CLIPTextConfig, CLIPTokenizerFast
 
+    tokenizer = CLIPTokenizerFast.from_pretrained(
+        repo, subfolder="tokenizer", token=token
+    )
     return {
         "unet": dict(
             UNet2DConditionModel.load_config(repo, subfolder="unet", token=token)
@@ -137,14 +140,21 @@ def diffusers_configs(repo, token=None):
         "scheduler": dict(
             PNDMScheduler.load_config(repo, subfolder="scheduler", token=token)
         ),
+        # the pad token differs between checkpoints (<|endoftext|> 49407, "!" 0)
+        "tokens": {
+            "bos_token_id": tokenizer.bos_token_id,
+            "eos_token_id": tokenizer.eos_token_id,
+            "pad_token_id": tokenizer.pad_token_id,
+        },
     }
 
 
-def config_from_diffusers(repo, token=None):
+def config_from_diffusers(repo, token=None, config_cls=None):
     from zeromodels.models.stable_diffusion.stable_diffusion_config import (
         StableDiffusionConfig,
     )
 
+    config_cls = config_cls or StableDiffusionConfig
     src = diffusers_configs(repo, token=token)
     unet, vae, text = src["unet"], src["vae"], src["text"]
     scheduler = {
@@ -153,11 +163,12 @@ def config_from_diffusers(repo, token=None):
         if k == "_class_name" or not k.startswith("_")
     }
 
+    # diffusers' "attention_head_dim" is the head count, scalar or one per level
     heads = unet.get("num_attention_heads") or unet.get("attention_head_dim", 8)
     if isinstance(heads, (list, tuple)):
-        heads = heads[0]
+        heads = tuple(heads)
     hidden = text["hidden_size"]
-    return StableDiffusionConfig(
+    return config_cls(
         unet_config={
             "sample_size": unet.get("sample_size", 64),
             "in_channels": unet.get("in_channels", 4),
@@ -169,6 +180,7 @@ def config_from_diffusers(repo, token=None):
             "cross_attention_dim": unet.get("cross_attention_dim", 768),
             "num_attention_heads": heads,
             "norm_num_groups": unet.get("norm_num_groups", 32),
+            "use_linear_projection": unet.get("use_linear_projection", False),
         },
         vae_config={
             "in_channels": vae.get("in_channels", 3),
@@ -177,8 +189,13 @@ def config_from_diffusers(repo, token=None):
             "block_out_channels": tuple(vae["block_out_channels"]),
             "layers_per_block": vae.get("layers_per_block", 2),
             "norm_num_groups": vae.get("norm_num_groups", 32),
-            "sample_size": vae.get("sample_size", 512),
-            "scaling_factor": vae.get("scaling_factor", 0.18215),
+            # the pipeline resolution is the UNet's latent size x the VAE's
+            # compression; the VAE config's own sample_size is not what the
+            # checkpoint generates at (768 on the 512px SD 2.1-base repo)
+            "sample_size": unet.get("sample_size", 64)
+            * 2 ** (len(vae["block_out_channels"]) - 1),
+            "scaling_factor": vae.get("scaling_factor")
+            or 0.18215,  # null in some repos
         },
         text_config={
             "hidden_dim": hidden,
@@ -191,10 +208,11 @@ def config_from_diffusers(repo, token=None):
         hidden_act=text.get("hidden_act", "quick_gelu"),
         layer_norm_eps=text.get("layer_norm_eps", 1e-5),
         scheduler_config=scheduler,
+        **src["tokens"],
     )
 
 
-def build_from_diffusers(repo, token=None):
+def build_from_diffusers(repo, token=None, model_cls=None, config_cls=None):
     import gc
 
     import torch
@@ -208,8 +226,9 @@ def build_from_diffusers(repo, token=None):
         UNet2DConditionModel,
     )
 
-    config = config_from_diffusers(repo, token=token)
-    model = StableDiffusionModel(config)
+    model_cls = model_cls or StableDiffusionModel
+    config = config_from_diffusers(repo, token=token, config_cls=config_cls)
+    model = model_cls(config)
     load = {"torch_dtype": torch.float32, "token": token}
 
     unet = DiffusersUNet2DConditionModel.from_pretrained(repo, subfolder="unet", **load)

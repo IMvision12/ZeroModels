@@ -58,8 +58,10 @@ class UNet2DConditionModel(BaseModel):
 
     Args mirror the diffusers config: ``in_channels`` / ``out_channels`` (4),
     ``block_out_channels`` ((320, 640, 1280, 1280)), ``layers_per_block`` (2),
-    ``cross_attention_dim`` (768), ``num_attention_heads`` (8), ``norm_num_groups``
-    (32), and the ``down_block_types`` / ``up_block_types`` lists.
+    ``cross_attention_dim`` (768), ``num_attention_heads`` (8, or one value per
+    level), ``norm_num_groups`` (32), ``use_linear_projection`` (a linear token
+    projection instead of the 1x1 conv) and the ``down_block_types`` /
+    ``up_block_types`` lists.
     """
 
     HF_MODEL_TYPE = None
@@ -77,6 +79,7 @@ class UNet2DConditionModel(BaseModel):
         cross_attention_dim=768,
         num_attention_heads=8,
         norm_num_groups=32,
+        use_linear_projection=False,
         text_seq_len=77,
         data_format=None,
         channels_axis=None,
@@ -86,7 +89,11 @@ class UNet2DConditionModel(BaseModel):
         data_format = data_format or keras.config.image_data_format()
         if channels_axis is None:
             channels_axis = -1 if data_format == "channels_last" else 1
-        heads = num_attention_heads
+        # heads per level (diffusers' attention_head_dim list), mirrored on the way up
+        if isinstance(num_attention_heads, (tuple, list)):
+            heads_per_level = tuple(num_attention_heads)
+        else:
+            heads_per_level = (num_attention_heads,) * len(block_out_channels)
         time_embed_dim = block_out_channels[0] * 4
         sample_h, sample_w = (
             sample_size
@@ -130,9 +137,10 @@ class UNet2DConditionModel(BaseModel):
                 if block_type == CROSS_ATTN_DOWN:
                     sample = Transformer2DModel(
                         out_ch,
-                        heads,
+                        heads_per_level[i],
                         module_path=f"down_blocks.{i}.attentions.{j}",
                         groups=norm_num_groups,
+                        use_linear_projection=use_linear_projection,
                         data_format=data_format,
                         channels_axis=channels_axis,
                     )([sample, context])
@@ -156,9 +164,10 @@ class UNet2DConditionModel(BaseModel):
         )([sample, temb])
         sample = Transformer2DModel(
             mid_ch,
-            heads,
+            heads_per_level[-1],
             module_path="mid_block.attentions.0",
             groups=norm_num_groups,
+            use_linear_projection=use_linear_projection,
             data_format=data_format,
             channels_axis=channels_axis,
         )([sample, context])
@@ -171,6 +180,7 @@ class UNet2DConditionModel(BaseModel):
         )([sample, temb])
 
         reversed_channels = list(reversed(block_out_channels))
+        reversed_heads = list(reversed(heads_per_level))
         for i, block_type in enumerate(up_block_types):
             out_ch = reversed_channels[i]
             for j in range(layers_per_block + 1):
@@ -185,9 +195,10 @@ class UNet2DConditionModel(BaseModel):
                 if block_type == CROSS_ATTN_UP:
                     sample = Transformer2DModel(
                         out_ch,
-                        heads,
+                        reversed_heads[i],
                         module_path=f"up_blocks.{i}.attentions.{j}",
                         groups=norm_num_groups,
+                        use_linear_projection=use_linear_projection,
                         data_format=data_format,
                         channels_axis=channels_axis,
                     )([sample, context])
@@ -235,16 +246,23 @@ class UNet2DConditionModel(BaseModel):
         self.block_out_channels = tuple(block_out_channels)
         self.layers_per_block = layers_per_block
         self.cross_attention_dim = cross_attention_dim
-        self.num_attention_heads = num_attention_heads
+        self.num_attention_heads = (
+            tuple(num_attention_heads)
+            if isinstance(num_attention_heads, (tuple, list))
+            else num_attention_heads
+        )
         self.norm_num_groups = norm_num_groups
+        self.use_linear_projection = use_linear_projection
         self.text_seq_len = text_seq_len
 
     @classmethod
     def from_diffusers_config(cls, config, **kwargs):
         """Build from a diffusers ``unet/config.json`` dict."""
+        # diffusers' "attention_head_dim" is the head COUNT (legacy name), a scalar
+        # or one value per level
         heads = config.get("num_attention_heads") or config.get("attention_head_dim", 8)
         if isinstance(heads, (list, tuple)):
-            heads = heads[0]
+            heads = tuple(heads)
         return cls(
             sample_size=config.get("sample_size", 64),
             in_channels=config.get("in_channels", 4),
@@ -256,6 +274,7 @@ class UNet2DConditionModel(BaseModel):
             cross_attention_dim=config.get("cross_attention_dim", 768),
             num_attention_heads=heads,
             norm_num_groups=config.get("norm_num_groups", 32),
+            use_linear_projection=config.get("use_linear_projection", False),
             **kwargs,
         )
 
@@ -277,6 +296,7 @@ class UNet2DConditionModel(BaseModel):
                 "cross_attention_dim": self.cross_attention_dim,
                 "num_attention_heads": self.num_attention_heads,
                 "norm_num_groups": self.norm_num_groups,
+                "use_linear_projection": self.use_linear_projection,
                 "text_seq_len": self.text_seq_len,
                 "name": self.name,
             }
@@ -657,7 +677,7 @@ class StableDiffusionModel(BaseModel):
 
     def __init__(self, name="StableDiffusionModel", **kwargs):
         keras_kwargs = {k: kwargs.pop(k) for k in ("trainable", "dtype") if k in kwargs}
-        config = StableDiffusionConfig.from_dict(kwargs)  # regroup the flat kwargs
+        config = self.config_class.from_dict(kwargs)  # regroup the flat kwargs
         u, v, t = config.unet_config, config.vae_config, config.text_config
 
         data_format = keras.config.image_data_format()

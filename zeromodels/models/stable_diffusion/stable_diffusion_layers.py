@@ -360,8 +360,8 @@ class BasicTransformerBlock(layers.Layer):
 
 @keras.saving.register_keras_serializable(package="zeromodels")
 class Transformer2DModel(layers.Layer):
-    """Diffusers ``Transformer2DModel``: GroupNorm, 1x1 in-proj, one
-    ``BasicTransformerBlock`` over the flattened spatial tokens, 1x1 out-proj,
+    """Diffusers ``Transformer2DModel``: GroupNorm, in-proj, one
+    ``BasicTransformerBlock`` over the flattened spatial tokens, out-proj,
     residual. ``call([x, context])`` with ``x`` in the active image data format.
 
     Args:
@@ -369,6 +369,8 @@ class Transformer2DModel(layers.Layer):
         heads: Attention heads.
         module_path: Diffusers module path (``down_blocks.0.attentions.0``).
         groups: GroupNorm groups.
+        use_linear_projection: Project the flattened tokens with a linear layer
+            instead of the feature map with a 1x1 conv.
         data_format: ``"channels_last"`` or ``"channels_first"``; defaults to
             ``keras.config.image_data_format()``.
         channels_axis: The channel axis of that layout (``-1`` or ``1``).
@@ -380,6 +382,7 @@ class Transformer2DModel(layers.Layer):
         heads,
         module_path,
         groups=GROUPS,
+        use_linear_projection=False,
         data_format=None,
         channels_axis=None,
         **kwargs,
@@ -390,6 +393,7 @@ class Transformer2DModel(layers.Layer):
         self.heads = heads
         self.module_path = module_path
         self.groups = groups
+        self.use_linear_projection = use_linear_projection
         self.data_format = data_format or keras.config.image_data_format()
         self.channels_axis = (
             channels_axis
@@ -402,22 +406,30 @@ class Transformer2DModel(layers.Layer):
             epsilon=GROUP_EPS,
             name=safe_name(f"{module_path}.norm"),
         )
-        self.proj_in = layers.Conv2D(
-            channels,
-            1,
-            padding="valid",
-            data_format=self.data_format,
-            name=safe_name(f"{module_path}.proj_in"),
-        )
+        if use_linear_projection:
+            self.proj_in = layers.Dense(
+                channels, name=safe_name(f"{module_path}.proj_in")
+            )
+            self.proj_out = layers.Dense(
+                channels, name=safe_name(f"{module_path}.proj_out")
+            )
+        else:
+            self.proj_in = layers.Conv2D(
+                channels,
+                1,
+                padding="valid",
+                data_format=self.data_format,
+                name=safe_name(f"{module_path}.proj_in"),
+            )
+            self.proj_out = layers.Conv2D(
+                channels,
+                1,
+                padding="valid",
+                data_format=self.data_format,
+                name=safe_name(f"{module_path}.proj_out"),
+            )
         self.transformer_block = BasicTransformerBlock(
             channels, heads, module_path=f"{module_path}.transformer_blocks.0"
-        )
-        self.proj_out = layers.Conv2D(
-            channels,
-            1,
-            padding="valid",
-            data_format=self.data_format,
-            name=safe_name(f"{module_path}.proj_out"),
         )
 
     def build(self, input_shape):
@@ -428,17 +440,23 @@ class Transformer2DModel(layers.Layer):
         else:
             height, width = x_shape[1], x_shape[2]
             proj_shape = (x_shape[0], height, width, self.channels)
+        tokens_shape = (x_shape[0], height * width, self.channels)
         self.norm.build(x_shape)
-        self.proj_in.build(x_shape)
-        self.transformer_block.build(
-            ((x_shape[0], height * width, self.channels), context_shape)
-        )
-        self.proj_out.build(proj_shape)
+        if self.use_linear_projection:
+            # the projections act on the (B, H*W, C) tokens
+            self.proj_in.build(tokens_shape)
+            self.proj_out.build(tokens_shape)
+        else:
+            self.proj_in.build(x_shape)
+            self.proj_out.build(proj_shape)
+        self.transformer_block.build((tokens_shape, context_shape))
         self.built = True
 
     def call(self, inputs):
         x, context = inputs
-        h = self.proj_in(self.norm(x))
+        h = self.norm(x)
+        if not self.use_linear_projection:
+            h = self.proj_in(h)  # 1x1 conv on the feature map
         shape = ops.shape(h)
         if self.data_format == "channels_first":
             # (B, C, H, W) -> (B, H*W, C)
@@ -447,11 +465,17 @@ class Transformer2DModel(layers.Layer):
         else:
             height, width = shape[1], shape[2]
         h = ops.reshape(h, (-1, height * width, self.channels))
+        if self.use_linear_projection:
+            h = self.proj_in(h)  # linear on the tokens
         h = self.transformer_block([h, context])
+        if self.use_linear_projection:
+            h = self.proj_out(h)
         h = ops.reshape(h, (-1, height, width, self.channels))
         if self.data_format == "channels_first":
             h = ops.transpose(h, (0, 3, 1, 2))
-        return x + self.proj_out(h)
+        if not self.use_linear_projection:
+            h = self.proj_out(h)
+        return x + h
 
     def compute_output_shape(self, input_shape):
         return tuple(input_shape[0])
@@ -464,6 +488,7 @@ class Transformer2DModel(layers.Layer):
                 "heads": self.heads,
                 "module_path": self.module_path,
                 "groups": self.groups,
+                "use_linear_projection": self.use_linear_projection,
                 "data_format": self.data_format,
                 "channels_axis": self.channels_axis,
             }

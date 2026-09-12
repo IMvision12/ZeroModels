@@ -250,6 +250,7 @@ Documentation sources are also available in [`docs/`](docs/).
     | 🏷️ Model Name | 📜 Reference Paper | 📦 Source of Weights |
     |---------------|-------------------|---------------------|
     | Stable Diffusion 1.x (v1-1 to v1-5) | [High-Resolution Image Synthesis with Latent Diffusion Models](https://arxiv.org/abs/2112.10752) | `diffusers` |
+    | Stable Diffusion 2.x (2, 2-base, 2-1, 2-1-base) | [High-Resolution Image Synthesis with Latent Diffusion Models](https://arxiv.org/abs/2112.10752) | `diffusers` |
 
 <br>
 

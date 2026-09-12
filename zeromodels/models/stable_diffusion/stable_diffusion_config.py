@@ -7,7 +7,9 @@ class UNet2DConditionConfig(BaseConfig):
 
     The defaults match the Stable Diffusion 1.x UNet (860M parameters). Fields
     mirror the model constructor and serialize flat; build a model from it with
-    ``UNet2DConditionModel(config)``.
+    ``UNet2DConditionModel(config)``. The same class serves later UNets that only
+    change the widths (Stable Diffusion 2.x: 1024-d cross-attention, one head count
+    per level, a linear token projection).
 
     Args:
         sample_size (`int`, *optional*, defaults to 64):
@@ -23,10 +25,14 @@ class UNet2DConditionConfig(BaseConfig):
             ResNet blocks per down level (up levels use one more).
         cross_attention_dim (`int`, *optional*, defaults to 768):
             Width of the text ``encoder_hidden_states``.
-        num_attention_heads (`int`, *optional*, defaults to 8):
-            Attention heads in the ``CrossAttn`` blocks.
+        num_attention_heads (`int` or `tuple`, *optional*, defaults to 8):
+            Attention heads in the ``CrossAttn`` blocks, one value for every level
+            or a tuple with one per level.
         norm_num_groups (`int`, *optional*, defaults to 32):
             GroupNorm group count.
+        use_linear_projection (`bool`, *optional*, defaults to False):
+            Project the Transformer2D tokens with a linear layer instead of a 1x1
+            convolution on the feature map.
         text_seq_len (`int`, *optional*, defaults to 77):
             Static text sequence length (CLIP pads to 77).
 
@@ -61,8 +67,9 @@ class UNet2DConditionConfig(BaseConfig):
     block_out_channels: tuple = (320, 640, 1280, 1280)
     layers_per_block: int = 2
     cross_attention_dim: int = 768
-    num_attention_heads: int = 8
+    num_attention_heads: int | tuple = 8
     norm_num_groups: int = 32
+    use_linear_projection: bool = False
     text_seq_len: int = 77
 
 

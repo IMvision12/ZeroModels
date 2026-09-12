@@ -4366,6 +4366,28 @@ MODEL_TEST_CONFIGS["StableDiffusionTextToImage"] = {
     "expected_output_shape": dict(_sd_outputs),
 }
 
+# Stable Diffusion 2.x: the same container / task over the SD 2 configuration (per-level
+# attention heads, linear token projection, gelu OpenCLIP-style text tower, "!" padding).
+_sd2_tiny = dict(
+    _sd_tiny, unet_num_attention_heads=(2, 4), unet_use_linear_projection=True
+)
+MODEL_TEST_CONFIGS["StableDiffusion2Model"] = {
+    "module": "zeromodels.models.stable_diffusion_2",
+    "model_cls": "StableDiffusion2Model",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sd2_tiny),
+    "input_factory": "stable_diffusion_input",
+    "expected_output_shape": dict(_sd_outputs),
+}
+MODEL_TEST_CONFIGS["StableDiffusion2TextToImage"] = {
+    "module": "zeromodels.models.stable_diffusion_2",
+    "model_cls": "StableDiffusion2TextToImage",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sd2_tiny),
+    "input_factory": "stable_diffusion_input",
+    "expected_output_shape": dict(_sd_outputs),
+}
+
 
 def get_all_model_ids():
     return list(MODEL_TEST_CONFIGS.keys())

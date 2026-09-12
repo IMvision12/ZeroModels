@@ -19,9 +19,17 @@ class StableDiffusionTokenizer(CLIPTokenizer):
             ``tokenizer_file`` is given (no default repo).
         tokenizer_file: Explicit ``tokenizer.json`` path (overrides ``hf_id``).
         max_seq_len: Padded / truncated length (default 77).
+        pad_token: Pad token string (``<|endoftext|>``).
     """
 
-    def __init__(self, hf_id=None, tokenizer_file=None, max_seq_len=77, **kwargs):
+    def __init__(
+        self,
+        hf_id=None,
+        tokenizer_file=None,
+        max_seq_len=77,
+        pad_token="<|endoftext|>",
+        **kwargs,
+    ):
         if tokenizer_file is None and hf_id is None:
             raise ValueError(
                 f"{type(self).__name__}() needs an hf_id (a hosted repo, read from its "
@@ -32,7 +40,10 @@ class StableDiffusionTokenizer(CLIPTokenizer):
         if tokenizer_file is None:
             tokenizer_file = self.download_tokenizer_json(hf_id)
         super().__init__(
-            tokenizer_file=tokenizer_file, max_seq_len=max_seq_len, **kwargs
+            tokenizer_file=tokenizer_file,
+            max_seq_len=max_seq_len,
+            pad_token=pad_token,
+            **kwargs,
         )
         self.hf_id = hf_id
 

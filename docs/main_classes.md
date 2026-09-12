@@ -251,7 +251,8 @@ model.generate(
 )
 ```
 
-The diffusion flavor, used by [Stable Diffusion](stable_diffusion.md). Where the LM
+The diffusion flavor, used by [Stable Diffusion](stable_diffusion.md) and
+[Stable Diffusion 2](stable_diffusion_2.md). Where the LM
 mixins decode tokens, this one runs a scheduler's denoising loop with classifier-free
 guidance over a latent and decodes it to `(batch, H, W, 3)` uint8 images. A model
 supplies five hooks (`encode_prompt`, `unconditional_ids`, `predict_noise`,
