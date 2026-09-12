@@ -13,7 +13,7 @@
 
 ## 📖 Introduction
 
-ZeroModels is a collection of pretrained models built entirely in Keras 3. It spans a broad range of tasks, including image classification, object detection, segmentation, monocular depth estimation, feature extraction, vision-language modeling (VLMs), speech recognition, speech-aware language modeling, text encoding and masked language modeling, large language models (LLMs), text-to-text encoder-decoder modeling, multimodal vision-language generation, and more.
+ZeroModels is a collection of pretrained models built entirely in Keras 3. It spans a broad range of tasks, including image classification, object detection, segmentation, monocular depth estimation, feature extraction, vision-language modeling (VLMs), speech recognition, speech-aware language modeling, text encoding and masked language modeling, large language models (LLMs), text-to-text encoder-decoder modeling, multimodal vision-language generation, text-to-image diffusion, and more.
 
 ## ⚡ Installation
 
@@ -245,6 +245,14 @@ Documentation sources are also available in [`docs/`](docs/).
 
 <br>
 
+- Text-to-Image Diffusion (text → image)
+
+    | 🏷️ Model Name | 📜 Reference Paper | 📦 Source of Weights |
+    |---------------|-------------------|---------------------|
+    | Stable Diffusion 1.x (v1-1 to v1-5) | [High-Resolution Image Synthesis with Latent Diffusion Models](https://arxiv.org/abs/2112.10752) | `diffusers` |
+
+<br>
+
 ### 🔊 Audio Models
 
 - Speech (speech → text)
@@ -268,7 +276,7 @@ Documentation sources are also available in [`docs/`](docs/).
 
 ## 📜 License
 
-This project leverages [timm](https://github.com/huggingface/pytorch-image-models#licenses) and [transformers](https://github.com/huggingface/transformers#license) for converting pretrained weights from PyTorch to Keras. For licensing details, please refer to the respective repositories.
+This project leverages [timm](https://github.com/huggingface/pytorch-image-models#licenses), [transformers](https://github.com/huggingface/transformers#license) and [diffusers](https://github.com/huggingface/diffusers#license) for converting pretrained weights from PyTorch to Keras. For licensing details, please refer to the respective repositories. Converted weights keep their upstream license (for example, the Stable Diffusion checkpoints are CreativeML OpenRAIL-M).
 
 - 🔖 **zeromodels Code**: This repository is licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0).
 
@@ -278,6 +286,7 @@ This project leverages [timm](https://github.com/huggingface/pytorch-image-model
 - The [Keras](https://github.com/keras-team/keras) team for their powerful and user-friendly deep learning framework
 - The [Transformers](https://github.com/huggingface/transformers) library for its robust tools for loading and adapting pretrained models
 - The [pytorch-image-models (timm)](https://github.com/huggingface/pytorch-image-models) project for pioneering many computer vision model implementations
+- The [Diffusers](https://github.com/huggingface/diffusers) library, the reference the diffusion models are converted from and verified against
 - All contributors to the original papers and architectures implemented in this library
 
 ## Citing

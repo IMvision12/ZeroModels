@@ -11,6 +11,8 @@ from zeromodels.base import (
     BaseModel,
     BaseGeneration,
     BaseSeq2SeqGeneration,
+    BaseDiffusion,
+    BaseScheduler,
     BaseTokenizer,
     BaseImageProcessor,
     BaseAudioFeatureExtractor,
@@ -34,7 +36,7 @@ detectors, segmenters, depth estimators) trace a fixed input shape at constructi
 is why they take an `image_size` and why changing it means rebuilding. Text and multimodal
 models declare their sequence inputs with an undefined length, so a language model still
 takes any sequence length; the imperative KV-cache decode that autoregressive generation
-needs lives on the task side, in a `BaseGeneration` / `BaseSeq2SeqGeneration` mixin layered
+needs lives on the task side, in a `BaseGeneration` / `BaseSeq2SeqGeneration` / `BaseDiffusion` mixin layered
 over this backbone.
 
 It carries the loading interface below.
@@ -234,6 +236,51 @@ once so you can decode repeatedly against the same audio.
 
 Those speech models wrap this in a friendlier `generate(audio, processor, ...)` that owns
 the whole pipeline; see their pages.
+
+### BaseDiffusion
+
+```python
+model.generate(
+    input_ids,
+    attention_mask=None,
+    negative_input_ids=None,
+    num_inference_steps=None,
+    guidance_scale=None,
+    seed=None,
+    latents=None,
+)
+```
+
+The diffusion flavor, used by [Stable Diffusion](stable_diffusion.md). Where the LM
+mixins decode tokens, this one runs a scheduler's denoising loop with classifier-free
+guidance over a latent and decodes it to `(batch, H, W, 3)` uint8 images. A model
+supplies five hooks (`encode_prompt`, `unconditional_ids`, `predict_noise`,
+`decode_latents`, `latent_shape`) and a `scheduler`; the mixin owns the guidance batching,
+the initial latent, the loop and the postprocess. The denoiser call is compiled per
+backend (`jax.jit`, `tf.function(jit_compile=True)`, eager on Torch) and cached on the
+instance, like the LM decode loop.
+
+**Parameters**
+
+- **input_ids**: `(batch, seq)` token ids from the family's tokenizer.
+- **negative_input_ids** (*optional*): the tokenized negative prompt, one row per prompt
+  or a single row for the batch; the empty prompt when omitted.
+- **num_inference_steps** / **guidance_scale** (*optional*): default to the repo's
+  `generate_args` (50 steps, 7.5 for Stable Diffusion); `guidance_scale <= 1` turns
+  guidance off.
+- **seed** (`int`, *optional*): seeds the initial latent, reproducible per backend.
+- **latents** (*optional*): an explicit initial latent, for results identical across
+  backends.
+
+### BaseScheduler
+
+The samplers a diffusion model steps with (`PNDMScheduler`, `DDIMScheduler`,
+`EulerDiscreteScheduler`, `EulerAncestralDiscreteScheduler` in
+`zeromodels.base.base_scheduler`) are weightless classes with the diffusers interface:
+`set_timesteps(n)`, `scale_model_input(sample, t)`, `step(noise_pred, t, sample)` and
+`init_noise_sigma`. `get_scheduler(config)` builds the one a diffusers scheduler config
+dict names, which is what a repo's `scheduler_config` goes through; `model.scheduler` can
+be swapped between calls.
 
 ## Preprocessing
 

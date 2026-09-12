@@ -90,7 +90,8 @@ class BaseDiffusion:
             input_ids: ``(batch, seq)`` token ids, i.e. ``**tokenizer(prompts)``.
             attention_mask: The tokenizer's mask, handed to ``encode_prompt``.
             negative_input_ids: ``(batch, seq)`` tokenized negative prompt for
-                classifier-free guidance; defaults to the empty prompt.
+                classifier-free guidance, or a single ``(1, seq)`` row shared by the
+                whole batch; defaults to the empty prompt.
             num_inference_steps: Scheduler steps (``generate_args`` / 50).
             guidance_scale: Classifier-free guidance strength (``generate_args`` /
                 7.5); ``<= 1`` disables it.
@@ -114,6 +115,8 @@ class BaseDiffusion:
                     if negative_input_ids is not None
                     else self.unconditional_ids(batch)
                 )
+                if int(uncond_ids.shape[0]) == 1 and batch > 1:
+                    uncond_ids = ops.repeat(uncond_ids, batch, axis=0)  # one for all
                 embeddings = ops.concatenate(
                     [self.encode_prompt(uncond_ids), embeddings], axis=0
                 )
