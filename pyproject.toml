@@ -71,6 +71,7 @@ conversion = [
     "torchvision>=0.20.0",
     "timm",
     "transformers",
+    "diffusers",
 ]
 # Developer tooling: the pre-commit hooks (ruff lint + format, whitespace/EOF
 # fixers). Install with: pip install -e .[dev], then run: pre-commit install

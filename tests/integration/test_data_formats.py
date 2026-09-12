@@ -55,6 +55,10 @@ SKIP_DATA_FORMAT = {
     "Qwen2TextGenerate",
     "Qwen3TextGenerate",
     "Qwen3_5TextGenerate",
+    # Stable Diffusion is channels_last only (Transformer2D flattens the spatial
+    # grid to tokens, GroupNorm over the last axis).
+    "StableDiffusionModel",
+    "StableDiffusionTextToImage",
 }
 
 
