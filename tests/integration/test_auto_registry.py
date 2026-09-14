@@ -42,6 +42,7 @@ _TASK_SUFFIXES = sorted(
         "PanopticSegment",
         "UniversalSegment",
         "TextToImage",
+        "ImageToImage",
         "DptDepthEstimation",
         "DptSemanticSegment",
         "DptDensePredict",
@@ -276,10 +277,11 @@ _COVERAGE_EXEMPT = {
     # Redundant transformers-named alias whose model_type ("grounding-dino") already maps to
     # the zeromodels-convention sibling GroundingDinoDetect.
     "GroundingDinoForObjectDetection",
-    # A component of the Stable Diffusion container (loaded through StableDiffusionModel /
-    # StableDiffusionTextToImage), never a hosted repo of its own; keeps diffusers' name,
-    # which carries no task suffix.
+    # Components of the Stable Diffusion containers (loaded through the family's
+    # XModel / XTextToImage), never hosted repos of their own; keep diffusers' names,
+    # which carry no task suffix.
     "AutoencoderKL",
+    "SD3Transformer2DModel",
 }
 
 

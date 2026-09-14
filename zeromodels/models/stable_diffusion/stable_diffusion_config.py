@@ -7,7 +7,9 @@ class UNet2DConditionConfig(BaseConfig):
 
     The defaults match the Stable Diffusion 1.x UNet (860M parameters). Fields
     mirror the model constructor and serialize flat; build a model from it with
-    ``UNet2DConditionModel(config)``.
+    ``UNet2DConditionModel(config)``. The same class serves later UNets that only
+    change the widths (Stable Diffusion 2.x: 1024-d cross-attention, one head count
+    per level, a linear token projection).
 
     Args:
         sample_size (`int`, *optional*, defaults to 64):
@@ -23,10 +25,29 @@ class UNet2DConditionConfig(BaseConfig):
             ResNet blocks per down level (up levels use one more).
         cross_attention_dim (`int`, *optional*, defaults to 768):
             Width of the text ``encoder_hidden_states``.
-        num_attention_heads (`int`, *optional*, defaults to 8):
-            Attention heads in the ``CrossAttn`` blocks.
+        num_attention_heads (`int` or `tuple`, *optional*, defaults to 8):
+            Attention heads in the ``CrossAttn`` blocks, one value for every level
+            or a tuple with one per level.
         norm_num_groups (`int`, *optional*, defaults to 32):
             GroupNorm group count.
+        use_linear_projection (`bool`, *optional*, defaults to False):
+            Project the Transformer2D tokens with a linear layer instead of a 1x1
+            convolution on the feature map.
+        transformer_layers_per_block (`int` or `tuple`, *optional*, defaults to 1):
+            Transformer blocks stacked in each Transformer2D, one value for every
+            level or one per level (SDXL: (1, 2, 10)).
+        addition_embed_type (`str`, *optional*):
+            `"text_time"` adds SDXL's micro-conditioning to the timestep embedding
+            (the pooled text embedding plus the sinusoidally embedded size / crop
+            `time_ids`, through the `add_embedding` MLP); `None` for SD 1.x / 2.x.
+        addition_time_embed_dim (`int`, *optional*, defaults to 256):
+            Sinusoidal embedding width of each time id.
+        projection_class_embeddings_input_dim (`int`, *optional*):
+            Input width of the `add_embedding` MLP: the pooled text width plus
+            `num_time_ids * addition_time_embed_dim` (SDXL: 1280 + 6 * 256 = 2816).
+        num_time_ids (`int`, *optional*, defaults to 6):
+            Micro-conditioning values per image (original size, crop offset, target
+            size).
         text_seq_len (`int`, *optional*, defaults to 77):
             Static text sequence length (CLIP pads to 77).
 
@@ -61,8 +82,14 @@ class UNet2DConditionConfig(BaseConfig):
     block_out_channels: tuple = (320, 640, 1280, 1280)
     layers_per_block: int = 2
     cross_attention_dim: int = 768
-    num_attention_heads: int = 8
+    num_attention_heads: int | tuple = 8
     norm_num_groups: int = 32
+    use_linear_projection: bool = False
+    transformer_layers_per_block: int | tuple = 1
+    addition_embed_type: str | None = None
+    addition_time_embed_dim: int = 256
+    projection_class_embeddings_input_dim: int | None = None
+    num_time_ids: int = 6
     text_seq_len: int = 77
 
 
@@ -87,6 +114,13 @@ class AutoencoderKLConfig(BaseConfig):
             Image resolution the encoder/decoder graphs are built for.
         scaling_factor (`float`, *optional*, defaults to 0.18215):
             Latent scaling applied by the pipeline around the VAE.
+        force_upcast (`bool`, *optional*, defaults to False):
+            Build the VAE in float32 whatever dtype the rest of the model loads in
+            (the SDXL VAE overflows in float16).
+        shift_factor (`float`, *optional*, defaults to 0.0):
+            Latent offset applied with the scaling (SD3: ``(z - shift) * scale``).
+        use_quant_conv / use_post_quant_conv (`bool`, *optional*, defaults to True):
+            The 1x1 convolutions around the latent (absent in the SD3 VAE).
 
     Examples:
 
@@ -109,6 +143,10 @@ class AutoencoderKLConfig(BaseConfig):
     norm_num_groups: int = 32
     sample_size: int = 512
     scaling_factor: float = 0.18215
+    force_upcast: bool = False
+    shift_factor: float = 0.0
+    use_quant_conv: bool = True
+    use_post_quant_conv: bool = True
 
 
 class StableDiffusionTextConfig(CLIPTextConfig):

@@ -51,7 +51,7 @@ def group_norm(x, name, channels_axis, groups=GROUPS, eps=1e-5):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class ResnetBlock2D(layers.Layer):
+class StableDiffusionResnetBlock2D(layers.Layer):
     """Diffusers ``ResnetBlock2D``: GroupNorm/SiLU/conv, additive time embedding,
     GroupNorm/SiLU/conv, plus a 1x1 shortcut when the channel count changes.
 
@@ -187,7 +187,7 @@ class ResnetBlock2D(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class CrossAttention(layers.Layer):
+class StableDiffusionCrossAttention(layers.Layer):
     """Diffusers ``Attention`` (``to_q`` / ``to_k`` / ``to_v`` / ``to_out.0``) over
     ``(B, N, C)`` tokens; self-attention when called without a context.
 
@@ -258,7 +258,7 @@ class CrossAttention(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class GEGLUFeedForward(layers.Layer):
+class StableDiffusionGEGLUFeedForward(layers.Layer):
     """Diffusers ``FeedForward`` with GEGLU: ``proj`` to ``2 * inner`` gated by GELU,
     then back down (``net.0.proj`` / ``net.2``).
 
@@ -302,7 +302,7 @@ class GEGLUFeedForward(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class BasicTransformerBlock(layers.Layer):
+class StableDiffusionBasicTransformerBlock(layers.Layer):
     """Self-attention, cross-attention, GEGLU feed-forward, each pre-normed with a
     residual (diffusers ``BasicTransformerBlock``).
 
@@ -321,15 +321,19 @@ class BasicTransformerBlock(layers.Layer):
         self.norm1 = layers.LayerNormalization(
             epsilon=1e-5, name=safe_name(f"{module_path}.norm1")
         )
-        self.attn1 = CrossAttention(dim, heads, module_path=f"{module_path}.attn1")
+        self.attn1 = StableDiffusionCrossAttention(
+            dim, heads, module_path=f"{module_path}.attn1"
+        )
         self.norm2 = layers.LayerNormalization(
             epsilon=1e-5, name=safe_name(f"{module_path}.norm2")
         )
-        self.attn2 = CrossAttention(dim, heads, module_path=f"{module_path}.attn2")
+        self.attn2 = StableDiffusionCrossAttention(
+            dim, heads, module_path=f"{module_path}.attn2"
+        )
         self.norm3 = layers.LayerNormalization(
             epsilon=1e-5, name=safe_name(f"{module_path}.norm3")
         )
-        self.ff = GEGLUFeedForward(dim, module_path=f"{module_path}.ff")
+        self.ff = StableDiffusionGEGLUFeedForward(dim, module_path=f"{module_path}.ff")
 
     def build(self, input_shape):
         x_shape, context_shape = input_shape
@@ -359,9 +363,9 @@ class BasicTransformerBlock(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class Transformer2DModel(layers.Layer):
-    """Diffusers ``Transformer2DModel``: GroupNorm, 1x1 in-proj, one
-    ``BasicTransformerBlock`` over the flattened spatial tokens, 1x1 out-proj,
+class StableDiffusionTransformer2DModel(layers.Layer):
+    """Diffusers ``Transformer2DModel``: GroupNorm, in-proj, ``num_layers``
+    ``StableDiffusionBasicTransformerBlock`` over the flattened spatial tokens, out-proj,
     residual. ``call([x, context])`` with ``x`` in the active image data format.
 
     Args:
@@ -369,6 +373,10 @@ class Transformer2DModel(layers.Layer):
         heads: Attention heads.
         module_path: Diffusers module path (``down_blocks.0.attentions.0``).
         groups: GroupNorm groups.
+        use_linear_projection: Project the flattened tokens with a linear layer
+            instead of the feature map with a 1x1 conv.
+        num_layers: Transformer blocks in the stack (1 for SD 1.x / 2.x; SDXL
+            stacks up to 10).
         data_format: ``"channels_last"`` or ``"channels_first"``; defaults to
             ``keras.config.image_data_format()``.
         channels_axis: The channel axis of that layout (``-1`` or ``1``).
@@ -380,6 +388,8 @@ class Transformer2DModel(layers.Layer):
         heads,
         module_path,
         groups=GROUPS,
+        use_linear_projection=False,
+        num_layers=1,
         data_format=None,
         channels_axis=None,
         **kwargs,
@@ -390,6 +400,8 @@ class Transformer2DModel(layers.Layer):
         self.heads = heads
         self.module_path = module_path
         self.groups = groups
+        self.use_linear_projection = use_linear_projection
+        self.num_layers = num_layers
         self.data_format = data_format or keras.config.image_data_format()
         self.channels_axis = (
             channels_axis
@@ -402,23 +414,44 @@ class Transformer2DModel(layers.Layer):
             epsilon=GROUP_EPS,
             name=safe_name(f"{module_path}.norm"),
         )
-        self.proj_in = layers.Conv2D(
-            channels,
-            1,
-            padding="valid",
-            data_format=self.data_format,
-            name=safe_name(f"{module_path}.proj_in"),
-        )
-        self.transformer_block = BasicTransformerBlock(
-            channels, heads, module_path=f"{module_path}.transformer_blocks.0"
-        )
-        self.proj_out = layers.Conv2D(
-            channels,
-            1,
-            padding="valid",
-            data_format=self.data_format,
-            name=safe_name(f"{module_path}.proj_out"),
-        )
+        if use_linear_projection:
+            self.proj_in = layers.Dense(
+                channels, name=safe_name(f"{module_path}.proj_in")
+            )
+            self.proj_out = layers.Dense(
+                channels, name=safe_name(f"{module_path}.proj_out")
+            )
+        else:
+            self.proj_in = layers.Conv2D(
+                channels,
+                1,
+                padding="valid",
+                data_format=self.data_format,
+                name=safe_name(f"{module_path}.proj_in"),
+            )
+            self.proj_out = layers.Conv2D(
+                channels,
+                1,
+                padding="valid",
+                data_format=self.data_format,
+                name=safe_name(f"{module_path}.proj_out"),
+            )
+        # Block 0 keeps the single-block attribute name (the hosted SD 1.x / 2.x
+        # checkpoints' h5 layout follows attribute names); the deeper SDXL stacks
+        # add transformer_block_1, transformer_block_2, ...
+        for k in range(num_layers):
+            block = StableDiffusionBasicTransformerBlock(
+                channels, heads, module_path=f"{module_path}.transformer_blocks.{k}"
+            )
+            setattr(
+                self, "transformer_block" if k == 0 else f"transformer_block_{k}", block
+            )
+
+    @property
+    def transformer_blocks(self):
+        return [self.transformer_block] + [
+            getattr(self, f"transformer_block_{k}") for k in range(1, self.num_layers)
+        ]
 
     def build(self, input_shape):
         x_shape, context_shape = input_shape
@@ -428,17 +461,24 @@ class Transformer2DModel(layers.Layer):
         else:
             height, width = x_shape[1], x_shape[2]
             proj_shape = (x_shape[0], height, width, self.channels)
+        tokens_shape = (x_shape[0], height * width, self.channels)
         self.norm.build(x_shape)
-        self.proj_in.build(x_shape)
-        self.transformer_block.build(
-            ((x_shape[0], height * width, self.channels), context_shape)
-        )
-        self.proj_out.build(proj_shape)
+        if self.use_linear_projection:
+            # the projections act on the (B, H*W, C) tokens
+            self.proj_in.build(tokens_shape)
+            self.proj_out.build(tokens_shape)
+        else:
+            self.proj_in.build(x_shape)
+            self.proj_out.build(proj_shape)
+        for block in self.transformer_blocks:
+            block.build((tokens_shape, context_shape))
         self.built = True
 
     def call(self, inputs):
         x, context = inputs
-        h = self.proj_in(self.norm(x))
+        h = self.norm(x)
+        if not self.use_linear_projection:
+            h = self.proj_in(h)  # 1x1 conv on the feature map
         shape = ops.shape(h)
         if self.data_format == "channels_first":
             # (B, C, H, W) -> (B, H*W, C)
@@ -447,11 +487,18 @@ class Transformer2DModel(layers.Layer):
         else:
             height, width = shape[1], shape[2]
         h = ops.reshape(h, (-1, height * width, self.channels))
-        h = self.transformer_block([h, context])
+        if self.use_linear_projection:
+            h = self.proj_in(h)  # linear on the tokens
+        for block in self.transformer_blocks:
+            h = block([h, context])
+        if self.use_linear_projection:
+            h = self.proj_out(h)
         h = ops.reshape(h, (-1, height, width, self.channels))
         if self.data_format == "channels_first":
             h = ops.transpose(h, (0, 3, 1, 2))
-        return x + self.proj_out(h)
+        if not self.use_linear_projection:
+            h = self.proj_out(h)
+        return x + h
 
     def compute_output_shape(self, input_shape):
         return tuple(input_shape[0])
@@ -464,6 +511,8 @@ class Transformer2DModel(layers.Layer):
                 "heads": self.heads,
                 "module_path": self.module_path,
                 "groups": self.groups,
+                "use_linear_projection": self.use_linear_projection,
+                "num_layers": self.num_layers,
                 "data_format": self.data_format,
                 "channels_axis": self.channels_axis,
             }
@@ -472,7 +521,7 @@ class Transformer2DModel(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class Downsample2D(layers.Layer):
+class StableDiffusionDownsample2D(layers.Layer):
     """Strided 3x3 conv downsample (diffusers ``Downsample2D``).
 
     Args:
@@ -560,7 +609,7 @@ class Downsample2D(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class Upsample2D(layers.Layer):
+class StableDiffusionUpsample2D(layers.Layer):
     """Nearest 2x upsample + 3x3 conv (diffusers ``Upsample2D``).
 
     Args:
@@ -628,7 +677,7 @@ class Upsample2D(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class VaeAttentionBlock(layers.Layer):
+class StableDiffusionVaeAttentionBlock(layers.Layer):
     """Single-head spatial self-attention of the VAE mid block: GroupNorm, attention
     over the flattened pixels (biased q/k/v), residual.
 
@@ -667,7 +716,7 @@ class VaeAttentionBlock(layers.Layer):
             epsilon=GROUP_EPS,
             name=safe_name(f"{module_path}.group_norm"),
         )
-        self.attention = CrossAttention(
+        self.attention = StableDiffusionCrossAttention(
             channels,
             heads=1,
             module_path=module_path,

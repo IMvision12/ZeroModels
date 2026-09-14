@@ -4366,6 +4366,237 @@ MODEL_TEST_CONFIGS["StableDiffusionTextToImage"] = {
     "expected_output_shape": dict(_sd_outputs),
 }
 
+# Stable Diffusion 2.x: the same container / task over the SD 2 configuration (per-level
+# attention heads, linear token projection, gelu OpenCLIP-style text tower, "!" padding).
+_sd2_tiny = dict(
+    _sd_tiny, unet_num_attention_heads=(2, 4), unet_use_linear_projection=True
+)
+MODEL_TEST_CONFIGS["StableDiffusion2Model"] = {
+    "module": "zeromodels.models.stable_diffusion_2",
+    "model_cls": "StableDiffusion2Model",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sd2_tiny),
+    "input_factory": "stable_diffusion_input",
+    "expected_output_shape": dict(_sd_outputs),
+}
+MODEL_TEST_CONFIGS["StableDiffusion2TextToImage"] = {
+    "module": "zeromodels.models.stable_diffusion_2",
+    "model_cls": "StableDiffusion2TextToImage",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sd2_tiny),
+    "input_factory": "stable_diffusion_input",
+    "expected_output_shape": dict(_sd_outputs),
+}
+
+# Stable Diffusion XL: three-level UNet (no attention at the first level, stacked
+# transformer blocks, text_time micro-conditioning), two text towers whose penultimate
+# states concatenate into the 2048-d context (here 32 + 32 = 64), float32 VAE.
+_sdxl_tiny = {
+    "unet_sample_size": 8,
+    "unet_down_block_types": ("DownBlock2D", "CrossAttnDownBlock2D"),
+    "unet_up_block_types": ("CrossAttnUpBlock2D", "UpBlock2D"),
+    "unet_block_out_channels": (32, 64),
+    "unet_layers_per_block": 1,
+    "unet_cross_attention_dim": 64,
+    "unet_num_attention_heads": (2, 4),
+    "unet_norm_num_groups": 8,
+    "unet_use_linear_projection": True,
+    "unet_transformer_layers_per_block": (1, 2),
+    "unet_addition_embed_type": "text_time",
+    "unet_addition_time_embed_dim": 8,
+    "unet_projection_class_embeddings_input_dim": 16 + 6 * 8,
+    "unet_num_time_ids": 6,
+    "unet_text_seq_len": 16,
+    "vae_sample_size": 16,
+    "vae_block_out_channels": (16, 32),
+    "vae_layers_per_block": 1,
+    "vae_norm_num_groups": 8,
+    "text_hidden_dim": 32,
+    "text_num_heads": 2,
+    "text_num_layers": 2,
+    "max_seq_len": 16,
+    "vocab_size": 128,
+    "text_2_hidden_dim": 32,
+    "text_2_num_heads": 2,
+    "text_2_num_layers": 2,
+    "text_2_projection_dim": 16,
+    "text_2_max_seq_len": 16,
+    "text_2_vocab_size": 128,
+}
+_sdxl_outputs = {
+    "noise_pred": (2, 8, 8, 4),
+    "moments": (2, 8, 8, 8),
+    "image": (2, 16, 16, 3),
+    "prompt_embeds": (2, 16, 64),
+    "pooled_prompt_embeds": (2, 16),
+}
+MODEL_TEST_CONFIGS["StableDiffusionXLModel"] = {
+    "module": "zeromodels.models.stable_diffusion_xl",
+    "model_cls": "StableDiffusionXLModel",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sdxl_tiny),
+    "input_factory": "stable_diffusion_xl_input",
+    "expected_output_shape": dict(_sdxl_outputs),
+}
+MODEL_TEST_CONFIGS["StableDiffusionXLTextToImage"] = {
+    "module": "zeromodels.models.stable_diffusion_xl",
+    "model_cls": "StableDiffusionXLTextToImage",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sdxl_tiny),
+    "input_factory": "stable_diffusion_xl_input",
+    "expected_output_shape": dict(_sdxl_outputs),
+}
+
+# SDXL refiner: the second text tower alone (a 32-d context), a four-level UNet with
+# attention at the middle levels, five time ids (size, crop, aesthetic score).
+_sdxl_refiner_tiny = {
+    k: v
+    for k, v in _sdxl_tiny.items()
+    if not k.startswith("text_") and k not in ("max_seq_len", "vocab_size")
+} | {
+    "unet_down_block_types": (
+        "DownBlock2D",
+        "CrossAttnDownBlock2D",
+        "CrossAttnDownBlock2D",
+        "DownBlock2D",
+    ),
+    "unet_up_block_types": (
+        "UpBlock2D",
+        "CrossAttnUpBlock2D",
+        "CrossAttnUpBlock2D",
+        "UpBlock2D",
+    ),
+    "unet_block_out_channels": (32, 64, 64, 64),
+    "unet_cross_attention_dim": 32,
+    "unet_num_attention_heads": (2, 4, 4, 4),
+    "unet_transformer_layers_per_block": 2,
+    "unet_projection_class_embeddings_input_dim": 16 + 5 * 8,
+    "unet_num_time_ids": 5,
+    "text_2_hidden_dim": 32,
+    "text_2_num_heads": 2,
+    "text_2_num_layers": 2,
+    "text_2_projection_dim": 16,
+    "text_2_max_seq_len": 16,
+    "text_2_vocab_size": 128,
+}
+_sdxl_refiner_outputs = dict(_sdxl_outputs, prompt_embeds=(2, 16, 32))
+MODEL_TEST_CONFIGS["StableDiffusionXLRefinerModel"] = {
+    "module": "zeromodels.models.stable_diffusion_xl",
+    "model_cls": "StableDiffusionXLRefinerModel",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sdxl_refiner_tiny),
+    "input_factory": "stable_diffusion_xl_refiner_input",
+    "expected_output_shape": dict(_sdxl_refiner_outputs),
+}
+MODEL_TEST_CONFIGS["StableDiffusionXLRefinerImageToImage"] = {
+    "module": "zeromodels.models.stable_diffusion_xl",
+    "model_cls": "StableDiffusionXLRefinerImageToImage",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sdxl_refiner_tiny),
+    "input_factory": "stable_diffusion_xl_refiner_input",
+    "expected_output_shape": dict(_sdxl_refiner_outputs),
+}
+
+# Stable Diffusion 3: the MMDiT (joint text/latent transformer with AdaLN-Zero
+# modulation), the 16-channel VAE without quant convs, two CLIP towers with
+# projections; the T5 tower is external. SD 3.5 adds RMS qk norms and (medium) the
+# dual-attention blocks.
+_sd3_tiny = {
+    "transformer_sample_size": 8,
+    "transformer_patch_size": 2,
+    "transformer_in_channels": 4,
+    "transformer_out_channels": 4,
+    "transformer_num_layers": 2,
+    "transformer_attention_head_dim": 8,
+    "transformer_num_attention_heads": 2,
+    "transformer_joint_attention_dim": 24,
+    "transformer_caption_projection_dim": 16,
+    "transformer_pooled_projection_dim": 24,
+    "transformer_pos_embed_max_size": 12,
+    "transformer_text_seq_len": 16 + 8,
+    "vae_sample_size": 16,
+    "vae_block_out_channels": (16, 32),
+    "vae_layers_per_block": 1,
+    "vae_norm_num_groups": 8,
+    "vae_latent_channels": 4,
+    "text_hidden_dim": 16,
+    "text_num_heads": 2,
+    "text_num_layers": 2,
+    "text_projection_dim": 16,
+    "max_seq_len": 16,
+    "vocab_size": 128,
+    "text_2_hidden_dim": 8,
+    "text_2_num_heads": 2,
+    "text_2_num_layers": 2,
+    "text_2_projection_dim": 8,
+    "text_2_max_seq_len": 16,
+    "text_2_vocab_size": 128,
+    "max_sequence_length": 8,
+}
+_sd3_outputs = {
+    "noise_pred": (2, 8, 8, 4),
+    "moments": (2, 8, 8, 8),
+    "image": (2, 16, 16, 3),
+    "prompt_embeds": (2, 16, 24),
+    "pooled_prompt_embeds": (2, 24),
+}
+MODEL_TEST_CONFIGS["StableDiffusion3Model"] = {
+    "module": "zeromodels.models.stable_diffusion_3",
+    "model_cls": "StableDiffusion3Model",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sd3_tiny),
+    "input_factory": "stable_diffusion_3_input",
+    "expected_output_shape": dict(_sd3_outputs),
+}
+MODEL_TEST_CONFIGS["StableDiffusion3TextToImage"] = {
+    "module": "zeromodels.models.stable_diffusion_3",
+    "model_cls": "StableDiffusion3TextToImage",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sd3_tiny),
+    "input_factory": "stable_diffusion_3_input",
+    "expected_output_shape": dict(_sd3_outputs),
+}
+# the separately hosted third text encoder (T5 v1.1 XXL layout: gated-GELU blocks)
+MODEL_TEST_CONFIGS["SD3T5EncoderModel"] = {
+    "module": "zeromodels.models.stable_diffusion_3",
+    "model_cls": "SD3T5EncoderModel",
+    "model_type": "llm",
+    "init_kwargs": {
+        "vocab_size": 128,
+        "embed_dim": 32,
+        "key_value_dim": 8,
+        "mlp_dim": 64,
+        "num_layers": 2,
+        "num_heads": 4,
+        "relative_attention_num_buckets": 8,
+        "relative_attention_max_distance": 16,
+    },
+    "input_factory": "t5_encoder_input",
+    "input_factory_kwargs": {"seq_len": 16},
+    "expected_output_shape": {"last_hidden_state": (2, 16, 32)},
+}
+_sd3_5_tiny = dict(
+    _sd3_tiny,
+    transformer_qk_norm="rms_norm",
+    transformer_dual_attention_layers=(0,),
+)
+MODEL_TEST_CONFIGS["StableDiffusion3_5Model"] = {
+    "module": "zeromodels.models.stable_diffusion_3_5",
+    "model_cls": "StableDiffusion3_5Model",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sd3_5_tiny),
+    "input_factory": "stable_diffusion_3_input",
+    "expected_output_shape": dict(_sd3_outputs),
+}
+MODEL_TEST_CONFIGS["StableDiffusion3_5TextToImage"] = {
+    "module": "zeromodels.models.stable_diffusion_3_5",
+    "model_cls": "StableDiffusion3_5TextToImage",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_sd3_5_tiny),
+    "input_factory": "stable_diffusion_3_input",
+    "expected_output_shape": dict(_sd3_outputs),
+}
+
 
 def get_all_model_ids():
     return list(MODEL_TEST_CONFIGS.keys())

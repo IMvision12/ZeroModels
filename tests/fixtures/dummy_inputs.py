@@ -160,6 +160,82 @@ def stable_diffusion_input(
     }
 
 
+def stable_diffusion_xl_input(
+    batch_size=2,
+    sample_size=8,
+    image_size=16,
+    max_seq_len=16,
+    cross_attention_dim=64,
+    pooled_dim=16,
+    num_time_ids=6,
+):
+    # SDXL adds the UNet's text_time micro-conditioning (pooled text embedding +
+    # size / crop ids) and the second text tower's ids to the SD 1.x paths
+    return {
+        "sample": ops.ones((batch_size, sample_size, sample_size, 4)),
+        "timestep": ops.ones((batch_size,)),
+        "encoder_hidden_states": ops.ones(
+            (batch_size, max_seq_len, cross_attention_dim)
+        ),
+        "text_embeds": ops.ones((batch_size, pooled_dim)),
+        "time_ids": ops.ones((batch_size, num_time_ids)),
+        "image": ops.ones((batch_size, image_size, image_size, 3)),
+        "latent": ops.ones((batch_size, sample_size, sample_size, 4)),
+        "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "token_ids_2": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "padding_mask": ops.ones((batch_size, max_seq_len), dtype="int32"),
+    }
+
+
+def stable_diffusion_xl_refiner_input(
+    batch_size=2,
+    sample_size=8,
+    image_size=16,
+    max_seq_len=16,
+    cross_attention_dim=32,
+    pooled_dim=16,
+    num_time_ids=5,
+):
+    # the refiner has no first text tower: no token_ids, five time ids
+    inputs = stable_diffusion_xl_input(
+        batch_size,
+        sample_size,
+        image_size,
+        max_seq_len,
+        cross_attention_dim,
+        pooled_dim,
+        num_time_ids,
+    )
+    inputs.pop("token_ids")
+    return inputs
+
+
+def stable_diffusion_3_input(
+    batch_size=2,
+    sample_size=8,
+    image_size=16,
+    max_seq_len=16,
+    text_seq_len=24,
+    joint_attention_dim=24,
+    pooled_dim=24,
+):
+    # the MMDiT takes the text tokens (CLIP + T5 length) at the joint width and
+    # the pooled CLIP embeddings; the VAE and the two CLIP towers as in SDXL
+    return {
+        "sample": ops.ones((batch_size, sample_size, sample_size, 4)),
+        "timestep": ops.ones((batch_size,)),
+        "encoder_hidden_states": ops.ones(
+            (batch_size, text_seq_len, joint_attention_dim)
+        ),
+        "pooled_projections": ops.ones((batch_size, pooled_dim)),
+        "image": ops.ones((batch_size, image_size, image_size, 3)),
+        "latent": ops.ones((batch_size, sample_size, sample_size, 4)),
+        "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "token_ids_2": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "padding_mask": ops.ones((batch_size, max_seq_len), dtype="int32"),
+    }
+
+
 def tips_v2_text_input(batch_size=2, max_seq_len=16):
     return {
         "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),

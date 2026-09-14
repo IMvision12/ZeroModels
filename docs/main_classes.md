@@ -248,15 +248,27 @@ model.generate(
     guidance_scale=None,
     seed=None,
     latents=None,
+    image=None,
+    strength=None,
+    denoising_start=None,
+    denoising_end=None,
+    output_type="image",
+    **conditioning,
 )
 ```
 
-The diffusion flavor, used by [Stable Diffusion](stable_diffusion.md). Where the LM
+The diffusion flavor, used by [Stable Diffusion](stable_diffusion.md),
+[Stable Diffusion 2](stable_diffusion_2.md), [Stable Diffusion XL](stable_diffusion_xl.md)
+and [Stable Diffusion 3 / 3.5](stable_diffusion_3.md). Where the LM
 mixins decode tokens, this one runs a scheduler's denoising loop with classifier-free
 guidance over a latent and decodes it to `(batch, H, W, 3)` uint8 images. A model
 supplies five hooks (`encode_prompt`, `unconditional_ids`, `predict_noise`,
 `decode_latents`, `latent_shape`) and a `scheduler`; the mixin owns the guidance batching,
-the initial latent, the loop and the postprocess. The denoiser call is compiled per
+the initial latent, the loop and the postprocess. `encode_prompt` may return a nested
+structure of tensors rather than one (SDXL's context, pooled embedding and size ids),
+which the guidance batching and the compiled step carry through unchanged; a model whose
+unconditional branch is not an encoded prompt overrides `encode_negative_prompt` (SDXL
+zeroes it). The denoiser call is compiled per
 backend (`jax.jit`, `tf.function(jit_compile=True)`, eager on Torch) and cached on the
 instance, like the LM decode loop.
 
@@ -270,17 +282,34 @@ instance, like the LM decode loop.
   guidance off.
 - **seed** (`int`, *optional*): seeds the initial latent, reproducible per backend.
 - **latents** (*optional*): an explicit initial latent, for results identical across
-  backends.
+  backends; with `strength` or `denoising_start`, the clean latent to start from.
+- **image** / **strength** (*optional*): image-to-image (diffusers' `Img2ImgPipeline`):
+  the `(batch, H, W, 3)` uint8 or `[0, 1]` float image is VAE-encoded (the
+  `encode_latents` hook), noised to the `strength` point of the schedule and the
+  remaining steps are run; `strength` defaults to the repo's `generate_args` (0.8, the
+  SDXL refiner 0.3).
+- **denoising_end** / **denoising_start** (*optional*): stop after, or resume from, a
+  fraction of the schedule with no noise added: the SDXL base + refiner ensemble
+  (`output_type="latent"` hands the base's latent over).
+- **output_type** (*optional*): `"image"` (uint8 images) or `"latent"`.
+- **conditioning** (*optional*): any further keyword argument is model-specific
+  conditioning handed to `encode_prompt` (SDXL's `original_size` /
+  `crops_coords_top_left` / `target_size`); a `negative_<name>` twin applies to the
+  negative branch only and defaults to the positive value, the way `negative_input_ids`
+  pairs with `input_ids`.
 
 ### BaseScheduler
 
 The samplers a diffusion model steps with (`PNDMScheduler`, `DDIMScheduler`,
-`EulerDiscreteScheduler`, `EulerAncestralDiscreteScheduler` in
+`EulerDiscreteScheduler`, `EulerAncestralDiscreteScheduler`,
+`FlowMatchEulerDiscreteScheduler` (rectified flow, SD 3) in
 `zeromodels.base.base_scheduler`) are weightless classes with the diffusers interface:
 `set_timesteps(n)`, `scale_model_input(sample, t)`, `step(noise_pred, t, sample)` and
 `init_noise_sigma`. `get_scheduler(config)` builds the one a diffusers scheduler config
 dict names, which is what a repo's `scheduler_config` goes through; `model.scheduler` can
-be swapped between calls.
+be swapped between calls. The Euler samplers take the diffusers `timestep_spacing`
+(`linspace`, `leading`, `trailing`) and `interpolation_type` (`linear`, `log_linear`), and
+the schedules (betas, `alphas_cumprod`, sigmas, timesteps) match diffusers to the bit.
 
 ## Preprocessing
 
@@ -389,6 +418,33 @@ layer in the library so a single implementation choice applies everywhere.
 - **scale** (`float`): the `1/sqrt(head_dim)` factor, applied inside.
 - **attention_mask** (*optional*): additive mask broadcastable to `(B, heads, T_q, T_kv)`.
 - **soft_cap** (`float`, *optional*): logit soft-capping, used by Gemma 2.
-- **attn_implementation** (`str`, *optional*): pick the kernel; pass it through `from_weights` to set it model-wide.
+- **attn_implementation** (`str`, *optional*): `"sdpa"`, `"fused"` or `"flash"` (below); `None` uses the implementation active in the current context, else the layer's own default.
+
+**Implementations.** All three compute the same `softmax(QKᵀ · scale + mask) · V`; they differ in
+memory, speed and portability:
+
+| | `"sdpa"` (library default) | `"fused"` | `"flash"` |
+|---|---|---|---|
+| What runs | hand-written `matmul`, float32 `softmax`, `matmul` | `keras.ops.dot_product_attention`, the backend picks the kernel | the same op with `flash_attention=True` |
+| torch | the math on any device / dtype | `scaled_dot_product_attention`: flash or memory-efficient kernel on a CUDA GPU in fp16 / bf16, else its math kernel | the flash kernel, or an error |
+| JAX | the math | the XLA reference implementation (same memory as the math) | cuDNN flash on a capable GPU, or an error |
+| TensorFlow | the math | falls back to the math | falls back to the math |
+| Logits memory | the full `(B, heads, T_q, T_kv)` matrix, materialized in fp16 and again in float32 for the softmax | tiled, never materialized when a fused kernel applies | tiled |
+| Masks / soft-cap / dropout | all supported | additive masks yes; a soft-cap or attention dropout falls back to the math | no masks; soft-cap / dropout fall back |
+
+The math path is what every parity number in this library was measured with and what runs
+everywhere identically. Its cost is quadratic memory: at 1024px the Stable Diffusion 3 joint
+attention (4429 tokens) needs about 3.8 GB of float32 logits per block, which runs an 8 GB GPU
+out of memory, while `"fused"` runs the same model at a 6.9 GB peak, 1.0 s/step on an RTX
+4060 Laptop (the SDXL 1024px step drops from a 10.3 GB to a 7.6 GB peak). The fused kernels
+accumulate in float32 and differ from the math only by rounding (about 3e-7 in float32).
+
+**Precedence.** `Model.from_weights(attn_implementation=...)` activates the choice for the
+model's build and every forward / generation step (a `ContextVar`, restored on exit, so it
+never leaks to another model). A layer may carry its own default for when nothing is
+chosen: the SD 3 MMDiT's `StableDiffusion3JointAttention` defaults to `"fused"` because of the sequence
+length above; every other layer defaults to `"sdpa"`. An explicit choice always wins over a
+layer default. Outside `from_weights`, `zeromodels.base.base_attention.use_attn_implementation("fused")`
+wraps a build or a forward the same way.
 
 See also [Utilities](utils.md) for the image, video, visualization, and label helpers.

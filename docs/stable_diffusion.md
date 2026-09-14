@@ -28,10 +28,11 @@ Key facts of the port:
   Weights are layout-independent, so one hosted checkpoint serves both, and the
   converter is a `(O, I, H, W) -> (H, W, I, O)` kernel transpose and nothing else.
 - **Block-level layers**: the UNet and VAE are built from composite Keras layers
-  (`ResnetBlock2D`, `Transformer2DModel`, `CrossAttention`, ...). A functional graph keeps
-  every node's output alive until the forward ends, and at 512px the UNet's per-op
-  intermediates (4096x4096 attention maps above all) would need several GB; a layer's
-  internals are freed when its call returns.
+  (`StableDiffusionResnetBlock2D`, `StableDiffusionTransformer2DModel`,
+  `StableDiffusionCrossAttention`, ...). A functional graph keeps every node's output
+  alive until the forward ends, and at 512px the UNet's per-op intermediates (4096x4096
+  attention maps above all) would need several GB; a layer's internals are freed when
+  its call returns.
 - **Schedulers match diffusers to the bit**: the training noise schedule is built in
   float32 the way torch does it, so `alphas_cumprod` and the Euler sigmas are identical
   and a 50-step run stays within float rounding of the reference.
@@ -347,4 +348,4 @@ The five hosted checkpoints are the supported weights; any repo laid out like th
 loads with `from_weights("<org>/<repo>")`. The `hf:` prefix raises for diffusion models:
 convert a diffusers-format checkpoint once with
 `zeromodels/models/stable_diffusion/convert_stable_diffusion_diffusers_to_keras.py`
-(`build_from_diffusers(repo)`, `pip install zeromodels[conversion]`) and host the result.
+(`transfer_stable_diffusion(repo)`, `pip install zeromodels[conversion]`) and host the result.
