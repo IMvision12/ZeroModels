@@ -156,14 +156,24 @@ The refiner task: the same class over the refiner container (`text_encoder_2` al
 refiner was not trained for. The two intended uses:
 
 ```python
-base = StableDiffusionXLTextToImage.from_weights("zeromodels/stable-diffusion-xl-base-1.0")
-refiner = StableDiffusionXLRefinerImageToImage.from_weights("zeromodels/stable-diffusion-xl-refiner-1.0")
-tokenizer = StableDiffusionXLTokenizer.from_weights("zeromodels/stable-diffusion-xl-base-1.0")
+base = StableDiffusionXLTextToImage.from_weights(
+    "zeromodels/stable-diffusion-xl-base-1.0"
+)
+refiner = StableDiffusionXLRefinerImageToImage.from_weights(
+    "zeromodels/stable-diffusion-xl-refiner-1.0"
+)
+tokenizer = StableDiffusionXLTokenizer.from_weights(
+    "zeromodels/stable-diffusion-xl-base-1.0"
+)
 inputs = tokenizer("a lighthouse on a rocky coast at dawn, dramatic clouds, cinematic")
 
 # ensemble of experts: the base denoises 80% of the schedule, the refiner the rest
-latent = base.generate(**inputs, num_inference_steps=50, denoising_end=0.8, output_type="latent")
-images = refiner.generate(**inputs, latents=latent, num_inference_steps=50, denoising_start=0.8)
+latent = base.generate(
+    **inputs, num_inference_steps=50, denoising_end=0.8, output_type="latent"
+)
+images = refiner.generate(
+    **inputs, latents=latent, num_inference_steps=50, denoising_start=0.8
+)
 
 # image-to-image: refine any image (uint8 or [0, 1] float, (batch, H, W, 3))
 images = refiner.generate(**inputs, image=images, strength=0.3, seed=0)
@@ -197,7 +207,9 @@ container without the first tower (`token_ids_2` + `padding_mask` in, `prompt_em
 to `generate`.
 
 ```python
-StableDiffusionXLTokenizer(hf_id=None, tokenizer_file=None, max_seq_len=77, pad_token="<|endoftext|>")
+StableDiffusionXLTokenizer(
+    hf_id=None, tokenizer_file=None, max_seq_len=77, pad_token="<|endoftext|>"
+)
 ```
 
 A literal `!` in a prompt is encoded as OpenCLIP encodes it (the BPE token `!</w>`, id
@@ -217,8 +229,12 @@ from zeromodels.models.stable_diffusion_xl import (
     StableDiffusionXLTokenizer,
 )
 
-model = StableDiffusionXLTextToImage.from_weights("zeromodels/stable-diffusion-xl-base-1.0")
-tokenizer = StableDiffusionXLTokenizer.from_weights("zeromodels/stable-diffusion-xl-base-1.0")
+model = StableDiffusionXLTextToImage.from_weights(
+    "zeromodels/stable-diffusion-xl-base-1.0"
+)
+tokenizer = StableDiffusionXLTokenizer.from_weights(
+    "zeromodels/stable-diffusion-xl-base-1.0"
+)
 
 inputs = tokenizer(
     "a lighthouse on a rocky coast at dawn, dramatic clouds, cinematic, highly detailed"
@@ -236,9 +252,15 @@ The SDXL "ensemble of experts": the base runs the first 80% of the schedule and 
 latent to the refiner, which finishes it. Same prompt and initial latent as above:
 
 ```python
-refiner = StableDiffusionXLRefinerImageToImage.from_weights("zeromodels/stable-diffusion-xl-refiner-1.0")
-latent = model.generate(**inputs, num_inference_steps=30, denoising_end=0.8, output_type="latent", seed=3)
-images = refiner.generate(**inputs, latents=latent, num_inference_steps=30, denoising_start=0.8)
+refiner = StableDiffusionXLRefinerImageToImage.from_weights(
+    "zeromodels/stable-diffusion-xl-refiner-1.0"
+)
+latent = model.generate(
+    **inputs, num_inference_steps=30, denoising_end=0.8, output_type="latent", seed=3
+)
+images = refiner.generate(
+    **inputs, latents=latent, num_inference_steps=30, denoising_start=0.8
+)
 ```
 
 <img src="../assets/stable_diffusion_xl_refiner_lighthouse.jpg" alt="Stable Diffusion XL base + refiner: the lighthouse, refined" width="380">
@@ -250,7 +272,11 @@ One step, no guidance, 512px (the repo's defaults):
 ```python
 model = StableDiffusionXLTextToImage.from_weights("zeromodels/sdxl-turbo")
 tokenizer = StableDiffusionXLTokenizer.from_weights("zeromodels/sdxl-turbo")
-images = model.generate(**tokenizer("a cinematic shot of a baby raccoon wearing an intricate italian priest robe"))
+images = model.generate(
+    **tokenizer(
+        "a cinematic shot of a baby raccoon wearing an intricate italian priest robe"
+    )
+)
 ```
 
 <img src="../assets/stable_diffusion_xl_turbo_raccoon.jpg" alt="SDXL-Turbo, one step: a baby raccoon in an italian priest robe, 512px" width="380">
@@ -277,7 +303,9 @@ The graphs are built for the repo's resolution; pass overrides to build for anot
 
 ```python
 model = StableDiffusionXLTextToImage.from_weights(
-    "zeromodels/stable-diffusion-xl-base-1.0", unet_sample_size=(96, 128), vae_sample_size=(768, 1024)
+    "zeromodels/stable-diffusion-xl-base-1.0",
+    unet_sample_size=(96, 128),
+    vae_sample_size=(768, 1024),
 )
 images = model.generate(**tokenizer("a wide mountain valley"))  # (1, 768, 1024, 3)
 ```
@@ -341,8 +369,12 @@ returns, so the decoder's feature maps at 1024px add several GB on top of the we
 16 GB GPU runs 1024px comfortably, a 12 GB GPU 768px; on 8 GB, generate at 512px, or
 denoise on the GPU (`output_type="latent"`) and decode the latent on the CPU (about 100 s
 at 1024px) with a second, CPU-only process. In float32 the weights alone take 13.9 GB.
-On JAX and TensorFlow the denoiser step is compiled once per run (see
-[`BaseDiffusion`](main_classes.md#basediffusion)).
+The UNet's attention runs the portable `"sdpa"` math by default, which materializes the
+4096 x 4096 float32 logits of the 64 x 64 level at 1024px; loading with
+`attn_implementation="fused"` (the backend's fused kernel, see
+[`fused_attention`](main_classes.md#fused_attention)) cuts the 1024px step from a 10.3 GB
+peak to 7.6 GB on the same GPU. On JAX and TensorFlow the denoiser step is compiled once
+per run (see [`BaseDiffusion`](main_classes.md#basediffusion)).
 
 ## Loading Fine-tuned Weights
 
@@ -351,4 +383,4 @@ Any repo laid out like the hosted ones (`zm_config.json` declaring
 `from_weights("<org>/<repo>")`. The `hf:` prefix raises for diffusion models: convert a
 diffusers-format SDXL checkpoint once with
 `zeromodels/models/stable_diffusion_xl/convert_stable_diffusion_xl_diffusers_to_keras.py`
-(`build_from_diffusers(repo)`, `pip install zeromodels[conversion]`) and host the result.
+(`transfer_stable_diffusion_xl(repo)`, `pip install zeromodels[conversion]`) and host the result.

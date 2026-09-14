@@ -7,10 +7,6 @@ from zeromodels.base.base_mixin import build_dtype_scope
 from zeromodels.base.base_scheduler import PNDMScheduler, get_scheduler
 from zeromodels.models.clip import CLIPTextModel
 
-from .convert_stable_diffusion_diffusers_to_keras import (
-    RenamedStateDict,
-    transfer_component,
-)
 from .stable_diffusion_config import (
     AutoencoderKLConfig,
     StableDiffusionConfig,
@@ -18,11 +14,11 @@ from .stable_diffusion_config import (
 )
 from .stable_diffusion_layers import (
     GROUP_EPS,
-    Downsample2D,
-    ResnetBlock2D,
-    Transformer2DModel,
-    Upsample2D,
-    VaeAttentionBlock,
+    StableDiffusionDownsample2D,
+    StableDiffusionResnetBlock2D,
+    StableDiffusionTransformer2DModel,
+    StableDiffusionUpsample2D,
+    StableDiffusionVaeAttentionBlock,
     group_norm,
     safe_name,
     time_embedding_mlp,
@@ -172,7 +168,7 @@ class UNet2DConditionModel(BaseModel):
         for i, block_type in enumerate(down_block_types):
             out_ch = block_out_channels[i]
             for j in range(layers_per_block):
-                sample = ResnetBlock2D(
+                sample = StableDiffusionResnetBlock2D(
                     out_ch,
                     module_path=f"down_blocks.{i}.resnets.{j}",
                     groups=norm_num_groups,
@@ -180,7 +176,7 @@ class UNet2DConditionModel(BaseModel):
                     channels_axis=channels_axis,
                 )([sample, temb])
                 if block_type == CROSS_ATTN_DOWN:
-                    sample = Transformer2DModel(
+                    sample = StableDiffusionTransformer2DModel(
                         out_ch,
                         heads_per_level[i],
                         module_path=f"down_blocks.{i}.attentions.{j}",
@@ -192,7 +188,7 @@ class UNet2DConditionModel(BaseModel):
                     )([sample, context])
                 skips.append(sample)
             if i != len(down_block_types) - 1:
-                sample = Downsample2D(
+                sample = StableDiffusionDownsample2D(
                     out_ch,
                     module_path=f"down_blocks.{i}.downsamplers.0",
                     data_format=data_format,
@@ -201,14 +197,14 @@ class UNet2DConditionModel(BaseModel):
                 skips.append(sample)
 
         mid_ch = block_out_channels[-1]
-        sample = ResnetBlock2D(
+        sample = StableDiffusionResnetBlock2D(
             mid_ch,
             module_path="mid_block.resnets.0",
             groups=norm_num_groups,
             data_format=data_format,
             channels_axis=channels_axis,
         )([sample, temb])
-        sample = Transformer2DModel(
+        sample = StableDiffusionTransformer2DModel(
             mid_ch,
             heads_per_level[-1],
             module_path="mid_block.attentions.0",
@@ -218,7 +214,7 @@ class UNet2DConditionModel(BaseModel):
             data_format=data_format,
             channels_axis=channels_axis,
         )([sample, context])
-        sample = ResnetBlock2D(
+        sample = StableDiffusionResnetBlock2D(
             mid_ch,
             module_path="mid_block.resnets.1",
             groups=norm_num_groups,
@@ -233,7 +229,7 @@ class UNet2DConditionModel(BaseModel):
             out_ch = reversed_channels[i]
             for j in range(layers_per_block + 1):
                 sample = layers.Concatenate(axis=channels_axis)([sample, skips.pop()])
-                sample = ResnetBlock2D(
+                sample = StableDiffusionResnetBlock2D(
                     out_ch,
                     module_path=f"up_blocks.{i}.resnets.{j}",
                     groups=norm_num_groups,
@@ -241,7 +237,7 @@ class UNet2DConditionModel(BaseModel):
                     channels_axis=channels_axis,
                 )([sample, temb])
                 if block_type == CROSS_ATTN_UP:
-                    sample = Transformer2DModel(
+                    sample = StableDiffusionTransformer2DModel(
                         out_ch,
                         reversed_heads[i],
                         module_path=f"up_blocks.{i}.attentions.{j}",
@@ -252,7 +248,7 @@ class UNet2DConditionModel(BaseModel):
                         channels_axis=channels_axis,
                     )([sample, context])
             if i != len(up_block_types) - 1:
-                sample = Upsample2D(
+                sample = StableDiffusionUpsample2D(
                     out_ch,
                     module_path=f"up_blocks.{i}.upsamplers.0",
                     data_format=data_format,
@@ -356,10 +352,6 @@ class UNet2DConditionModel(BaseModel):
             )
         return kwargs
 
-    @classmethod
-    def transfer_from_hf(cls, keras_model, state_dict):
-        transfer_component(keras_model, state_dict)
-
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -390,8 +382,8 @@ class UNet2DConditionModel(BaseModel):
 
 
 def vae_resnet(channels, module_path, groups, data_format, channels_axis):
-    """A VAE ``ResnetBlock2D``: no timestep conditioning, GroupNorm eps 1e-6."""
-    return ResnetBlock2D(
+    """A VAE ``StableDiffusionResnetBlock2D``: no timestep conditioning, GroupNorm eps 1e-6."""
+    return StableDiffusionResnetBlock2D(
         channels,
         module_path=module_path,
         groups=groups,
@@ -444,7 +436,7 @@ def build_vae_encoder(
             )(x)
         if i != len(block_out_channels) - 1:
             # the VAE pads bottom/right only before its stride-2 conv (padding=0)
-            x = Downsample2D(
+            x = StableDiffusionDownsample2D(
                 ch,
                 module_path=f"encoder.down_blocks.{i}.downsamplers.0",
                 padding=0,
@@ -455,7 +447,7 @@ def build_vae_encoder(
     x = vae_resnet(
         mid, "encoder.mid_block.resnets.0", groups, data_format, channels_axis
     )(x)
-    x = VaeAttentionBlock(
+    x = StableDiffusionVaeAttentionBlock(
         mid,
         module_path="encoder.mid_block.attentions.0",
         groups=groups,
@@ -518,7 +510,7 @@ def build_vae_decoder(
     x = vae_resnet(
         mid, "decoder.mid_block.resnets.0", groups, data_format, channels_axis
     )(x)
-    x = VaeAttentionBlock(
+    x = StableDiffusionVaeAttentionBlock(
         mid,
         module_path="decoder.mid_block.attentions.0",
         groups=groups,
@@ -539,7 +531,7 @@ def build_vae_decoder(
                 channels_axis,
             )(x)
         if i != len(reversed_channels) - 1:
-            x = Upsample2D(
+            x = StableDiffusionUpsample2D(
                 ch,
                 module_path=f"decoder.up_blocks.{i}.upsamplers.0",
                 data_format=data_format,
@@ -585,8 +577,11 @@ class AutoencoderKL(BaseModel):
     ``latent_channels`` (4), ``block_out_channels`` ((128, 256, 512, 512)),
     ``layers_per_block`` (2), ``norm_num_groups`` (32), ``sample_size`` (the image
     resolution the encoder/decoder graphs are built for), ``scaling_factor``
-    (0.18215) and ``force_upcast`` (build this VAE in float32 whatever dtype the
-    rest of the model loads in: the SDXL VAE overflows in float16).
+    (0.18215), ``force_upcast`` (build this VAE in float32 whatever dtype the
+    rest of the model loads in: the SDXL VAE overflows in float16),
+    ``shift_factor`` (the SD3 latent offset) and ``use_quant_conv`` /
+    ``use_post_quant_conv`` (the 1x1 convolutions around the latent, absent in the
+    SD3 VAE).
     """
 
     config_class = AutoencoderKLConfig
@@ -603,6 +598,9 @@ class AutoencoderKL(BaseModel):
         sample_size=512,
         scaling_factor=0.18215,
         force_upcast=False,
+        shift_factor=0.0,
+        use_quant_conv=True,
+        use_post_quant_conv=True,
         data_format=None,
         channels_axis=None,
         name="AutoencoderKL",
@@ -642,17 +640,25 @@ class AutoencoderKL(BaseModel):
                 data_format,
                 channels_axis,
             )
-            quant_conv = layers.Conv2D(
-                2 * latent_channels,
-                1,
-                data_format=data_format,
-                name="quant_conv",
+            quant_conv = (
+                layers.Conv2D(
+                    2 * latent_channels,
+                    1,
+                    data_format=data_format,
+                    name="quant_conv",
+                )
+                if use_quant_conv
+                else None
             )
-            post_quant_conv = layers.Conv2D(
-                latent_channels,
-                1,
-                data_format=data_format,
-                name="post_quant_conv",
+            post_quant_conv = (
+                layers.Conv2D(
+                    latent_channels,
+                    1,
+                    data_format=data_format,
+                    name="post_quant_conv",
+                )
+                if use_post_quant_conv
+                else None
             )
 
             image_in = layers.Input(
@@ -667,8 +673,12 @@ class AutoencoderKL(BaseModel):
                 else (h_lat, w_lat, latent_channels),
                 name="latent",
             )
-            moments = quant_conv(encoder(image_in))
-            decoded = decoder(post_quant_conv(latent_in))
+            moments = encoder(image_in)
+            if quant_conv is not None:
+                moments = quant_conv(moments)
+            decoded = decoder(
+                latent_in if post_quant_conv is None else post_quant_conv(latent_in)
+            )
 
             super().__init__(
                 inputs={"image": image_in, "latent": latent_in},
@@ -688,6 +698,9 @@ class AutoencoderKL(BaseModel):
         self.sample_size = sample_size
         self.scaling_factor = scaling_factor
         self.force_upcast = force_upcast
+        self.shift_factor = shift_factor
+        self.use_quant_conv = use_quant_conv
+        self.use_post_quant_conv = use_post_quant_conv
         self.vae_scale_factor = factor
         self.encoder = encoder
         self.decoder = decoder
@@ -695,7 +708,9 @@ class AutoencoderKL(BaseModel):
         self.post_quant_conv = post_quant_conv
 
     def encode(self, image, sample=False, seed=None):
-        moments = self.quant_conv(self.encoder(image))
+        moments = self.encoder(image)
+        if self.quant_conv is not None:
+            moments = self.quant_conv(moments)
         mean, logvar = ops.split(moments, 2, axis=self.channels_axis)
         if not sample:
             return mean
@@ -705,7 +720,9 @@ class AutoencoderKL(BaseModel):
         return mean + std * noise
 
     def decode(self, latent):
-        return self.decoder(self.post_quant_conv(latent))
+        if self.post_quant_conv is not None:
+            latent = self.post_quant_conv(latent)
+        return self.decoder(latent)
 
     def get_config(self):
         config = super().get_config()
@@ -724,12 +741,11 @@ class AutoencoderKL(BaseModel):
             sample_size=sample_size,
             scaling_factor=config.get("scaling_factor", 0.18215),
             force_upcast=config.get("force_upcast", False),
+            shift_factor=config.get("shift_factor") or 0.0,
+            use_quant_conv=config.get("use_quant_conv", True),
+            use_post_quant_conv=config.get("use_post_quant_conv", True),
             **kwargs,
         )
-
-    def transfer_from_hf(self, state_dict):
-        # legacy query/key/value/proj_attn spelling of a raw checkpoint read
-        transfer_component(self, RenamedStateDict(state_dict))
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
@@ -995,7 +1011,9 @@ class StableDiffusionTextToImage(StableDiffusionModel, BaseDiffusion):
         )["sample"]
 
     def decode_latents(self, latents):
-        image = self.vae.decode(latents / self.vae.scaling_factor)
+        image = self.vae.decode(
+            latents / self.vae.scaling_factor + self.vae.shift_factor
+        )
         if self.data_format == "channels_first":
             image = ops.transpose(image, (0, 2, 3, 1))  # generate() hands out HWC
         return image
@@ -1006,4 +1024,6 @@ class StableDiffusionTextToImage(StableDiffusionModel, BaseDiffusion):
         # noise added for the strength)
         if self.data_format == "channels_first":
             image = ops.transpose(image, (0, 3, 1, 2))  # generate() hands in HWC
-        return self.vae.encode(image) * self.vae.scaling_factor
+        return (
+            self.vae.encode(image) - self.vae.shift_factor
+        ) * self.vae.scaling_factor

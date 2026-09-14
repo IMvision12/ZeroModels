@@ -117,6 +117,10 @@ class AutoencoderKLConfig(BaseConfig):
         force_upcast (`bool`, *optional*, defaults to False):
             Build the VAE in float32 whatever dtype the rest of the model loads in
             (the SDXL VAE overflows in float16).
+        shift_factor (`float`, *optional*, defaults to 0.0):
+            Latent offset applied with the scaling (SD3: ``(z - shift) * scale``).
+        use_quant_conv / use_post_quant_conv (`bool`, *optional*, defaults to True):
+            The 1x1 convolutions around the latent (absent in the SD3 VAE).
 
     Examples:
 
@@ -140,6 +144,9 @@ class AutoencoderKLConfig(BaseConfig):
     sample_size: int = 512
     scaling_factor: float = 0.18215
     force_upcast: bool = False
+    shift_factor: float = 0.0
+    use_quant_conv: bool = True
+    use_post_quant_conv: bool = True
 
 
 class StableDiffusionTextConfig(CLIPTextConfig):

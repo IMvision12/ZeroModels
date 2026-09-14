@@ -51,7 +51,7 @@ def group_norm(x, name, channels_axis, groups=GROUPS, eps=1e-5):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class ResnetBlock2D(layers.Layer):
+class StableDiffusionResnetBlock2D(layers.Layer):
     """Diffusers ``ResnetBlock2D``: GroupNorm/SiLU/conv, additive time embedding,
     GroupNorm/SiLU/conv, plus a 1x1 shortcut when the channel count changes.
 
@@ -187,7 +187,7 @@ class ResnetBlock2D(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class CrossAttention(layers.Layer):
+class StableDiffusionCrossAttention(layers.Layer):
     """Diffusers ``Attention`` (``to_q`` / ``to_k`` / ``to_v`` / ``to_out.0``) over
     ``(B, N, C)`` tokens; self-attention when called without a context.
 
@@ -258,7 +258,7 @@ class CrossAttention(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class GEGLUFeedForward(layers.Layer):
+class StableDiffusionGEGLUFeedForward(layers.Layer):
     """Diffusers ``FeedForward`` with GEGLU: ``proj`` to ``2 * inner`` gated by GELU,
     then back down (``net.0.proj`` / ``net.2``).
 
@@ -302,7 +302,7 @@ class GEGLUFeedForward(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class BasicTransformerBlock(layers.Layer):
+class StableDiffusionBasicTransformerBlock(layers.Layer):
     """Self-attention, cross-attention, GEGLU feed-forward, each pre-normed with a
     residual (diffusers ``BasicTransformerBlock``).
 
@@ -321,15 +321,19 @@ class BasicTransformerBlock(layers.Layer):
         self.norm1 = layers.LayerNormalization(
             epsilon=1e-5, name=safe_name(f"{module_path}.norm1")
         )
-        self.attn1 = CrossAttention(dim, heads, module_path=f"{module_path}.attn1")
+        self.attn1 = StableDiffusionCrossAttention(
+            dim, heads, module_path=f"{module_path}.attn1"
+        )
         self.norm2 = layers.LayerNormalization(
             epsilon=1e-5, name=safe_name(f"{module_path}.norm2")
         )
-        self.attn2 = CrossAttention(dim, heads, module_path=f"{module_path}.attn2")
+        self.attn2 = StableDiffusionCrossAttention(
+            dim, heads, module_path=f"{module_path}.attn2"
+        )
         self.norm3 = layers.LayerNormalization(
             epsilon=1e-5, name=safe_name(f"{module_path}.norm3")
         )
-        self.ff = GEGLUFeedForward(dim, module_path=f"{module_path}.ff")
+        self.ff = StableDiffusionGEGLUFeedForward(dim, module_path=f"{module_path}.ff")
 
     def build(self, input_shape):
         x_shape, context_shape = input_shape
@@ -359,9 +363,9 @@ class BasicTransformerBlock(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class Transformer2DModel(layers.Layer):
+class StableDiffusionTransformer2DModel(layers.Layer):
     """Diffusers ``Transformer2DModel``: GroupNorm, in-proj, ``num_layers``
-    ``BasicTransformerBlock`` over the flattened spatial tokens, out-proj,
+    ``StableDiffusionBasicTransformerBlock`` over the flattened spatial tokens, out-proj,
     residual. ``call([x, context])`` with ``x`` in the active image data format.
 
     Args:
@@ -436,7 +440,7 @@ class Transformer2DModel(layers.Layer):
         # checkpoints' h5 layout follows attribute names); the deeper SDXL stacks
         # add transformer_block_1, transformer_block_2, ...
         for k in range(num_layers):
-            block = BasicTransformerBlock(
+            block = StableDiffusionBasicTransformerBlock(
                 channels, heads, module_path=f"{module_path}.transformer_blocks.{k}"
             )
             setattr(
@@ -517,7 +521,7 @@ class Transformer2DModel(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class Downsample2D(layers.Layer):
+class StableDiffusionDownsample2D(layers.Layer):
     """Strided 3x3 conv downsample (diffusers ``Downsample2D``).
 
     Args:
@@ -605,7 +609,7 @@ class Downsample2D(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class Upsample2D(layers.Layer):
+class StableDiffusionUpsample2D(layers.Layer):
     """Nearest 2x upsample + 3x3 conv (diffusers ``Upsample2D``).
 
     Args:
@@ -673,7 +677,7 @@ class Upsample2D(layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
-class VaeAttentionBlock(layers.Layer):
+class StableDiffusionVaeAttentionBlock(layers.Layer):
     """Single-head spatial self-attention of the VAE mid block: GroupNorm, attention
     over the flattened pixels (biased q/k/v), residual.
 
@@ -712,7 +716,7 @@ class VaeAttentionBlock(layers.Layer):
             epsilon=GROUP_EPS,
             name=safe_name(f"{module_path}.group_norm"),
         )
-        self.attention = CrossAttention(
+        self.attention = StableDiffusionCrossAttention(
             channels,
             heads=1,
             module_path=module_path,

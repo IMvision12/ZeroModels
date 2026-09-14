@@ -210,6 +210,32 @@ def stable_diffusion_xl_refiner_input(
     return inputs
 
 
+def stable_diffusion_3_input(
+    batch_size=2,
+    sample_size=8,
+    image_size=16,
+    max_seq_len=16,
+    text_seq_len=24,
+    joint_attention_dim=24,
+    pooled_dim=24,
+):
+    # the MMDiT takes the text tokens (CLIP + T5 length) at the joint width and
+    # the pooled CLIP embeddings; the VAE and the two CLIP towers as in SDXL
+    return {
+        "sample": ops.ones((batch_size, sample_size, sample_size, 4)),
+        "timestep": ops.ones((batch_size,)),
+        "encoder_hidden_states": ops.ones(
+            (batch_size, text_seq_len, joint_attention_dim)
+        ),
+        "pooled_projections": ops.ones((batch_size, pooled_dim)),
+        "image": ops.ones((batch_size, image_size, image_size, 3)),
+        "latent": ops.ones((batch_size, sample_size, sample_size, 4)),
+        "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "token_ids_2": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "padding_mask": ops.ones((batch_size, max_seq_len), dtype="int32"),
+    }
+
+
 def tips_v2_text_input(batch_size=2, max_seq_len=16):
     return {
         "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),

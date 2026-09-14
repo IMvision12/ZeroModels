@@ -1,10 +1,10 @@
 import numpy as np
 
 from zeromodels.models.stable_diffusion.convert_stable_diffusion_diffusers_to_keras import (
-    build_from_diffusers as build_stable_diffusion_from_diffusers,
+    config_from_diffusers as stable_diffusion_config_from_diffusers,
 )
 from zeromodels.models.stable_diffusion.convert_stable_diffusion_diffusers_to_keras import (
-    config_from_diffusers as stable_diffusion_config_from_diffusers,
+    transfer_stable_diffusion,
 )
 
 # Stable Diffusion 2.x: one architecture, five checkpoints (the 768px ones are
@@ -33,7 +33,7 @@ def config_from_diffusers(repo, token=None):
     )
 
 
-def build_from_diffusers(repo, token=None):
+def transfer_stable_diffusion_2(repo, token=None):
     from zeromodels.models.stable_diffusion_2.stable_diffusion_2_config import (
         StableDiffusion2Config,
     )
@@ -41,7 +41,7 @@ def build_from_diffusers(repo, token=None):
         StableDiffusion2Model,
     )
 
-    return build_stable_diffusion_from_diffusers(
+    return transfer_stable_diffusion(
         repo,
         token=token,
         model_cls=StableDiffusion2Model,
@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
     for variant, source in sources.items():
         print(f"\n{'=' * 60}\nConverting: {variant}  <-  {source}\n{'=' * 60}")
-        model, config = build_from_diffusers(source, token=token)
+        model, config = transfer_stable_diffusion_2(source, token=token)
 
         n_bytes = sum(int(np.prod(w.shape)) * 4 for w in model.weights)
         stem = os.path.join(OUT_DIR, variant.replace("-", "_"))

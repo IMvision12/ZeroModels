@@ -108,3 +108,5 @@ Vision-language encoders, generative VLMs, grounding across detection, OCR, poin
 - [Stable Diffusion](stable_diffusion.md)
 - [Stable Diffusion 2](stable_diffusion_2.md)
 - [Stable Diffusion XL](stable_diffusion_xl.md)
+- [Stable Diffusion 3](stable_diffusion_3.md)
+- [Stable Diffusion 3.5](stable_diffusion_3_5.md)

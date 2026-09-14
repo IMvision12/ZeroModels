@@ -1,10 +1,20 @@
 import collections.abc
 
 import numpy as np
+from tqdm import tqdm
 
+from zeromodels.conversion.exceptions import (
+    WeightMappingError,
+    WeightShapeMismatchError,
+)
+from zeromodels.conversion.weight_split_util import split_model_weights
+from zeromodels.conversion.weight_transfer_util import (
+    compare_keras_torch_names,
+    transfer_weights,
+)
 from zeromodels.models.clip.convert_clip_hf_to_keras import transfer_clip_weights
 from zeromodels.models.stable_diffusion.convert_stable_diffusion_diffusers_to_keras import (
-    numpy_state_dict,
+    WEIGHT_NAME_MAPPING,
 )
 
 # SDXL ships in float16 (the release checkpoints' precision; the diffusers fp32
@@ -40,52 +50,6 @@ class LazyNumpyStateDict(collections.abc.Mapping):
         return len(self.state)
 
 
-def diffusers_configs(repo, token=None):
-    from diffusers import AutoencoderKL, EulerDiscreteScheduler, UNet2DConditionModel
-    from diffusers.pipelines.pipeline_utils import DiffusionPipeline
-    from transformers import CLIPTextConfig, CLIPTokenizerFast
-
-    pipeline = dict(DiffusionPipeline.load_config(repo, token=token))
-    has_text = pipeline.get("text_encoder", [None])[0] is not None  # refiner: no
-    tokenizer_2 = CLIPTokenizerFast.from_pretrained(
-        repo, subfolder="tokenizer_2", token=token
-    )
-    tokenizer = (
-        CLIPTokenizerFast.from_pretrained(repo, subfolder="tokenizer", token=token)
-        if has_text
-        else tokenizer_2
-    )
-    return {
-        "unet": dict(
-            UNet2DConditionModel.load_config(repo, subfolder="unet", token=token)
-        ),
-        "vae": dict(AutoencoderKL.load_config(repo, subfolder="vae", token=token)),
-        "text": CLIPTextConfig.from_pretrained(
-            repo, subfolder="text_encoder", token=token
-        ).to_dict()
-        if has_text
-        else None,
-        "text_2": CLIPTextConfig.from_pretrained(
-            repo, subfolder="text_encoder_2", token=token
-        ).to_dict(),
-        "scheduler": dict(
-            EulerDiscreteScheduler.load_config(repo, subfolder="scheduler", token=token)
-        ),
-        "force_zeros_for_empty_prompt": bool(
-            pipeline.get("force_zeros_for_empty_prompt", True)
-        ),
-        "requires_aesthetics_score": bool(
-            pipeline.get("requires_aesthetics_score", False)
-        ),
-        "tokens": {
-            "bos_token_id": tokenizer.bos_token_id,
-            "eos_token_id": tokenizer.eos_token_id,
-            "pad_token_id": tokenizer.pad_token_id,
-            "pad_token_id_2": tokenizer_2.pad_token_id,
-        },
-    }
-
-
 def text_config_kwargs(text):
     hidden = text["hidden_size"]
     return {
@@ -99,23 +63,53 @@ def text_config_kwargs(text):
 
 
 def config_from_diffusers(repo, token=None):
+    from diffusers import AutoencoderKL, EulerDiscreteScheduler, UNet2DConditionModel
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline
+    from transformers import CLIPTextConfig, CLIPTokenizerFast
+
     from zeromodels.models.stable_diffusion.stable_diffusion_model import (
-        UNet2DConditionModel,
+        UNet2DConditionModel as KerasUNet2DConditionModel,
     )
     from zeromodels.models.stable_diffusion_xl.stable_diffusion_xl_config import (
         StableDiffusionXLConfig,
         StableDiffusionXLRefinerConfig,
     )
 
-    src = diffusers_configs(repo, token=token)
-    unet, vae, text, text_2 = src["unet"], src["vae"], src["text"], src["text_2"]
+    pipeline = dict(DiffusionPipeline.load_config(repo, token=token))
+    has_text = pipeline.get("text_encoder", [None])[0] is not None  # refiner: no
+    force_zeros_for_empty_prompt = bool(
+        pipeline.get("force_zeros_for_empty_prompt", True)
+    )
+    requires_aesthetics_score = bool(pipeline.get("requires_aesthetics_score", False))
+    unet = dict(UNet2DConditionModel.load_config(repo, subfolder="unet", token=token))
+    vae = dict(AutoencoderKL.load_config(repo, subfolder="vae", token=token))
+    text = (
+        CLIPTextConfig.from_pretrained(
+            repo, subfolder="text_encoder", token=token
+        ).to_dict()
+        if has_text
+        else None
+    )
+    text_2 = CLIPTextConfig.from_pretrained(
+        repo, subfolder="text_encoder_2", token=token
+    ).to_dict()
     scheduler = {
         k: v
-        for k, v in src["scheduler"].items()
+        for k, v in EulerDiscreteScheduler.load_config(
+            repo, subfolder="scheduler", token=token
+        ).items()
         if k == "_class_name" or not k.startswith("_")
     }
-    unet_kwargs = UNet2DConditionModel.kwargs_from_diffusers_config(unet)
-    if src["requires_aesthetics_score"]:
+    tokenizer_2 = CLIPTokenizerFast.from_pretrained(
+        repo, subfolder="tokenizer_2", token=token
+    )
+    tokenizer = (
+        CLIPTokenizerFast.from_pretrained(repo, subfolder="tokenizer", token=token)
+        if has_text
+        else tokenizer_2
+    )
+    unet_kwargs = KerasUNet2DConditionModel.kwargs_from_diffusers_config(unet)
+    if requires_aesthetics_score:
         # size (2) + crop (2) + aesthetic score (1) next to the pooled embedding
         unet_kwargs["num_time_ids"] = 5
     config_cls = (
@@ -144,21 +138,26 @@ def config_from_diffusers(repo, token=None):
         hidden_act=(text or {}).get("hidden_act", "quick_gelu"),
         layer_norm_eps=(text or text_2).get("layer_norm_eps", 1e-5),
         scheduler_config=scheduler,
-        force_zeros_for_empty_prompt=src["force_zeros_for_empty_prompt"],
-        requires_aesthetics_score=src["requires_aesthetics_score"],
-        **src["tokens"],
+        force_zeros_for_empty_prompt=force_zeros_for_empty_prompt,
+        requires_aesthetics_score=requires_aesthetics_score,
+        bos_token_id=tokenizer.bos_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+        pad_token_id=tokenizer.pad_token_id,
+        pad_token_id_2=tokenizer_2.pad_token_id,
     )
 
 
 def transfer_text_encoder(keras_model, hf_module):
     state = {
         k if k.startswith(("text_model.", "text_projection.")) else f"text_model.{k}": v
-        for k, v in numpy_state_dict(hf_module).items()
+        for k, v in {
+            k: v.detach().cpu().numpy() for k, v in hf_module.state_dict().items()
+        }.items()
     }
     transfer_clip_weights(keras_model, state)
 
 
-def build_from_diffusers(repo, token=None, dtype="float16"):
+def transfer_stable_diffusion_xl(repo, token=None, dtype="float16"):
     import gc
 
     import torch
@@ -167,9 +166,6 @@ def build_from_diffusers(repo, token=None, dtype="float16"):
     from transformers import CLIPTextModel, CLIPTextModelWithProjection
 
     from zeromodels.base.base_mixin import build_dtype_scope
-    from zeromodels.models.stable_diffusion.stable_diffusion_model import (
-        UNet2DConditionModel,
-    )
     from zeromodels.models.stable_diffusion_xl.stable_diffusion_xl_model import (
         StableDiffusionXLModel,
         StableDiffusionXLRefinerModel,
@@ -186,15 +182,67 @@ def build_from_diffusers(repo, token=None, dtype="float16"):
     fp16 = {"torch_dtype": torch.float16, "variant": "fp16", "token": token}
     fp32 = {"torch_dtype": torch.float32, "token": token}
 
-    unet = DiffusersUNet2DConditionModel.from_pretrained(repo, subfolder="unet", **fp16)
-    UNet2DConditionModel.transfer_from_hf(model.unet, LazyNumpyStateDict(unet))
-    del unet
-    gc.collect()
-
-    vae = DiffusersAutoencoderKL.from_pretrained(repo, subfolder="vae", **fp32)
-    model.vae.transfer_from_hf(numpy_state_dict(vae))
-    del vae
-    gc.collect()
+    # the UNet (2.6B parameters: read tensor by tensor, no second in-memory copy)
+    # and the VAE: every keras weight's <layer>/<variable> maps to the diffusers key
+    # through WEIGHT_NAME_MAPPING. The SD 1.x era VAE files spell the mid-block
+    # attention query / key / value / proj_attn (diffusers renames them on load, a
+    # raw checkpoint read keeps them)
+    legacy = {
+        ".query.": ".to_q.",
+        ".key.": ".to_k.",
+        ".value.": ".to_v.",
+        ".proj_attn.": ".to_out.0.",
+    }
+    for component, module_cls, subfolder, load, lazy in (
+        (model.unet, DiffusersUNet2DConditionModel, "unet", fp16, True),
+        (model.vae, DiffusersAutoencoderKL, "vae", fp32, False),
+    ):
+        module = module_cls.from_pretrained(repo, subfolder=subfolder, **load)
+        if lazy:
+            state = LazyNumpyStateDict(module)
+        else:
+            state = {}
+            for key, value in module.state_dict().items():
+                if ".attentions." in key:
+                    for old, new in legacy.items():
+                        key = key.replace(old, new)
+                state[key] = value.detach().cpu().numpy()
+        del module
+        consumed = set()
+        trainable, non_trainable = split_model_weights(component)
+        for keras_weight, _ in tqdm(
+            trainable + non_trainable, desc=f"Transferring {subfolder} weights to Keras"
+        ):
+            key = "/".join(keras_weight.path.split("/")[-2:])
+            for old, new in WEIGHT_NAME_MAPPING.items():
+                key = key.replace(old, new)
+            consumed.add(key)
+            if key not in state:
+                raise WeightMappingError(keras_weight.path, key)
+            torch_weight = state[key]
+            if not compare_keras_torch_names(
+                keras_weight.path, keras_weight, key, torch_weight
+            ):
+                raise WeightShapeMismatchError(
+                    keras_weight.path, keras_weight.shape, key, torch_weight.shape
+                )
+            if key.startswith(("time_embedding.", "add_embedding.")) and (
+                keras_weight.ndim == 2
+            ):
+                # transfer_weights treats any "embedding" 2D weight as a lookup
+                # table; the timestep / added-conditioning MLPs' linears are dense
+                # kernels
+                keras_weight.assign(np.transpose(torch_weight))
+                continue
+            transfer_weights(key, keras_weight, torch_weight)
+        unused = sorted(set(state) - consumed)
+        if unused:
+            raise ValueError(
+                f"{type(component).__name__}: {len(unused)} checkpoint tensors "
+                f"unused, e.g. {unused[:3]}."
+            )
+        del state
+        gc.collect()
 
     if config.text_config is not None:
         text_encoder = CLIPTextModel.from_pretrained(
@@ -232,7 +280,7 @@ if __name__ == "__main__":
 
     for variant, source in sources.items():
         print(f"\n{'=' * 60}\nConverting: {variant}  <-  {source}\n{'=' * 60}")
-        model, config = build_from_diffusers(source, token=token)
+        model, config = transfer_stable_diffusion_xl(source, token=token)
 
         n_bytes = sum(
             int(np.prod(w.shape)) * np.dtype(w.dtype).itemsize for w in model.weights

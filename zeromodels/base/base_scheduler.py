@@ -486,11 +486,92 @@ class EulerAncestralDiscreteScheduler(EulerDiscreteScheduler):
         return prev_sample
 
 
+class FlowMatchEulerDiscreteScheduler(BaseScheduler):
+    """Euler sampler for rectified-flow models (Stable Diffusion 3 / 3.5, FLUX).
+
+    There is no beta schedule: the noise level is the flow time ``sigma`` in
+    ``[0, 1]`` (``x_t = (1 - sigma) x_0 + sigma * noise``), the model predicts the
+    velocity and a step is ``x + (sigma_next - sigma) * v``. The timesteps handed to
+    the model are ``sigma * num_train_timesteps``.
+
+    Args:
+        num_train_timesteps: The flow time resolution (1000).
+        shift: Timestep shift towards noisier levels, ``shift * s / (1 + (shift - 1) s)``
+            (3.0 for SD3 / SD3.5).
+    """
+
+    def __init__(self, num_train_timesteps=1000, shift=1.0, **kwargs):
+        # the base (beta) schedule is irrelevant here; keep the constructor
+        # compatible with from_config (a repo's scheduler_config may carry extra keys)
+        super().__init__(num_train_timesteps=num_train_timesteps)
+        self.shift = shift
+        timesteps = np.linspace(
+            1, num_train_timesteps, num_train_timesteps, dtype=np.float32
+        )[::-1].copy()
+        sigmas = timesteps / np.float32(num_train_timesteps)
+        sigmas = self.shift_sigmas(sigmas)
+        self.sigma_min = float(sigmas[-1])
+        self.sigma_max = float(sigmas[0])
+        self.sigmas = sigmas
+        self.timesteps = sigmas * np.float32(num_train_timesteps)
+        self.step_index = 0
+
+    def shift_sigmas(self, sigmas):
+        shift = np.float32(self.shift)
+        return (shift * sigmas / (1 + (shift - 1) * sigmas)).astype(np.float32)
+
+    @property
+    def init_noise_sigma(self):
+        return 1.0
+
+    def set_begin_index(self, index):
+        self.step_index = int(index)
+
+    def set_timesteps(self, num_inference_steps):
+        self.num_inference_steps = num_inference_steps
+        n_train = self.num_train_timesteps
+        timesteps = np.linspace(
+            self.sigma_max * n_train, self.sigma_min * n_train, num_inference_steps
+        )
+        sigmas = timesteps / n_train
+        sigmas = self.shift * sigmas / (1 + (self.shift - 1) * sigmas)
+        sigmas = sigmas.astype(np.float32)
+        self.sigmas = np.concatenate([sigmas, [0.0]]).astype(np.float32)
+        self.timesteps = sigmas * np.float32(n_train)
+        self.step_index = 0
+        return self.timesteps
+
+    def add_noise(self, original_samples, noise, timesteps):
+        # the forward flow: x_t = (1 - sigma) x_0 + sigma * noise
+        timesteps = np.asarray(timesteps, dtype=np.float32).reshape(-1)
+        index = [int(np.nonzero(self.timesteps == t)[0][0]) for t in timesteps]
+        sigma = self.sigmas[index]
+        while sigma.ndim < len(ops.shape(original_samples)):
+            sigma = sigma[..., None]
+        sigma = ops.convert_to_tensor(sigma, dtype=original_samples.dtype)
+        return sigma * noise + (1.0 - sigma) * original_samples
+
+    def step(self, model_output, timestep, sample, **kwargs):
+        sigma = self.sigmas[self.step_index]
+        sigma_next = self.sigmas[self.step_index + 1]
+        prev_sample = sample + (sigma_next - sigma) * model_output
+        self.step_index += 1
+        return prev_sample
+
+    def to_config(self):
+        return {
+            "_class_name": type(self).__name__,
+            "num_train_timesteps": self.num_train_timesteps,
+            "shift": self.shift,
+        }
+
+
 SCHEDULER_REGISTRY = {
     "DDIMScheduler": DDIMScheduler,
     "PNDMScheduler": PNDMScheduler,
     "EulerDiscreteScheduler": EulerDiscreteScheduler,
     "EulerAncestralDiscreteScheduler": EulerAncestralDiscreteScheduler,
+    "FlowMatchEulerDiscreteScheduler": FlowMatchEulerDiscreteScheduler,
 }
 
 

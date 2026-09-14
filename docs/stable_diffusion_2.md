@@ -110,7 +110,9 @@ The components are the SD 1.x classes, `UNet2DConditionModel` (built with
 `{"input_ids", "attention_mask"}`.
 
 ```python
-StableDiffusion2Tokenizer(hf_id=None, tokenizer_file=None, max_seq_len=77, pad_token="!")
+StableDiffusion2Tokenizer(
+    hf_id=None, tokenizer_file=None, max_seq_len=77, pad_token="!"
+)
 ```
 
 ## End-to-end example
@@ -127,7 +129,9 @@ from zeromodels.models.stable_diffusion_2 import (
 )
 
 model = StableDiffusion2TextToImage.from_weights("zeromodels/stable-diffusion-2-1-base")
-tokenizer = StableDiffusion2Tokenizer.from_weights("zeromodels/stable-diffusion-2-1-base")
+tokenizer = StableDiffusion2Tokenizer.from_weights(
+    "zeromodels/stable-diffusion-2-1-base"
+)
 
 inputs = tokenizer(
     "a steaming bowl of ramen on a wooden table, food photography, shallow depth of field"
@@ -147,7 +151,9 @@ The 768px checkpoints need no extra arguments; the v-prediction DDIM scheduler a
 ```python
 model = StableDiffusion2TextToImage.from_weights("zeromodels/stable-diffusion-2-1")
 tokenizer = StableDiffusion2Tokenizer.from_weights("zeromodels/stable-diffusion-2-1")
-images = model.generate(**tokenizer("a lighthouse on a cliff at dusk, oil painting"))  # (1, 768, 768, 3)
+images = model.generate(
+    **tokenizer("a lighthouse on a cliff at dusk, oil painting")
+)  # (1, 768, 768, 3)
 ```
 
 ### SD-Turbo
@@ -157,7 +163,11 @@ One step, no guidance (the repo's defaults; up to 4 steps sharpen a little):
 ```python
 model = StableDiffusion2TextToImage.from_weights("zeromodels/sd-turbo")
 tokenizer = StableDiffusion2Tokenizer.from_weights("zeromodels/sd-turbo")
-images = model.generate(**tokenizer("a cinematic shot of a baby raccoon wearing an intricate italian priest robe"))
+images = model.generate(
+    **tokenizer(
+        "a cinematic shot of a baby raccoon wearing an intricate italian priest robe"
+    )
+)
 ```
 
 <img src="../assets/stable_diffusion_2_sd_turbo_raccoon.jpg" alt="SD-Turbo, one step: a baby raccoon in an italian priest robe, 512px" width="380">
@@ -210,4 +220,4 @@ Any repo laid out like the hosted ones (`zm_config.json` declaring
 `from_weights("<org>/<repo>")`. The `hf:` prefix raises for diffusion models: convert a
 diffusers-format SD 2 checkpoint once with
 `zeromodels/models/stable_diffusion_2/convert_stable_diffusion_2_diffusers_to_keras.py`
-(`build_from_diffusers(repo)`, `pip install zeromodels[conversion]`) and host the result.
+(`transfer_stable_diffusion_2(repo)`, `pip install zeromodels[conversion]`) and host the result.

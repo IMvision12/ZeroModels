@@ -264,10 +264,13 @@ class WeightLoadingMixin:
                 backbone. Applied on both the repo-id ``zm_config.json`` load
                 path and the ``hf:`` / variant converter transfer path
                 (mismatched targets left at init).
-            attn_implementation: ``"sdpa"`` (portable manual math, the default)
-                or ``"flash"`` (``keras.ops.dot_product_attention`` with the
-                flash kernel; needs a flash-capable GPU/TPU and fp16/bf16). Set
-                before the model is built.
+            attn_implementation: ``"sdpa"`` (portable manual math, the default
+                of most layers), ``"fused"`` (``keras.ops.dot_product_attention``
+                with the backend's own kernel selection: torch's flash /
+                memory-efficient kernels, XLA on JAX; the SD 3 MMDiT's default)
+                or ``"flash"`` (the flash kernel; needs a flash-capable GPU/TPU
+                and fp16/bf16). ``None`` leaves every layer at its own default.
+                Set before the model is built.
             quantization: ``None`` (default), ``"int8"``, ``"int4"`` or
                 ``"fp8"`` (or a :class:`~zeromodels.quantization.\
 QuantizationConfig` / scheme). When set, the model is quantized weight-only:
@@ -314,9 +317,7 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                 f"attn_implementation must be one of "
                 f"{base_attention.VALID_ATTN_IMPL}, got {attn_implementation!r}"
             )
-        resolved_attn = (
-            attn_implementation or base_attention.DEFAULT_ATTN_IMPLEMENTATION
-        )
+        resolved_attn = attn_implementation
 
         if load_dtype is None:
             load_dtype = cls.hub_repo_weight_dtype(identifier)

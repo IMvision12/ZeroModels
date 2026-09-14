@@ -1,4 +1,4 @@
-import collections.abc
+from typing import Dict
 
 import numpy as np
 from tqdm import tqdm
@@ -10,7 +10,6 @@ from zeromodels.conversion.exceptions import (
 from zeromodels.conversion.weight_split_util import split_model_weights
 from zeromodels.conversion.weight_transfer_util import (
     compare_keras_torch_names,
-    transfer_attention_weights,
     transfer_weights,
 )
 
@@ -22,156 +21,48 @@ STABLE_DIFFUSION_SOURCES = {
     "stable-diffusion-v1-5": "stable-diffusion-v1-5/stable-diffusion-v1-5",
 }
 
-LEGACY_ATTENTION_KEYS = {
-    ".query.": ".to_q.",
-    ".key.": ".to_k.",
-    ".value.": ".to_v.",
-    ".proj_attn.": ".to_out.0.",
+WEIGHT_NAME_MAPPING: Dict[str, str] = {
+    "__": ".",
+    "/kernel": ".weight",
+    "/gamma": ".weight",
+    "/beta": ".bias",
+    "/scale": ".weight",  # RMSNormalization (the SD 3.5 qk norms)
+    "/": ".",
 }
-
-
-class RenamedStateDict(collections.abc.Mapping):
-    def __init__(self, state_dict):
-        self.state_dict = state_dict
-        self.to_source = {}
-        for key in state_dict:
-            new = key
-            if ".attentions." in key:
-                for old, current in LEGACY_ATTENTION_KEYS.items():
-                    new = new.replace(old, current)
-            self.to_source[new] = key
-
-    def __getitem__(self, key):
-        return self.state_dict[self.to_source[key]]
-
-    def __contains__(self, key):
-        return key in self.to_source
-
-    def __iter__(self):
-        return iter(self.to_source)
-
-    def __len__(self):
-        return len(self.to_source)
-
-
-WEIGHT_SUFFIX = {"kernel": "weight", "bias": "bias", "gamma": "weight", "beta": "bias"}
-
-ATTN_NAME_REPLACE = {
-    "..": ".",
-    "down.blocks": "down_blocks",
-    "up.blocks": "up_blocks",
-    "mid.block": "mid_block",
-    "transformer.blocks": "transformer_blocks",
-    "proj.in": "proj_in",
-    "proj.out": "proj_out",
-    "to.q": "to_q",
-    "to.k": "to_k",
-    "to.v": "to_v",
-    "to.out": "to_out",
-    "group.norm": "group_norm",
-}
-
-
-def torch_key(keras_weight):
-    leaf, variable = keras_weight.path.split("/")[-2:]
-    return f"{leaf.replace('__', '.')}.{WEIGHT_SUFFIX[variable]}"
-
-
-def transfer_component(keras_model, state):
-    consumed = set()
-    trainable, non_trainable = split_model_weights(keras_model)
-
-    for keras_weight, _ in tqdm(
-        trainable + non_trainable, desc="Transferring weights to Keras"
-    ):
-        key = torch_key(keras_weight)
-        consumed.add(key)
-
-        if "attention" in key:
-            transfer_attention_weights(
-                keras_weight.path, keras_weight, state, ATTN_NAME_REPLACE
-            )
-            continue
-
-        if key not in state:
-            raise WeightMappingError(keras_weight.path, key)
-        torch_weight = state[key]
-        if not compare_keras_torch_names(
-            keras_weight.path, keras_weight, key, torch_weight
-        ):
-            raise WeightShapeMismatchError(
-                keras_weight.path, keras_weight.shape, key, torch_weight.shape
-            )
-        if key.startswith(("time_embedding.", "add_embedding.")) and (
-            keras_weight.ndim == 2
-        ):
-            # transfer_weights treats any "embedding" 2D weight as a lookup table;
-            # the timestep / added-conditioning MLPs' linears are dense kernels
-            keras_weight.assign(np.transpose(torch_weight))
-            continue
-        transfer_weights(key, keras_weight, torch_weight)
-
-    unused = sorted(set(state) - consumed)
-    if unused:
-        raise ValueError(
-            f"{type(keras_model).__name__}: {len(unused)} checkpoint tensors unused, "
-            f"e.g. {unused[:3]}."
-        )
-
-
-def numpy_state_dict(module):
-    return {k: v.detach().cpu().numpy() for k, v in module.state_dict().items()}
-
-
-def diffusers_configs(repo, token=None):
-    from diffusers import AutoencoderKL, PNDMScheduler, UNet2DConditionModel
-    from transformers import CLIPTextConfig, CLIPTokenizerFast
-
-    tokenizer = CLIPTokenizerFast.from_pretrained(
-        repo, subfolder="tokenizer", token=token
-    )
-    return {
-        "unet": dict(
-            UNet2DConditionModel.load_config(repo, subfolder="unet", token=token)
-        ),
-        "vae": dict(AutoencoderKL.load_config(repo, subfolder="vae", token=token)),
-        "text": CLIPTextConfig.from_pretrained(
-            repo, subfolder="text_encoder", token=token
-        ).to_dict(),
-        # load_config only reads the json, whichever scheduler the repo declares
-        "scheduler": dict(
-            PNDMScheduler.load_config(repo, subfolder="scheduler", token=token)
-        ),
-        # the pad token differs between checkpoints (<|endoftext|> 49407, "!" 0)
-        "tokens": {
-            "bos_token_id": tokenizer.bos_token_id,
-            "eos_token_id": tokenizer.eos_token_id,
-            "pad_token_id": tokenizer.pad_token_id,
-        },
-    }
 
 
 def config_from_diffusers(repo, token=None, config_cls=None):
+    from diffusers import AutoencoderKL, PNDMScheduler, UNet2DConditionModel
+    from transformers import CLIPTextConfig, CLIPTokenizerFast
+
     from zeromodels.models.stable_diffusion.stable_diffusion_config import (
         StableDiffusionConfig,
     )
-
-    config_cls = config_cls or StableDiffusionConfig
-    src = diffusers_configs(repo, token=token)
-    unet, vae, text = src["unet"], src["vae"], src["text"]
-    scheduler = {
-        k: v
-        for k, v in src["scheduler"].items()
-        if k == "_class_name" or not k.startswith("_")
-    }
-
     from zeromodels.models.stable_diffusion.stable_diffusion_model import (
-        UNet2DConditionModel,
+        UNet2DConditionModel as KerasUNet2DConditionModel,
     )
 
+    config_cls = config_cls or StableDiffusionConfig
+    unet = dict(UNet2DConditionModel.load_config(repo, subfolder="unet", token=token))
+    vae = dict(AutoencoderKL.load_config(repo, subfolder="vae", token=token))
+    text = CLIPTextConfig.from_pretrained(
+        repo, subfolder="text_encoder", token=token
+    ).to_dict()
+    # load_config only reads the json, whichever scheduler the repo declares
+    scheduler = {
+        k: v
+        for k, v in PNDMScheduler.load_config(
+            repo, subfolder="scheduler", token=token
+        ).items()
+        if k == "_class_name" or not k.startswith("_")
+    }
+    # the pad token differs between checkpoints (<|endoftext|> 49407, "!" 0)
+    tokenizer = CLIPTokenizerFast.from_pretrained(
+        repo, subfolder="tokenizer", token=token
+    )
     hidden = text["hidden_size"]
     return config_cls(
-        unet_config=UNet2DConditionModel.kwargs_from_diffusers_config(unet),
+        unet_config=KerasUNet2DConditionModel.kwargs_from_diffusers_config(unet),
         vae_config={
             "in_channels": vae.get("in_channels", 3),
             "out_channels": vae.get("out_channels", 3),
@@ -199,11 +90,13 @@ def config_from_diffusers(repo, token=None, config_cls=None):
         hidden_act=text.get("hidden_act", "quick_gelu"),
         layer_norm_eps=text.get("layer_norm_eps", 1e-5),
         scheduler_config=scheduler,
-        **src["tokens"],
+        bos_token_id=tokenizer.bos_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+        pad_token_id=tokenizer.pad_token_id,
     )
 
 
-def build_from_diffusers(repo, token=None, model_cls=None, config_cls=None):
+def transfer_stable_diffusion(repo, token=None, model_cls=None, config_cls=None):
     import gc
 
     import torch
@@ -214,7 +107,6 @@ def build_from_diffusers(repo, token=None, model_cls=None, config_cls=None):
     from zeromodels.models.clip import CLIPTextModel
     from zeromodels.models.stable_diffusion.stable_diffusion_model import (
         StableDiffusionModel,
-        UNet2DConditionModel,
     )
 
     model_cls = model_cls or StableDiffusionModel
@@ -222,22 +114,68 @@ def build_from_diffusers(repo, token=None, model_cls=None, config_cls=None):
     model = model_cls(config)
     load = {"torch_dtype": torch.float32, "token": token}
 
-    unet = DiffusersUNet2DConditionModel.from_pretrained(repo, subfolder="unet", **load)
-    UNet2DConditionModel.transfer_from_hf(model.unet, numpy_state_dict(unet))
-    del unet
-    gc.collect()
-
-    vae = DiffusersAutoencoderKL.from_pretrained(repo, subfolder="vae", **load)
-    model.vae.transfer_from_hf(numpy_state_dict(vae))
-    del vae
-    gc.collect()
+    # the SD 1.x era VAE files spell the mid-block attention query / key / value /
+    # proj_attn (diffusers renames them on load, a raw checkpoint read keeps them):
+    # map them to the to_q / to_k / to_v / to_out.0 names the layers use
+    legacy = {
+        ".query.": ".to_q.",
+        ".key.": ".to_k.",
+        ".value.": ".to_v.",
+        ".proj_attn.": ".to_out.0.",
+    }
+    for component, module_cls, subfolder in (
+        (model.unet, DiffusersUNet2DConditionModel, "unet"),
+        (model.vae, DiffusersAutoencoderKL, "vae"),
+    ):
+        module = module_cls.from_pretrained(repo, subfolder=subfolder, **load)
+        state = {}
+        for key, value in module.state_dict().items():
+            if subfolder == "vae" and ".attentions." in key:
+                for old, new in legacy.items():
+                    key = key.replace(old, new)
+            state[key] = value.detach().cpu().numpy()
+        del module
+        consumed = set()
+        trainable, non_trainable = split_model_weights(component)
+        for keras_weight, _ in tqdm(
+            trainable + non_trainable, desc=f"Transferring {subfolder} weights to Keras"
+        ):
+            key = "/".join(keras_weight.path.split("/")[-2:])
+            for old, new in WEIGHT_NAME_MAPPING.items():
+                key = key.replace(old, new)
+            consumed.add(key)
+            if key not in state:
+                raise WeightMappingError(keras_weight.path, key)
+            torch_weight = state[key]
+            if not compare_keras_torch_names(
+                keras_weight.path, keras_weight, key, torch_weight
+            ):
+                raise WeightShapeMismatchError(
+                    keras_weight.path, keras_weight.shape, key, torch_weight.shape
+                )
+            if key.startswith("time_embedding.") and keras_weight.ndim == 2:
+                # transfer_weights treats any "embedding" 2D weight as a lookup
+                # table; the timestep MLP's linears are dense kernels
+                keras_weight.assign(np.transpose(torch_weight))
+                continue
+            transfer_weights(key, keras_weight, torch_weight)
+        unused = sorted(set(state) - consumed)
+        if unused:
+            raise ValueError(
+                f"{type(component).__name__}: {len(unused)} checkpoint tensors "
+                f"unused, e.g. {unused[:3]}."
+            )
+        del state
+        gc.collect()
 
     text_encoder = HFCLIPTextModel.from_pretrained(
         repo, subfolder="text_encoder", **load
     )
     text_state = {
         k if k.startswith("text_model.") else f"text_model.{k}": v
-        for k, v in numpy_state_dict(text_encoder).items()
+        for k, v in {
+            k: v.detach().cpu().numpy() for k, v in text_encoder.state_dict().items()
+        }.items()
     }
     CLIPTextModel.transfer_from_hf(model.text_encoder, text_state)
     del text_encoder
@@ -264,7 +202,7 @@ if __name__ == "__main__":
 
     for variant, source in sources.items():
         print(f"\n{'=' * 60}\nConverting: {variant}  <-  {source}\n{'=' * 60}")
-        model, config = build_from_diffusers(source, token=token)
+        model, config = transfer_stable_diffusion(source, token=token)
 
         n_bytes = sum(int(np.prod(w.shape)) * 4 for w in model.weights)
         stem = os.path.join(OUT_DIR, variant.replace("-", "_"))
