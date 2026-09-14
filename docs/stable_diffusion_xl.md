@@ -58,9 +58,8 @@ Links:
 - Paper: [SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis (arXiv:2307.01952)](https://arxiv.org/abs/2307.01952)
 - Reference implementation: [diffusers `StableDiffusionXLPipeline`](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl)
 - Licenses: [CreativeML Open RAIL++-M](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md)
-  (1.0 base and refiner), [SDXL 0.9 Research License](https://huggingface.co/stabilityai/stable-diffusion-xl-base-0.9/blob/main/LICENSE.md)
-  (0.9, gated), [Stability AI Non-Commercial Research Community License](https://huggingface.co/stabilityai/sdxl-turbo/blob/main/LICENSE.md)
-  (Turbo)
+  (1.0 base and refiner), [Stability AI Non-Commercial Research Community License](https://huggingface.co/stabilityai/sdxl-turbo/blob/main/LICENSE.md)
+  (Turbo); the 0.9 research previews are not hosted
 
 See also [stable_diffusion.md](stable_diffusion.md), [stable_diffusion_2.md](stable_diffusion_2.md), [clip.md](clip.md).
 
@@ -76,14 +75,14 @@ UNet (2.26B) + VAE + OpenCLIP text encoder, 3.04B parameters, 5.8 GB.
 |---|---|---|---|---|---|
 | `stable-diffusion-xl-base-1.0` | [`zeromodels/stable-diffusion-xl-base-1.0`](https://huggingface.co/zeromodels/stable-diffusion-xl-base-1.0) | `StableDiffusionXLTextToImage` | 1024 | Euler, 50 steps, guidance 5.0 | CreativeML Open RAIL++-M |
 | `stable-diffusion-xl-refiner-1.0` | [`zeromodels/stable-diffusion-xl-refiner-1.0`](https://huggingface.co/zeromodels/stable-diffusion-xl-refiner-1.0) | `StableDiffusionXLRefinerImageToImage` | 1024 | Euler, 50 steps, guidance 5.0, strength 0.3 | CreativeML Open RAIL++-M |
-| `stable-diffusion-xl-base-0.9` | [`zeromodels/stable-diffusion-xl-base-0.9`](https://huggingface.co/zeromodels/stable-diffusion-xl-base-0.9) | `StableDiffusionXLTextToImage` | 1024 | Euler, 50 steps, guidance 5.0 | SDXL 0.9 Research License (gated) |
-| `stable-diffusion-xl-refiner-0.9` | [`zeromodels/stable-diffusion-xl-refiner-0.9`](https://huggingface.co/zeromodels/stable-diffusion-xl-refiner-0.9) | `StableDiffusionXLRefinerImageToImage` | 1024 | Euler, 50 steps, guidance 5.0, strength 0.3 | SDXL 0.9 Research License (gated) |
 | `sdxl-turbo` | [`zeromodels/sdxl-turbo`](https://huggingface.co/zeromodels/sdxl-turbo) | `StableDiffusionXLTextToImage` | 512 | Euler ancestral, 1 step, no guidance | Stability AI Non-Commercial Research Community |
 
-The 0.9 checkpoints are the research preview that preceded 1.0 (same architecture,
-different weights); their upstream repos are gated behind the research license, so they
-are converted with an authorized `HF_TOKEN`. SDXL-Turbo is a research-only,
-non-commercial release; its repo defaults (`generate_args`) are 1 step and
+The SDXL 0.9 research previews (`stabilityai/stable-diffusion-xl-base-0.9` and
+`-refiner-0.9`, the same architecture with different weights, gated behind the research
+license) are not hosted; with an authorized token the converter turns them into the same
+containers (`transfer_stable_diffusion_xl(repo, token=...)`, see
+[Loading Fine-tuned Weights](#loading-fine-tuned-weights)). SDXL-Turbo is a
+research-only, non-commercial release; its repo defaults (`generate_args`) are 1 step and
 `guidance_scale=0.0`, which is how it was trained (do not add guidance).
 
 ## API
