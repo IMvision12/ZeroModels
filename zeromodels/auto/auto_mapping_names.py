@@ -21,6 +21,7 @@ MODEL_TASK_MAPPING_NAMES = {
         "granite_speech5_ctc": "GraniteSpeech5CTC",
     },
     "ConditionalGenerate": {
+        "bart": "BartConditionalGenerate",
         "deepseek_vl": "DeepseekVLConditionalGenerate",
         "deepseek_vl_hybrid": "DeepseekVLHybridConditionalGenerate",
         "gemma3": "Gemma3ConditionalGenerate",
@@ -145,6 +146,7 @@ MODEL_TASK_MAPPING_NAMES = {
         "xlm_roberta": "XLMRobertaMaskedLM",
     },
     "Model": {
+        "bart": "BartModel",
         "beit": "BeitModel",
         "bert": "BertModel",
         "cait": "CaiTModel",
@@ -307,6 +309,7 @@ MODEL_TASK_MAPPING_NAMES = {
         "detr": "DETRPanopticSegment",
     },
     "QnA": {
+        "bart": "BartQnA",
         "bert": "BertQnA",
         "deberta": "DebertaQnA",
         "deberta_v2": "DebertaV2QnA",
@@ -332,6 +335,7 @@ MODEL_TASK_MAPPING_NAMES = {
         "tipsv2_dpt": "Tipsv2DptSemanticSegment",
     },
     "SequenceClassify": {
+        "bart": "BartSequenceClassify",
         "bert": "BertSequenceClassify",
         "deberta": "DebertaSequenceClassify",
         "deberta_v2": "DebertaV2SequenceClassify",
@@ -490,6 +494,7 @@ AMBIGUOUS_HF_TYPES = {
 
 CONFIG_MAPPING_NAMES = {
     "autoencoder_kl": "AutoencoderKLConfig",
+    "bart": "BartConfig",
     "beit": "BeitConfig",
     "bert": "BertConfig",
     "cait": "CaiTConfig",
@@ -694,6 +699,7 @@ CONFIG_MAPPING_NAMES = {
 }
 
 TOKENIZER_MAPPING_NAMES = {
+    "bart": "BartTokenizer",
     "bert": "BertTokenizer",
     "clip": "CLIPTokenizer",
     "deberta": "DebertaTokenizer",
