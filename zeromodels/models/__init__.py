@@ -1,4 +1,5 @@
 from zeromodels.models import (
+    bart,
     beit,
     bert,
     cait,
