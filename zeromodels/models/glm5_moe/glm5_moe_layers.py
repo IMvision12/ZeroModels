@@ -285,7 +285,7 @@ class Glm5MoeIndexer(layers.Layer):
         k_pe = apply_rope(k_pe[:, :, None, :], cos, sin, unsqueeze_axis=2)[:, :, 0, :]
         k = ops.concatenate([k_pe, k_nope], axis=-1)
 
-        weights = self.weights_proj(ops.cast(hidden_states, "float32")) * (
+        weights = ops.cast(self.weights_proj(hidden_states), "float32") * (
             self.n_heads**-0.5
         )  # (B, S, H)
         scores = (
