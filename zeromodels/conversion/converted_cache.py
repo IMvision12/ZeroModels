@@ -19,19 +19,6 @@ CONVERTER_VERSION = 1
 QUANTIZATION_FORMAT_VERSION = 1
 
 
-def _ensure_private_directory(directory):
-    """Create a cache directory with owner-only permissions where supported."""
-    os.makedirs(directory, mode=0o700, exist_ok=True)
-    if os.name == "posix":
-        try:
-            os.chmod(directory, 0o700)
-        except OSError:
-            # Some mounted filesystems (for example cloud-drive FUSE mounts) do
-            # not implement chmod. The documented trusted-cache requirement still
-            # applies there.
-            pass
-
-
 def cache_root():
     """Root directory for cached converted models.
 
@@ -158,14 +145,24 @@ def save_converted(model, directory, quantization, load_dtype=None):
 
     root = os.path.abspath(cache_root())
     target = os.path.abspath(directory)
+    directories = [target]
     try:
         if os.path.commonpath((root, target)) == root:
-            _ensure_private_directory(root)
+            directories.insert(0, root)
     except ValueError:
         # Different drives on Windows cannot share a common path. ``directory``
         # is then an explicit external target rather than the configured cache.
         pass
-    _ensure_private_directory(directory)
+    for cache_directory in directories:
+        os.makedirs(cache_directory, mode=0o700, exist_ok=True)
+        if os.name == "posix":
+            try:
+                os.chmod(cache_directory, 0o700)
+            except OSError:
+                # Some mounted filesystems (for example cloud-drive FUSE mounts)
+                # do not implement chmod. The documented trusted-cache requirement
+                # still applies there.
+                pass
     weights = list(model.weights)
 
     keys = [f"{i:06d}" for i in range(len(weights))]
