@@ -5,6 +5,24 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
+_HUGGING_FACE_HOSTS = frozenset({"huggingface.co", "www.huggingface.co"})
+
+
+def is_huggingface_url(url: str) -> bool:
+    """Return whether ``url`` is a trusted HTTPS Hugging Face URL.
+
+    Authentication tokens must only be attached after parsing the URL. A substring
+    check would also match attacker-controlled hosts, paths, and query strings that
+    merely contain ``huggingface.co``.
+    """
+    try:
+        parsed = urlparse(url)
+        return (
+            parsed.scheme.lower() == "https" and parsed.hostname in _HUGGING_FACE_HOSTS
+        )
+    except (TypeError, ValueError):
+        return False
+
 
 def validate_url(url: str) -> bool:
     """Validate if the provided URL is well-formed.
@@ -30,7 +48,7 @@ def _parse_hf_resolve(url: str):
     fall back to a plain streamed download.
     """
     parsed = urlparse(url)
-    if parsed.netloc not in ("huggingface.co", "www.huggingface.co"):
+    if not is_huggingface_url(url):
         return None
     parts = parsed.path.strip("/").split("/")
     if len(parts) < 5 or parts[2] != "resolve":
@@ -94,7 +112,7 @@ def download_file(
 
     headers = {"User-Agent": "zeromodels"}
     token = os.environ.get("HF_TOKEN")
-    if token and "huggingface.co" in file_url:
+    if token and is_huggingface_url(file_url):
         headers["Authorization"] = f"Bearer {token}"
 
     # Stream to a sibling ``.incomplete`` file, then atomically move it into

@@ -12,7 +12,10 @@ import keras
 from huggingface_hub import hf_hub_download
 
 from zeromodels.base import base_attention
-from zeromodels.conversion import download_weights
+from zeromodels.conversion.file_downloader import (
+    download_weights,
+    is_huggingface_url,
+)
 from zeromodels.conversion.hf_download_utils import (
     download_hf_state_dict,
 )
@@ -65,7 +68,7 @@ def _url_exists(url):
     """True if a range GET on ``url`` succeeds (uses HF_TOKEN for hf.co if set)."""
     headers = {"User-Agent": "zeromodels", "Range": "bytes=0-0"}
     token = os.environ.get("HF_TOKEN")
-    if token and "huggingface.co" in url:
+    if token and is_huggingface_url(url):
         headers["Authorization"] = f"Bearer {token}"
     try:
         with urllib.request.urlopen(
