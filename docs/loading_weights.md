@@ -194,10 +194,16 @@ model = Qwen3TextGenerate.from_weights(
 It works for both conversion paths. Way 1 has nothing to cache beyond the downloaded file.
 
 The cache key includes the source identity, the backend and dtype, and the quantization
-recipe, so it cannot hand back a stale or differently configured model. For an `hf:` id the
-source identity is the resolved **commit SHA**, so a repo that moves invalidates the entry.
-A miss falls back to the normal path silently. On an ephemeral machine (Colab, CI) point
-`ZEROMODELS_HOME` at persistent storage or the cache buys you nothing.
+recipe to separate differently configured models. For an `hf:` id the source identity is
+the resolved **commit SHA**, so a repo that moves invalidates the entry. A metadata
+fingerprint detects stale or accidentally damaged entries; it is stored in the cache and is
+not a signature or tamper-resistance mechanism.
+
+The cache is trusted local input: its Keras metadata names classes that are resolved during
+deserialization. Do not place `ZEROMODELS_HOME` somewhere writable by untrusted users. New
+cache directories use owner-only permissions where the filesystem supports them. A miss
+falls back to the normal path silently. On an ephemeral machine (Colab, CI), point
+`ZEROMODELS_HOME` at trusted persistent storage or the cache buys you nothing.
 
 ## Loading big checkpoints
 

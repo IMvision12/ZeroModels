@@ -19,13 +19,27 @@ CONVERTER_VERSION = 1
 QUANTIZATION_FORMAT_VERSION = 1
 
 
+def _ensure_private_directory(directory):
+    """Create a cache directory with owner-only permissions where supported."""
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    if os.name == "posix":
+        try:
+            os.chmod(directory, 0o700)
+        except OSError:
+            # Some mounted filesystems (for example cloud-drive FUSE mounts) do
+            # not implement chmod. The documented trusted-cache requirement still
+            # applies there.
+            pass
+
+
 def cache_root():
     """Root directory for cached converted models.
 
     ``$ZEROMODELS_HOME/converted`` (else ``~/.cache/zeromodels/converted``),
     self-managed like the HF cache. On an ephemeral box (Colab), point
     ``ZEROMODELS_HOME`` at a persistent mount (Drive) to keep the benefit
-    across sessions.
+    across sessions. Cache metadata is trusted local input, not authenticated
+    content, so the location must not be writable by untrusted users.
     """
     home = os.environ.get(
         "ZEROMODELS_HOME",
@@ -142,7 +156,16 @@ def save_converted(model, directory, quantization, load_dtype=None):
     """
     from safetensors.numpy import save_file
 
-    os.makedirs(directory, exist_ok=True)
+    root = os.path.abspath(cache_root())
+    target = os.path.abspath(directory)
+    try:
+        if os.path.commonpath((root, target)) == root:
+            _ensure_private_directory(root)
+    except ValueError:
+        # Different drives on Windows cannot share a common path. ``directory``
+        # is then an explicit external target rather than the configured cache.
+        pass
+    _ensure_private_directory(directory)
     weights = list(model.weights)
 
     keys = [f"{i:06d}" for i in range(len(weights))]
@@ -176,7 +199,7 @@ def save_converted(model, directory, quantization, load_dtype=None):
         "backend": keras.backend.backend(),
         "load_dtype": load_dtype,
         "config": config,
-        "architecture_hash": _json_hash(config),
+        "architecture_fingerprint": _json_hash(config),
         "quantization": quant_id(quantization),
         "keying": "index",
         "keys": keys,
@@ -193,7 +216,10 @@ def load_converted(directory, quantization, load_dtype):
 
     Deserializes the config to the model, then streams each cached tensor onto
     its weight by position. Raises on any count / shape / keying mismatch so the
-    caller can fall back to the source.
+    caller can fall back to the source. The architecture fingerprint detects
+    stale or accidental corruption only. Because Keras deserialization resolves
+    the classes named in ``meta.json``, cache directories must be trusted and not
+    writable by untrusted users.
     """
     from zeromodels.base.base_mixin import build_dtype_scope
 
@@ -214,8 +240,15 @@ def load_converted(directory, quantization, load_dtype):
             raise ValueError(
                 f"Converted cache {key}={meta.get(key)!r} does not match {value!r}."
             )
-    if meta.get("architecture_hash") != _json_hash(meta.get("config")):
-        raise ValueError("Converted cache architecture config is corrupt.")
+    fingerprint = meta.get("architecture_fingerprint")
+    if fingerprint is None:
+        # Compatibility with caches written before the field was accurately
+        # named. This legacy value has the same staleness-only semantics.
+        fingerprint = meta.get("architecture_hash")
+    if fingerprint != _json_hash(meta.get("config")):
+        raise ValueError(
+            "Converted cache architecture fingerprint is stale or damaged."
+        )
 
     with build_dtype_scope(load_dtype):
         model = keras.saving.deserialize_keras_object(meta["config"])
