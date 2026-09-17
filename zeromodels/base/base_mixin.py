@@ -304,8 +304,10 @@ QuantizationConfig` / scheme). When set, the model is quantized weight-only:
                 Applies to models loaded as float (a built functional graph can't
                 be re-quantized from a serialized skeleton, so quantized loads are
                 not cached); a cache miss / failure silently falls back to the
-                source path. Best on a persistent disk: set ``ZEROMODELS_HOME``
-                on ephemeral boxes.
+                source path. Cache metadata is trusted local input and may name
+                classes for Keras to deserialize; use only a location that is not
+                writable by untrusted users. Best on a persistent disk: set
+                ``ZEROMODELS_HOME`` on ephemeral boxes.
             **kwargs: Forwarded to the model constructor (or to
                 ``from_hf`` when applicable).
 
