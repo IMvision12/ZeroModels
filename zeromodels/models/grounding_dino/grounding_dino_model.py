@@ -740,7 +740,3 @@ class GroundingDinoDetect(_GroundingDinoFunctional):
     """
 
     core_class = GroundingDinoDetectCore
-
-
-# Backward-compatible alias for the previous class name.
-GroundingDinoForObjectDetection = GroundingDinoDetect

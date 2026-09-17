@@ -6,7 +6,6 @@ from zeromodels.models.grounding_dino.grounding_dino_image_processor import (
 )
 from zeromodels.models.grounding_dino.grounding_dino_model import (
     GroundingDinoDetect,
-    GroundingDinoForObjectDetection,
     GroundingDinoModel,
 )
 from zeromodels.models.grounding_dino.grounding_dino_processor import (
@@ -23,7 +22,6 @@ __all__ = [
     "GroundingDinoConfig",
     "GroundingDinoModel",
     "GroundingDinoDetect",
-    "GroundingDinoForObjectDetection",
     "GroundingDinoTextModel",
     "GroundingDinoTokenizer",
     "GroundingDinoImageProcessor",
