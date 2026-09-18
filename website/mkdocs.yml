@@ -145,6 +145,7 @@ nav:
           - GLM: glm.md
           - GLM-4: glm4.md
           - GLM-4 MoE: glm4_moe.md
+          - GLM-4 MoE Lite: glm4_moe_lite.md
           - GLM-5 MoE: glm5_moe.md
           - GPT: gpt.md
           - GPT-2: gpt2.md
