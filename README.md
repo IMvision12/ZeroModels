@@ -298,7 +298,7 @@ This project leverages [timm](https://github.com/huggingface/pytorch-image-model
 
 ### BibTeX
 
-```bash
+```bibtex
 @misc{gc2025zeromodels,
   author = {Gitesh Chawda},
   title = {ZeroModels},
@@ -306,4 +306,5 @@ This project leverages [timm](https://github.com/huggingface/pytorch-image-model
   publisher = {GitHub},
   journal = {GitHub repository},
   howpublished = {\url{https://github.com/IMvision12/ZeroModels}}
+}
 ```

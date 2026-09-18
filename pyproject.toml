@@ -74,7 +74,7 @@ conversion = [
     "torch>=2.5.0",
     "torchvision>=0.20.0",
     "timm",
-    "transformers",
+    "transformers>=5.0.0",
     "diffusers",
 ]
 # Developer tooling: the pre-commit hooks (ruff lint + format, whitespace/EOF
