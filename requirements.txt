@@ -3,13 +3,14 @@ tensorflow-cpu>=2.19.0
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch>=2.5.0
 torchvision>=0.20.0
-sentencepiece
-matplotlib>=3.8.0
-Pillow>=10.0.0
 
 jax[cpu]
 
 keras>=3.15.0
-
 huggingface_hub
 safetensors
+numpy
+pillow
+matplotlib>=3.8.0
+tokenizers
+sentencepiece

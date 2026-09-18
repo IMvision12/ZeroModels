@@ -69,7 +69,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt --progress-bar off --upgrade
-          pip install -e ".[tests]" --progress-bar off --upgrade
+          pip install ".[test]" --progress-bar off --upgrade
       - name: Build wheels
         shell: bash
         run: |

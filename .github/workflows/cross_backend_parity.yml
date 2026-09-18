@@ -59,15 +59,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools
-          pip install -U keras>=3.15.0 pytest
+          pip install -U "keras>=3.15.0" pytest
           # CPU-only torch wheel (the default bundles CUDA/Triton which segfaults on
           # CUDA-less Linux runners via torchvision -> torch._dynamo).
           pip install --index-url https://download.pytorch.org/whl/cpu \
-              torch>=2.5.0 torchvision
-          pip install jax[cpu] tensorflow-cpu>=2.19.0
-          pip install sentencepiece matplotlib>=3.8.0 pillow
+              "torch>=2.5.0" torchvision
+          pip install "jax[cpu]" "tensorflow-cpu>=2.19.0"
+          pip install sentencepiece "matplotlib>=3.8.0" pillow
           pip install huggingface_hub safetensors
-          pip install -e .
+          pip install .
       - name: Run cross-backend parity
         run: |
           pytest tests/integration/test_cross_backend_parity.py \
