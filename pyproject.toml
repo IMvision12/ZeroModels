@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -29,13 +29,17 @@ keywords = [
     "model-training",
     "pytorch",
 ]
-license = { text = "Apache License 2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 classifiers = [
         'Intended Audience :: Education',
         'Intended Audience :: Science/Research',
-        'License :: OSI Approved :: Apache Software License',
+        'Operating System :: OS Independent',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
         'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
         'Topic :: Software Development',
