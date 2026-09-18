@@ -87,6 +87,7 @@ Documentation sources are also available in [`docs/`](docs/).
     | GLM-4 (GLM-4-9B) | [ChatGLM: A Family of Large Language Models from GLM-130B to GLM-4](https://arxiv.org/abs/2406.12793) | `transformers` |
     | GLM-4-0414 | [THUDM/GLM-4-9B-0414](https://huggingface.co/THUDM/GLM-4-9B-0414) | `transformers` |
     | GLM-4.5 / GLM-4.6 (MoE) | [GLM-4.5: Agentic, Reasoning, and Coding (ARC) Foundation Models](https://arxiv.org/abs/2508.06471) | `transformers` |
+    | GLM-4.7-Flash (MoE Lite) | [zai-org/GLM-4.7-Flash](https://huggingface.co/zai-org/GLM-4.7-Flash) | `transformers` |
     | GLM-5 / GLM-5.1 / GLM-5.2 (MoE) | [GLM-5 Technical Report](https://arxiv.org/abs/2602.15763) | `transformers` |
 
 <br>

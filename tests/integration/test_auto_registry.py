@@ -9,6 +9,7 @@ single file rather than a parametrized matrix entry.
 """
 
 import inspect
+from pathlib import Path
 
 import pytest
 
@@ -417,4 +418,85 @@ def test_no_cross_family_model_type():
         "model_type(s) whose tables resolve to different families -- the Auto* loaders "
         "would return a mismatched (model, config, processor) triple; fix the mapping "
         f"(or allowlist a genuinely-shared type with its exact family set): {bad}"
+    )
+
+
+# Families intentionally covered by a shared or differently named documentation page.
+# Keep this mapping explicit: any new package must get its own docs page or be added here
+# with the page that documents it.
+_SHARED_MODEL_DOCS = {
+    "classification_backbones.md": {
+        "cait",
+        "convmixer",
+        "convnext",
+        "convnextv2",
+        "deit",
+        "densenet",
+        "efficientformer",
+        "efficientnet",
+        "efficientnet_lite",
+        "efficientnetv2",
+        "flexivit",
+        "inception_next",
+        "inception_resnetv2",
+        "inceptionv3",
+        "inceptionv4",
+        "levit",
+        "maxvit",
+        "mit",
+        "mlp_mixer",
+        "mobilenetv2",
+        "mobilenetv3",
+        "mobilenetv4",
+        "nextvit",
+        "pit",
+        "poolformer",
+        "regnet",
+        "res2net",
+        "resmlp",
+        "resnet",
+        "resnetv2",
+        "resnext",
+        "senet",
+        "swin",
+        "swinv2",
+        "vgg",
+        "vit",
+        "xception",
+    },
+    "deberta.md": {"deberta_v2", "deberta_v3"},
+    "dinov2.md": {"dino_v2"},
+    "dinov3.md": {"dino_v3"},
+}
+
+
+def test_every_model_family_is_documented():
+    """Every model package has its own page or an explicit shared-page entry."""
+    root = Path(__file__).resolve().parents[2]
+    docs_dir = root / "docs"
+    model_dirs = {
+        path.name
+        for path in (root / "zeromodels" / "models").iterdir()
+        if path.is_dir() and not path.name.startswith("_")
+    }
+    own_pages = {path.stem for path in docs_dir.glob("*.md")}
+
+    shared_families = set()
+    for page, families in _SHARED_MODEL_DOCS.items():
+        assert (docs_dir / page).is_file(), (
+            f"shared model docs page does not exist: {page}"
+        )
+        overlap = shared_families & families
+        assert not overlap, (
+            f"model families listed under multiple shared pages: {overlap}"
+        )
+        shared_families.update(families)
+
+    stale = sorted(shared_families - model_dirs)
+    assert not stale, f"shared model docs entries without a model package: {stale}"
+
+    missing = sorted(model_dirs - own_pages - shared_families)
+    assert not missing, (
+        "model family package(s) without documentation; add docs/<family>.md or an "
+        f"explicit _SHARED_MODEL_DOCS entry: {missing}"
     )

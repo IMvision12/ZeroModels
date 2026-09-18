@@ -15,7 +15,6 @@ help:
 	@echo " make test-saving             Model save/load"
 	@echo " make test-data-format        channels_first/last"
 	@echo " make test-data-format-gpu    channels_first on TF GPU"
-	@echo " make test-links              Link validation (slow)"
 	@echo " make test-gpu                All GPU-only tests"
 	@echo ""
 
