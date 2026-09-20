@@ -158,6 +158,7 @@ nav:
           - Mistral: mistral.md
           - Mixtral: mixtral.md
           - ModernBERT: modernbert.md
+          - MPNet: mpnet.md
           - Qwen: qwen.md
           - Qwen2: qwen2.md
           - Qwen2 MoE: qwen2_moe.md

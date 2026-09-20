@@ -84,6 +84,7 @@ from zeromodels.models import (
     mobilevitv2,
     modernbert,
     moonshine,
+    mpnet,
     nextvit,
     oneformer,
     owlv2,
