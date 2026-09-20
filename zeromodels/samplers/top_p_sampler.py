@@ -1,3 +1,4 @@
+import keras
 from keras import ops
 
 from zeromodels.samplers.sampler import (
@@ -8,6 +9,7 @@ from zeromodels.samplers.sampler import (
 )
 
 
+@keras.saving.register_keras_serializable(package="zeromodels")
 class TopPSampler(Sampler):
     """Nucleus sampling: the smallest set of top tokens with cumulative prob >= ``p``.
 

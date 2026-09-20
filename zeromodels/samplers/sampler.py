@@ -1,3 +1,4 @@
+import keras
 from keras import ops
 
 # Rejected tokens are pushed here rather than to -inf: finite, so their softmax
@@ -6,6 +7,7 @@ from keras import ops
 NEG_INF = -1e9
 
 
+@keras.saving.register_keras_serializable(package="zeromodels")
 class Sampler:
     """Maps logits ``(batch, vocab)`` + per-step uniform ``noise`` to next ids.
 
@@ -24,6 +26,11 @@ class Sampler:
     keeps everything (greedy); ``TopKSampler`` / ``TopPSampler`` override it. It is
     split out from ``sample`` so the kept set can be compared against the reference
     warpers without drawing a token.
+
+    ``get_config`` returns exactly the constructor kwargs, so :meth:`from_config`
+    round-trips every subclass without an override. Besides Keras serialization, the
+    decode engine hashes ``get_config()`` into its compiled-function cache key, so two
+    samplers that differ only in a setting never share a traced function.
     """
 
     stochastic = False
@@ -36,6 +43,10 @@ class Sampler:
 
     def get_config(self):
         return {}
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
 
 def gumbel(noise):

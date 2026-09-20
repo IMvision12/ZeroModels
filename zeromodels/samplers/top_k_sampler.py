@@ -1,3 +1,4 @@
+import keras
 from keras import ops
 
 from zeromodels.samplers.sampler import (
@@ -8,6 +9,7 @@ from zeromodels.samplers.sampler import (
 )
 
 
+@keras.saving.register_keras_serializable(package="zeromodels")
 class TopKSampler(Sampler):
     """Sample from the ``k`` highest-logit tokens (temperature-scaled).
 
