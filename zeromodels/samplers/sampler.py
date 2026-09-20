@@ -49,12 +49,6 @@ class Sampler:
         return cls(**config)
 
 
-def gumbel(noise):
-    # uniform(0, 1) -> Gumbel(0, 1)
-    u = ops.clip(noise, 1e-9, 1.0)
-    return -ops.log(-ops.log(u))
-
-
 def categorical(masked_logits, noise):
     """Inverse-CDF categorical draw over ``softmax(masked_logits)``.
 
