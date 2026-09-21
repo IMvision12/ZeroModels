@@ -383,6 +383,9 @@ class MPNetMaskedLM(BaseModel):
     HF_MODEL_TYPE = "mpnet"
     config_class = MPNetConfig
     HUB_REPO_SIBLINGS = MPNET_HUB_SIBLINGS
+    CHECKPOINT_SOURCE = CheckpointSource(
+        "MPNetMaskedLM", build_kwargs={"add_pooler": True}
+    )
 
     @classmethod
     def transfer_from_hf(cls, keras_model, state_dict):
@@ -465,6 +468,9 @@ class MPNetSequenceClassify(BaseModel):
     HF_MODEL_TYPE = "mpnet"
     config_class = MPNetConfig
     HUB_REPO_SIBLINGS = MPNET_HUB_SIBLINGS
+    CHECKPOINT_SOURCE = CheckpointSource(
+        "MPNetMaskedLM", build_kwargs={"add_pooler": True}
+    )
 
     @classmethod
     def transfer_from_hf(cls, keras_model, state_dict):
@@ -556,6 +562,9 @@ class MPNetTokenClassify(BaseModel):
     HF_MODEL_TYPE = "mpnet"
     config_class = MPNetConfig
     HUB_REPO_SIBLINGS = MPNET_HUB_SIBLINGS
+    CHECKPOINT_SOURCE = CheckpointSource(
+        "MPNetMaskedLM", build_kwargs={"add_pooler": True}
+    )
 
     @classmethod
     def transfer_from_hf(cls, keras_model, state_dict):
@@ -634,6 +643,9 @@ class MPNetQnA(BaseModel):
     HF_MODEL_TYPE = "mpnet"
     config_class = MPNetConfig
     HUB_REPO_SIBLINGS = MPNET_HUB_SIBLINGS
+    CHECKPOINT_SOURCE = CheckpointSource(
+        "MPNetMaskedLM", build_kwargs={"add_pooler": True}
+    )
 
     @classmethod
     def transfer_from_hf(cls, keras_model, state_dict):
@@ -699,6 +711,9 @@ class MPNetMultipleChoice(BaseModel):
     HF_MODEL_TYPE = "mpnet"
     config_class = MPNetConfig
     HUB_REPO_SIBLINGS = MPNET_HUB_SIBLINGS
+    CHECKPOINT_SOURCE = CheckpointSource(
+        "MPNetMaskedLM", build_kwargs={"add_pooler": True}
+    )
 
     @classmethod
     def transfer_from_hf(cls, keras_model, state_dict):
