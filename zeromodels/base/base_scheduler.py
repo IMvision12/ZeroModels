@@ -487,7 +487,7 @@ class EulerAncestralDiscreteScheduler(EulerDiscreteScheduler):
 
 
 class FlowMatchEulerDiscreteScheduler(BaseScheduler):
-    """Euler sampler for rectified-flow models (Stable Diffusion 3 / 3.5, FLUX).
+    """Euler sampler for rectified-flow models (SD 3 / 3.5, FLUX, Qwen-Image).
 
     There is no beta schedule: the noise level is the flow time ``sigma`` in
     ``[0, 1]`` (``x_t = (1 - sigma) x_0 + sigma * noise``), the model predicts the
@@ -496,20 +496,55 @@ class FlowMatchEulerDiscreteScheduler(BaseScheduler):
 
     Args:
         num_train_timesteps: The flow time resolution (1000).
-        shift: Timestep shift towards noisier levels, ``shift * s / (1 + (shift - 1) s)``
-            (3.0 for SD3 / SD3.5).
+        shift: Fixed timestep shift ``shift * s / (1 + (shift - 1) s)`` (3.0 for
+            SD3). Ignored when ``use_dynamic_shifting`` is True.
+        use_dynamic_shifting: Resolution-dependent shift (Qwen-Image / FLUX);
+            ``set_timesteps(..., mu=...)`` required.
+        base_shift / max_shift / base_image_seq_len / max_image_seq_len:
+            Dynamic-shift parameters (stored for callers that compute ``mu``).
+        shift_terminal: Stretch the schedule so the last sigma equals this value.
+        time_shift_type: ``"exponential"`` or ``"linear"`` dynamic shift.
     """
 
-    def __init__(self, num_train_timesteps=1000, shift=1.0, **kwargs):
+    def __init__(
+        self,
+        num_train_timesteps=1000,
+        shift=1.0,
+        use_dynamic_shifting=False,
+        base_shift=0.5,
+        max_shift=1.15,
+        base_image_seq_len=256,
+        max_image_seq_len=4096,
+        shift_terminal=None,
+        time_shift_type="exponential",
+        **kwargs,
+    ):
         # the base (beta) schedule is irrelevant here; keep the constructor
         # compatible with from_config (a repo's scheduler_config may carry extra keys)
         super().__init__(num_train_timesteps=num_train_timesteps)
         self.shift = shift
+        self.use_dynamic_shifting = bool(use_dynamic_shifting)
+        self.base_shift = base_shift
+        self.max_shift = max_shift
+        self.base_image_seq_len = base_image_seq_len
+        self.max_image_seq_len = max_image_seq_len
+        self.shift_terminal = shift_terminal
+        self.time_shift_type = time_shift_type
+        self.config_dict = {
+            "base_shift": base_shift,
+            "max_shift": max_shift,
+            "base_image_seq_len": base_image_seq_len,
+            "max_image_seq_len": max_image_seq_len,
+            "use_dynamic_shifting": self.use_dynamic_shifting,
+            "shift_terminal": shift_terminal,
+            "time_shift_type": time_shift_type,
+        }
         timesteps = np.linspace(
             1, num_train_timesteps, num_train_timesteps, dtype=np.float32
         )[::-1].copy()
         sigmas = timesteps / np.float32(num_train_timesteps)
-        sigmas = self.shift_sigmas(sigmas)
+        if not self.use_dynamic_shifting:
+            sigmas = self.shift_sigmas(sigmas)
         self.sigma_min = float(sigmas[-1])
         self.sigma_max = float(sigmas[0])
         self.sigmas = sigmas
@@ -520,6 +555,26 @@ class FlowMatchEulerDiscreteScheduler(BaseScheduler):
         shift = np.float32(self.shift)
         return (shift * sigmas / (1 + (shift - 1) * sigmas)).astype(np.float32)
 
+    def time_shift(self, mu, sigma, t):
+        """Resolution-dependent sigma shift (Diffusers ``time_shift``)."""
+        t = np.asarray(t, dtype=np.float64)
+        if self.time_shift_type == "exponential":
+            return (np.exp(mu) / (np.exp(mu) + (1.0 / t - 1.0) ** sigma)).astype(
+                np.float32
+            )
+        if self.time_shift_type == "linear":
+            return (mu / (mu + (1.0 / t - 1.0) ** sigma)).astype(np.float32)
+        raise ValueError(f"Unknown time_shift_type {self.time_shift_type!r}")
+
+    def stretch_shift_to_terminal(self, sigmas):
+        """Stretch sigmas so the last (pre-zero) value equals ``shift_terminal``."""
+        if self.shift_terminal is None:
+            return sigmas
+        sigmas = np.asarray(sigmas, dtype=np.float64)
+        one_minus = 1.0 - sigmas
+        scale = one_minus[-1] / (1.0 - float(self.shift_terminal))
+        return (1.0 - one_minus / scale).astype(np.float32)
+
     @property
     def init_noise_sigma(self):
         return 1.0
@@ -527,15 +582,34 @@ class FlowMatchEulerDiscreteScheduler(BaseScheduler):
     def set_begin_index(self, index):
         self.step_index = int(index)
 
-    def set_timesteps(self, num_inference_steps):
+    def set_timesteps(self, num_inference_steps, sigmas=None, mu=None, **kwargs):
+        del kwargs
         self.num_inference_steps = num_inference_steps
         n_train = self.num_train_timesteps
-        timesteps = np.linspace(
-            self.sigma_max * n_train, self.sigma_min * n_train, num_inference_steps
-        )
-        sigmas = timesteps / n_train
-        sigmas = self.shift * sigmas / (1 + (self.shift - 1) * sigmas)
-        sigmas = sigmas.astype(np.float32)
+        if sigmas is None:
+            timesteps = np.linspace(
+                self.sigma_max * n_train, self.sigma_min * n_train, num_inference_steps
+            )
+            sigmas = timesteps / n_train
+        else:
+            sigmas = np.asarray(sigmas, dtype=np.float32)
+            num_inference_steps = len(sigmas)
+            self.num_inference_steps = num_inference_steps
+
+        if self.use_dynamic_shifting:
+            if mu is None:
+                raise ValueError(
+                    "`mu` must be passed when use_dynamic_shifting is True"
+                )
+            sigmas = self.time_shift(mu, 1.0, sigmas)
+        else:
+            sigmas = self.shift * sigmas / (1 + (self.shift - 1) * sigmas)
+            sigmas = sigmas.astype(np.float32)
+
+        if self.shift_terminal is not None:
+            sigmas = self.stretch_shift_to_terminal(sigmas)
+
+        sigmas = np.asarray(sigmas, dtype=np.float32)
         self.sigmas = np.concatenate([sigmas, [0.0]]).astype(np.float32)
         self.timesteps = sigmas * np.float32(n_train)
         self.step_index = 0
@@ -563,6 +637,13 @@ class FlowMatchEulerDiscreteScheduler(BaseScheduler):
             "_class_name": type(self).__name__,
             "num_train_timesteps": self.num_train_timesteps,
             "shift": self.shift,
+            "use_dynamic_shifting": self.use_dynamic_shifting,
+            "base_shift": self.base_shift,
+            "max_shift": self.max_shift,
+            "base_image_seq_len": self.base_image_seq_len,
+            "max_image_seq_len": self.max_image_seq_len,
+            "shift_terminal": self.shift_terminal,
+            "time_shift_type": self.time_shift_type,
         }
 
 
