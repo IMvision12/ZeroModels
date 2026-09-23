@@ -1,122 +1,10 @@
-"""Keras 3 port of Diffusers ``AutoencoderKLQwenImage`` (Qwen-Image / Wan VAE).
-
-Internal activations use channels-last 5D ``(B, T, H, W, C)`` (NDHWC) so
-``Conv3D`` is portable across Keras backends. Diffusers stores the same stacks
-as NCDHW ``Conv3d``; converters must transpose kernels:
-
-* Conv3D: ``(O, I, T, H, W)`` -> ``(T, H, W, I, O)``
-* Conv2D (resample / attention): ``(O, I, H, W)`` -> ``(H, W, I, O)``
-* RMSNorm ``gamma``: squeeze Diffusers ``(C, 1, 1[, 1])`` -> ``(C,)``
-
-v1 targets single-frame T2I (``T=1``): feat-cache video streaming is a no-op and
-temporal ``time_conv`` paths inside ``Resample`` are skipped, matching Diffusers'
-first-chunk behaviour when the cache is cold. Tiling / slicing are omitted.
-Module paths mirror Diffusers for weight conversion.
-"""
-
-from __future__ import annotations
-
 import math
 
 import keras
 from keras import layers, ops
 
-from zeromodels.base import BaseModel
 from zeromodels.base.base_attention import fused_attention
-from zeromodels.base.base_config import BaseConfig
 from zeromodels.models.stable_diffusion.stable_diffusion_layers import safe_name
-
-# ---------------------------------------------------------------------------
-# Defaults (Qwen/Qwen-Image VAE config.json)
-# ---------------------------------------------------------------------------
-
-DEFAULT_LATENTS_MEAN = (
-    -0.7571,
-    -0.7089,
-    -0.9113,
-    0.1075,
-    -0.1745,
-    0.9653,
-    -0.1517,
-    1.5508,
-    0.4134,
-    -0.0715,
-    0.5517,
-    -0.3632,
-    -0.1922,
-    -0.9497,
-    0.2503,
-    -0.2921,
-)
-DEFAULT_LATENTS_STD = (
-    2.8184,
-    1.4541,
-    2.3275,
-    2.6558,
-    1.2196,
-    1.7708,
-    2.6052,
-    2.0743,
-    3.2687,
-    2.1526,
-    2.8652,
-    1.5579,
-    1.6382,
-    1.1253,
-    2.8251,
-    1.9160,
-)
-
-
-class QwenImageVAEConfig(BaseConfig):
-    """Configuration for :class:`AutoencoderKLQwenImage`.
-
-    Fields match Diffusers ``AutoencoderKLQwenImage``; ``sample_size`` is the
-    ZeroModels graph-build resolution (weights are resolution-independent).
-    """
-
-    model_type = "autoencoder_kl_qwen_image"
-
-    base_dim: int = 96
-    z_dim: int = 16
-    dim_mult: tuple = (1, 2, 4, 4)
-    num_res_blocks: int = 2
-    attn_scales: tuple = ()
-    temperal_downsample: tuple = (False, True, True)
-    dropout: float = 0.0
-    input_channels: int = 3
-    latents_mean: tuple = DEFAULT_LATENTS_MEAN
-    latents_std: tuple = DEFAULT_LATENTS_STD
-    sample_size: int = 1024
-
-
-# ---------------------------------------------------------------------------
-# Layout helpers
-# ---------------------------------------------------------------------------
-
-
-def _as_tuple3(value):
-    if isinstance(value, int):
-        return (value, value, value)
-    value = tuple(value)
-    if len(value) != 3:
-        raise ValueError(f"Expected int or length-3 tuple, got {value!r}")
-    return value
-
-
-def ncdhw_to_ndhwc(x):
-    """``(B, C, T, H, W)`` -> ``(B, T, H, W, C)``."""
-    return ops.transpose(x, (0, 2, 3, 4, 1))
-
-
-def ndhwc_to_ncdhw(x):
-    """``(B, T, H, W, C)`` -> ``(B, C, T, H, W)``."""
-    return ops.transpose(x, (0, 4, 1, 2, 3))
-
-
-# ---------------------------------------------------------------------------
-# Layers
-# ---------------------------------------------------------------------------
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
@@ -142,8 +30,6 @@ class QwenImageRMSNorm(layers.Layer):
         self.built = True
 
     def call(self, x):
-        # Diffusers: F.normalize(x, dim=channels) * sqrt(dim) * gamma, i.e. an L2
-        # normalize (eps 1e-12 on the norm) over the last (channel) axis here.
         dtype = x.dtype
         x_f = ops.cast(x, "float32")
         norm = ops.sqrt(ops.sum(ops.square(x_f), axis=-1, keepdims=True))
@@ -189,19 +75,25 @@ class QwenImageCausalConv3d(layers.Layer):
             kwargs.setdefault("name", safe_name(module_path))
         super().__init__(**kwargs)
         self.out_channels = int(out_channels)
-        self.kernel_size = _as_tuple3(kernel_size)
-        self.stride = _as_tuple3(stride)
-        pad = _as_tuple3(padding)
+        self.kernel_size = (
+            (kernel_size, kernel_size, kernel_size)
+            if isinstance(kernel_size, int)
+            else tuple(kernel_size)
+        )
+        self.stride = (
+            (stride, stride, stride) if isinstance(stride, int) else tuple(stride)
+        )
+        pad = (
+            (padding, padding, padding)
+            if isinstance(padding, int)
+            else tuple(padding)
+        )
         self.padding_t, self.padding_h, self.padding_w = pad
-        # Causal: double temporal left pad, zero right pad.
         self._pad_t_left = 2 * self.padding_t
         self._pad_t_right = 0
         self._pad_h = self.padding_h
         self._pad_w = self.padding_w
         self.module_path = module_path
-        # Leaf Conv3D keeps the Diffusers module path name so conversion's
-        # last-two-segment mapping yields ``encoder.conv_in.weight`` etc.
-        # (path ``.../encoder__conv_in/encoder__conv_in/kernel``).
         leaf_name = safe_name(module_path) if module_path else "conv"
         self.conv = layers.Conv3D(
             self.out_channels,
@@ -331,7 +223,6 @@ class QwenImageResample(layers.Layer):
         b, t, h, w, c = input_shape
         if self.spatial_conv is not None:
             if self._downsample:
-                # ZeroPad2d((0,1,0,1)) -> H+1, W+1
                 h_p = None if h is None else h + 1
                 w_p = None if w is None else w + 1
                 self.spatial_conv.build((b, h_p, w_p, c))
@@ -340,17 +231,12 @@ class QwenImageResample(layers.Layer):
                 w_u = None if w is None else w * 2
                 self.spatial_conv.build((b, h_u, w_u, c))
         if self.time_conv is not None:
-            # Downsample3d time_conv is stride-2 with k_t=3 and no pad; T=1 cannot
-            # run it. Build with a synthetic T so kernels exist for conversion; the
-            # T=1 image path never calls time_conv (cold-cache Diffusers behaviour).
             b, t, h, w, c = input_shape
             t_build = t if isinstance(t, int) and t >= 4 else 4
             self.time_conv.build((b, t_build, h, w, c))
         self.built = True
 
     def call(self, x):
-        # Optional temporal branch (video streaming); skipped for T=1 image path
-        # (matches Diffusers' cold feat-cache first chunk, which skips time_conv).
         if (
             self.apply_temporal
             and self.time_conv is not None
@@ -362,7 +248,6 @@ class QwenImageResample(layers.Layer):
             w = ops.shape(x)[3]
             c = self.dim
             x = self.time_conv(x)
-            # (B, T, H, W, 2C) -> (B, T*2, H, W, C) interleaved like Diffusers
             x = ops.reshape(x, (b, t, h, w, 2, c))
             x = ops.transpose(x, (0, 1, 4, 2, 3, 5))
             x = ops.reshape(x, (b, t * 2, h, w, c))
@@ -372,7 +257,6 @@ class QwenImageResample(layers.Layer):
         h = ops.shape(x)[2]
         w = ops.shape(x)[3]
         c = ops.shape(x)[4]
-        # Merge batch and time for 2D ops: (B*T, H, W, C)
         x2 = ops.reshape(x, (b * t, h, w, c))
 
         if self._upsample:
@@ -713,7 +597,6 @@ class QwenImageEncoder3d(layers.Layer):
         x_shape = list(input_shape)
         x_shape[-1] = self.dim
         x_shape = tuple(x_shape)
-        # Walk blocks updating spatial dims approximately for build.
         shape = x_shape
         for layer in self.down_blocks:
             layer.build(shape)
@@ -744,7 +627,6 @@ class QwenImageEncoder3d(layers.Layer):
             shape = layer.compute_output_shape(shape)
         out = list(shape)
         out[-1] = self.z_dim
-        # Spatial / temporal sizes: 3 spatial downsamples -> /8; T unchanged (T=1 path).
         b, t, h, w, _ = input_shape
         factor = 2 ** (len(self.dim_mult) - 1)
         return (
@@ -979,217 +861,3 @@ class QwenImageDecoder3d(layers.Layer):
             }
         )
         return config
-
-
-# ---------------------------------------------------------------------------
-# Model
-# ---------------------------------------------------------------------------
-
-
-@keras.saving.register_keras_serializable(package="zeromodels")
-class AutoencoderKLQwenImage(BaseModel):
-    """Qwen-Image VAE (Diffusers ``AutoencoderKLQwenImage``), channels-last NDHWC.
-
-    Encode / decode a single image frame (``T=1``). The functional graph is built
-    for ``sample_size`` but conv weights are resolution-independent. Public
-    helpers accept channels-last HWC images or Diffusers NCDHW 5D tensors.
-
-    Latent normalisation with ``latents_mean`` / ``latents_std`` is left to the
-    pipeline (stored on the model for that purpose).
-    """
-
-    config_class = QwenImageVAEConfig
-    HF_MODEL_TYPE = None
-
-    def __init__(
-        self,
-        base_dim=96,
-        z_dim=16,
-        dim_mult=(1, 2, 4, 4),
-        num_res_blocks=2,
-        attn_scales=(),
-        temperal_downsample=(False, True, True),
-        dropout=0.0,
-        input_channels=3,
-        latents_mean=DEFAULT_LATENTS_MEAN,
-        latents_std=DEFAULT_LATENTS_STD,
-        sample_size=1024,
-        apply_temporal=False,
-        name="AutoencoderKLQwenImage",
-        **kwargs,
-    ):
-        dim_mult = tuple(dim_mult)
-        temperal_downsample = tuple(temperal_downsample)
-        attn_scales = tuple(attn_scales)
-        latents_mean = tuple(latents_mean)
-        latents_std = tuple(latents_std)
-        temperal_upsample = tuple(reversed(temperal_downsample))
-
-        h_img, w_img = (
-            sample_size
-            if isinstance(sample_size, (tuple, list))
-            else (sample_size, sample_size)
-        )
-        spatial_compression_ratio = 2 ** len(temperal_downsample)
-        h_lat, w_lat = h_img // spatial_compression_ratio, w_img // spatial_compression_ratio
-
-        encoder = QwenImageEncoder3d(
-            dim=base_dim,
-            z_dim=z_dim * 2,
-            dim_mult=dim_mult,
-            num_res_blocks=num_res_blocks,
-            attn_scales=attn_scales,
-            temperal_downsample=temperal_downsample,
-            dropout=dropout,
-            input_channels=input_channels,
-            module_path="encoder",
-            apply_temporal=apply_temporal,
-        )
-        decoder = QwenImageDecoder3d(
-            dim=base_dim,
-            z_dim=z_dim,
-            dim_mult=dim_mult,
-            num_res_blocks=num_res_blocks,
-            attn_scales=attn_scales,
-            temperal_upsample=temperal_upsample,
-            dropout=dropout,
-            input_channels=input_channels,
-            module_path="decoder",
-            apply_temporal=apply_temporal,
-        )
-        quant_conv = QwenImageCausalConv3d(
-            z_dim * 2, kernel_size=1, padding=0, module_path="quant_conv"
-        )
-        post_quant_conv = QwenImageCausalConv3d(
-            z_dim, kernel_size=1, padding=0, module_path="post_quant_conv"
-        )
-
-        # Functional graph: HWC image + HWC-ish latent (T squeezed to channels-last 4D
-        # with an explicit time axis of 1 in the 5D path).
-        image_in = layers.Input(shape=(h_img, w_img, input_channels), name="image")
-        latent_in = layers.Input(shape=(h_lat, w_lat, z_dim), name="latent")
-
-        image_5d = ops.expand_dims(image_in, axis=1)  # (B, 1, H, W, C)
-        moments_5d = quant_conv(encoder(image_5d))
-        moments = ops.squeeze(moments_5d, axis=1)  # (B, h, w, 2*z)
-
-        latent_5d = ops.expand_dims(latent_in, axis=1)
-        decoded_5d = decoder(post_quant_conv(latent_5d))
-        decoded = ops.squeeze(decoded_5d, axis=1)
-        decoded = ops.clip(decoded, -1.0, 1.0)
-
-        super().__init__(
-            inputs={"image": image_in, "latent": latent_in},
-            outputs={"moments": moments, "sample": decoded},
-            name=name,
-            **kwargs,
-        )
-
-        self.base_dim = base_dim
-        self.z_dim = z_dim
-        self.dim_mult = dim_mult
-        self.num_res_blocks = num_res_blocks
-        self.attn_scales = attn_scales
-        self.temperal_downsample = temperal_downsample
-        self.temperal_upsample = temperal_upsample
-        self.dropout = dropout
-        self.input_channels = input_channels
-        self.latents_mean = latents_mean
-        self.latents_std = latents_std
-        self.sample_size = sample_size
-        self.apply_temporal = apply_temporal
-        self.spatial_compression_ratio = spatial_compression_ratio
-        self.vae_scale_factor = spatial_compression_ratio
-        self.encoder = encoder
-        self.decoder = decoder
-        self.quant_conv = quant_conv
-        self.post_quant_conv = post_quant_conv
-
-    # -- public encode / decode ------------------------------------------------
-
-    def _to_ndhwc(self, x, is_latent=False):
-        """Normalize inputs to NDHWC ``(B, T, H, W, C)``."""
-        static_ndim = len(x.shape)
-        if static_ndim == 4:
-            # (B, H, W, C) channels-last image or latent
-            return ops.expand_dims(x, axis=1)
-        if static_ndim == 5:
-            # Detect NCDHW (Diffusers): channel axis at 1 matches input_channels / z_dim.
-            c1 = int(x.shape[1]) if x.shape[1] is not None else None
-            c_last = int(x.shape[-1]) if x.shape[-1] is not None else None
-            expect = self.z_dim if is_latent else self.input_channels
-            if c1 == expect and c_last != expect:
-                return ncdhw_to_ndhwc(x)
-            return x
-        raise ValueError(f"Expected 4D or 5D tensor, got shape {x.shape}")
-
-    def _maybe_squeeze_t(self, x, original_was_4d):
-        if original_was_4d:
-            return ops.squeeze(x, axis=1)
-        return x
-
-    def encode(self, x, sample=False, seed=None, return_ncdhw=False):
-        """Encode image(s) to latents (mean, or reparameterized sample).
-
-        Args:
-            x: ``(B, H, W, 3)`` HWC, ``(B, 1, H, W, 3)`` NDHWC, or
-                ``(B, 3, 1, H, W)`` Diffusers NCDHW.
-            sample: If True, draw ``z ~ N(mean, std)``; else return mean.
-            seed: RNG seed for sampling.
-            return_ncdhw: If True, return Diffusers layout ``(B, C, T, H, W)``.
-        """
-        was_4d = len(x.shape) == 4
-        x5 = self._to_ndhwc(x, is_latent=False)
-        moments = self.quant_conv(self.encoder(x5))
-        mean, logvar = ops.split(moments, 2, axis=-1)
-        if sample:
-            logvar = ops.clip(logvar, -30.0, 20.0)
-            std = ops.exp(0.5 * logvar)
-            noise = keras.random.normal(ops.shape(mean), dtype=mean.dtype, seed=seed)
-            z = mean + std * noise
-        else:
-            z = mean
-        if return_ncdhw:
-            return ndhwc_to_ncdhw(z)
-        return self._maybe_squeeze_t(z, was_4d)
-
-    def decode(self, z, return_ncdhw=False):
-        """Decode latents to RGB in ``[-1, 1]``.
-
-        Args:
-            z: ``(B, h, w, z_dim)``, ``(B, 1, h, w, z_dim)`` NDHWC, or
-                ``(B, z_dim, 1, h, w)`` NCDHW.
-            return_ncdhw: If True, return Diffusers layout.
-        """
-        was_4d = len(z.shape) == 4
-        z5 = self._to_ndhwc(z, is_latent=True)
-        x = self.decoder(self.post_quant_conv(z5))
-        x = ops.clip(x, -1.0, 1.0)
-        if return_ncdhw:
-            return ndhwc_to_ncdhw(x)
-        return self._maybe_squeeze_t(x, was_4d)
-
-    def get_config(self):
-        config = super().get_config()
-        config.update(self.config.constructor_kwargs())
-        config["apply_temporal"] = self.apply_temporal
-        return config
-
-    @classmethod
-    def from_diffusers_config(cls, config, sample_size=1024, **kwargs):
-        return cls(
-            base_dim=config.get("base_dim", 96),
-            z_dim=config.get("z_dim", 16),
-            dim_mult=tuple(config.get("dim_mult", (1, 2, 4, 4))),
-            num_res_blocks=config.get("num_res_blocks", 2),
-            attn_scales=tuple(config.get("attn_scales", ())),
-            temperal_downsample=tuple(
-                config.get("temperal_downsample", (False, True, True))
-            ),
-            dropout=config.get("dropout", 0.0),
-            input_channels=config.get("input_channels", 3),
-            latents_mean=tuple(config.get("latents_mean", DEFAULT_LATENTS_MEAN)),
-            latents_std=tuple(config.get("latents_std", DEFAULT_LATENTS_STD)),
-            sample_size=sample_size,
-            **kwargs,
-        )

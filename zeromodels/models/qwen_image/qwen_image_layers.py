@@ -1,17 +1,4 @@
-"""Keras 3 layers for Qwen-Image's double-stream DiT.
-
-Ports the building blocks of Diffusers ``transformer_qwenimage.py`` (RMSNorm,
-timestep projection, 3D RoPE, joint text/image attention, and the dual-stream
-transformer block). The full ``QwenImageTransformer2DModel`` lives elsewhere.
-
-Module paths follow Diffusers so weight conversion can map leaves such as
-``transformer_blocks.0.attn.to_q``, ``img_mod.1``, ``img_mlp.net.0.proj``, and
-``time_text_embed.timestep_embedder.linear_1``.
-"""
-
 from __future__ import annotations
-
-import math
 
 import keras
 import numpy as np
@@ -30,17 +17,6 @@ from zeromodels.models.stable_diffusion_3.stable_diffusion_3_layers import (
 NORM_EPS = 1e-6
 MASK_NEG = -1e4
 ROPE_MAX_INDEX = 4096
-
-
-def qwen_approximate_gelu(x):
-    """Tanh-approximate GELU (Diffusers ``gelu-approximate`` / BERT).
-
-    ``0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))``. Prefer
-    :class:`StableDiffusion3GELUFeedForward` (``ops.gelu(..., approximate=True)``)
-    for the block MLPs; this helper is for call sites that need the formula
-    explicitly.
-    """
-    return 0.5 * x * (1.0 + ops.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * ops.power(x, 3))))
 
 
 def apply_rotary_emb_qwen(x, freqs_cis, use_real=True, use_real_unbind_dim=-1):
@@ -63,7 +39,6 @@ def apply_rotary_emb_qwen(x, freqs_cis, use_real=True, use_real_unbind_dim=-1):
     else:
         cos = ops.repeat(ops.cos(freqs_cis), 2, axis=-1)
         sin = ops.repeat(ops.sin(freqs_cis), 2, axis=-1)
-    # Broadcast over batch and heads: [S, D] -> [1, S, 1, D]
     cos = ops.expand_dims(ops.expand_dims(cos, 0), 2)
     sin = ops.expand_dims(ops.expand_dims(sin, 0), 2)
 
@@ -177,14 +152,12 @@ class QwenImageTimestepProjEmbeddings(layers.Layer):
         )
 
     def build(self, timestep_shape):
-        # Sinusoidal projection is fixed-width; MLP builds from (B, time_freq_dim).
         freq_shape = (timestep_shape[0], self.time_freq_dim)
         self.linear_1.build(freq_shape)
         self.linear_2.build((timestep_shape[0], self.embedding_dim))
         self.built = True
 
     def call(self, timestep):
-        # Diffusers Timesteps(scale=1000): emb = scale * (t[:, None] * freqs)
         t = ops.cast(timestep, "float32") * self.scale
         emb = timestep_embedding(
             t,
@@ -239,11 +212,10 @@ class QwenImageEmbedRope(layers.Layer):
         self.axes_dim = tuple(int(d) for d in axes_dim)
         self.scale_rope = bool(scale_rope)
         self.module_path = module_path
-        self.rope_dim = sum(self.axes_dim) // 2  # complex half-dim == angle width
+        self.rope_dim = sum(self.axes_dim) // 2
         self._axis_halves = [d // 2 for d in self.axes_dim]
 
         pos_index = np.arange(ROPE_MAX_INDEX)
-        # Diffusers: arange(4096).flip(0) * -1 - 1 -> [-4096, ..., -1]
         neg_index = np.flip(pos_index) * -1 - 1
         pos_freqs = np.concatenate(
             [_rope_angles(pos_index, d, self.theta) for d in self.axes_dim],
@@ -257,7 +229,6 @@ class QwenImageEmbedRope(layers.Layer):
         self._neg_freqs_np = neg_freqs
 
     def build(self, input_shape=None):
-        # angles reach ~4096 rad: 16-bit storage would wreck the rotation
         self.pos_freqs = self.add_weight(
             name="pos_freqs",
             shape=(ROPE_MAX_INDEX, self.rope_dim),
@@ -277,7 +248,6 @@ class QwenImageEmbedRope(layers.Layer):
         self.built = True
 
     def _split_axes(self, freqs):
-        # Diffusers ``tensor.split(sizes, dim)``; Keras ``ops.split`` takes indices.
         h0, h1, h2 = self._axis_halves
         return (
             freqs[:, :h0],
@@ -479,12 +449,10 @@ class QwenImageDoubleStreamAttention(layers.Layer):
             txt_q = apply_rotary_emb_qwen(txt_q, txt_freqs)
             txt_k = apply_rotary_emb_qwen(txt_k, txt_freqs)
 
-        # Joint sequence order: [text, image] (Diffusers Qwen; not SD3).
         query = ops.concatenate([txt_q, img_q], axis=1)
         key = ops.concatenate([txt_k, img_k], axis=1)
         value = ops.concatenate([txt_v, img_v], axis=1)
 
-        # fused_attention expects [B, H, S, D]
         query = ops.transpose(query, (0, 2, 1, 3))
         key = ops.transpose(key, (0, 2, 1, 3))
         value = ops.transpose(value, (0, 2, 1, 3))
@@ -497,7 +465,6 @@ class QwenImageDoubleStreamAttention(layers.Layer):
             joint_mask = ops.concatenate(
                 [encoder_hidden_states_mask, img_mask], axis=1
             )
-            # Additive mask: keep=0, drop=MASK_NEG (Diffusers bool True=keep).
             keep = ops.cast(joint_mask, "float32")
             attention_mask = (1.0 - keep) * MASK_NEG
             attention_mask = attention_mask[:, None, None, :]
@@ -574,7 +541,6 @@ class QwenImageTransformerBlock(layers.Layer):
         self.eps = eps
         self.attn_implementation = attn_implementation
 
-        # Diffusers Sequential(SiLU, Linear) -> weight leaf ``img_mod.1`` / ``txt_mod.1``.
         self.img_mod = layers.Dense(
             6 * dim, name=safe_name(f"{module_path}.img_mod.1")
         )
@@ -630,7 +596,6 @@ class QwenImageTransformerBlock(layers.Layer):
     ):
         del encoder_hidden_states_mask_shape, image_rotary_emb_shape
         if isinstance(hidden_states_shape, (list, tuple)) and temb_shape is None:
-            # Explicit ``build((img, txt, temb))`` from a parent layer.
             if (
                 len(hidden_states_shape) >= 3
                 and hasattr(hidden_states_shape[0], "__len__")
@@ -660,7 +625,6 @@ class QwenImageTransformerBlock(layers.Layer):
         self.built = True
 
     def _modulate(self, x, mod_params):
-        """``x * (1 + scale) + shift``, returning ``(modulated, gate)``."""
         shift, scale, gate = ops.split(mod_params, 3, axis=-1)
         modulated = x * (1.0 + scale[:, None, :]) + shift[:, None, :]
         return modulated, gate
@@ -721,8 +685,6 @@ class QwenImageTransformerBlock(layers.Layer):
         return encoder_hidden_states, hidden_states
 
     def compute_output_shape(self, input_shape):
-        # Multi-input builds pass ``[img_shape, txt_shape, temb_shape]``; a lone
-        # tensor shape is ``(batch, seq, dim)``.
         if (
             isinstance(input_shape, (list, tuple))
             and len(input_shape) >= 2
@@ -746,14 +708,9 @@ class QwenImageTransformerBlock(layers.Layer):
         )
         return config
 
-
-# Final-norm AdaLN: Diffusers ``AdaLayerNormContinuous`` uses (scale, shift)
-# order with ``num_chunks=2`` — same as StableDiffusion3AdaLayerNorm.
 QwenImageAdaLayerNormContinuous = StableDiffusion3AdaLayerNorm
 
-
 __all__ = [
-    "qwen_approximate_gelu",
     "apply_rotary_emb_qwen",
     "QwenImageRMSNorm",
     "QwenImageTimestepProjEmbeddings",

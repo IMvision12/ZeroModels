@@ -2,15 +2,16 @@ from .qwen_image_config import (
     QwenImageConfig,
     QwenImageTextConfig,
     QwenImageTransformerConfig,
+    QwenImageVAEConfig,
 )
 from .qwen_image_model import (
+    AutoencoderKLQwenImage,
     QwenImageModel,
     QwenImageTextEncoderModel,
     QwenImageTextToImage,
     QwenImageTransformer2DModel,
 )
 from .qwen_image_tokenizer import QwenImageTokenizer
-from .qwen_image_vae import AutoencoderKLQwenImage, QwenImageVAEConfig
 
 __all__ = [
     "AutoencoderKLQwenImage",

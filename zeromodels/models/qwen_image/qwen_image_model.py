@@ -1,5 +1,3 @@
-"""Qwen-Image models: transformer, container, and text-to-image task."""
-
 from __future__ import annotations
 
 import keras
@@ -14,9 +12,12 @@ from zeromodels.base.base_scheduler import (
 )
 from zeromodels.models.qwen2_5_vl.qwen2_5_vl_model import Qwen2_5VLModel
 from zeromodels.models.qwen_image.qwen_image_config import (
+    DEFAULT_LATENTS_MEAN,
+    DEFAULT_LATENTS_STD,
     QwenImageConfig,
     QwenImageTextConfig,
     QwenImageTransformerConfig,
+    QwenImageVAEConfig,
 )
 from zeromodels.models.qwen_image.qwen_image_layers import (
     QwenImageAdaLayerNormContinuous,
@@ -25,7 +26,11 @@ from zeromodels.models.qwen_image.qwen_image_layers import (
     QwenImageTimestepProjEmbeddings,
     QwenImageTransformerBlock,
 )
-from zeromodels.models.qwen_image.qwen_image_vae import AutoencoderKLQwenImage
+from zeromodels.models.qwen_image.qwen_image_vae import (
+    QwenImageCausalConv3d,
+    QwenImageDecoder3d,
+    QwenImageEncoder3d,
+)
 from zeromodels.models.stable_diffusion.stable_diffusion_layers import safe_name
 
 QWEN_IMAGE_HUB_SIBLINGS = frozenset({"QwenImageModel", "QwenImageTextToImage"})
@@ -34,19 +39,6 @@ PROMPT_TEMPLATE = (
     "texture, quantity, text, spatial relationships of the objects and "
     "background:<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
 )
-
-
-def calculate_shift(
-    image_seq_len,
-    base_seq_len=256,
-    max_seq_len=4096,
-    base_shift=0.5,
-    max_shift=1.15,
-):
-    """Resolution-dependent flow-match shift (Diffusers ``calculate_shift``)."""
-    m = (max_shift - base_shift) / (max_seq_len - base_seq_len)
-    b = base_shift - m * base_seq_len
-    return image_seq_len * m + b
 
 
 def pack_latents(latents, height, width):
@@ -70,6 +62,212 @@ def unpack_latents(latents, height, width, channels):
     )
     latents = ops.transpose(latents, (0, 1, 4, 2, 5, 3))
     return ops.reshape(latents, (batch, height, width, channels))
+
+
+@keras.saving.register_keras_serializable(package="zeromodels")
+class AutoencoderKLQwenImage(BaseModel):
+    """Qwen-Image VAE (Diffusers ``AutoencoderKLQwenImage``), channels-last NDHWC.
+
+    Encode / decode a single image frame (``T=1``). The functional graph is built
+    for ``sample_size`` but conv weights are resolution-independent. Public
+    helpers accept channels-last HWC images or Diffusers NCDHW 5D tensors.
+
+    Latent normalisation with ``latents_mean`` / ``latents_std`` is left to the
+    pipeline (stored on the model for that purpose).
+    """
+
+    config_class = QwenImageVAEConfig
+    HF_MODEL_TYPE = None
+
+    def __init__(
+        self,
+        base_dim=96,
+        z_dim=16,
+        dim_mult=(1, 2, 4, 4),
+        num_res_blocks=2,
+        attn_scales=(),
+        temperal_downsample=(False, True, True),
+        dropout=0.0,
+        input_channels=3,
+        latents_mean=DEFAULT_LATENTS_MEAN,
+        latents_std=DEFAULT_LATENTS_STD,
+        sample_size=1024,
+        apply_temporal=False,
+        name="AutoencoderKLQwenImage",
+        **kwargs,
+    ):
+        dim_mult = tuple(dim_mult)
+        temperal_downsample = tuple(temperal_downsample)
+        attn_scales = tuple(attn_scales)
+        latents_mean = tuple(latents_mean)
+        latents_std = tuple(latents_std)
+        temperal_upsample = tuple(reversed(temperal_downsample))
+
+        h_img, w_img = (
+            sample_size
+            if isinstance(sample_size, (tuple, list))
+            else (sample_size, sample_size)
+        )
+        spatial_compression_ratio = 2 ** len(temperal_downsample)
+        h_lat, w_lat = (
+            h_img // spatial_compression_ratio,
+            w_img // spatial_compression_ratio,
+        )
+
+        encoder = QwenImageEncoder3d(
+            dim=base_dim,
+            z_dim=z_dim * 2,
+            dim_mult=dim_mult,
+            num_res_blocks=num_res_blocks,
+            attn_scales=attn_scales,
+            temperal_downsample=temperal_downsample,
+            dropout=dropout,
+            input_channels=input_channels,
+            module_path="encoder",
+            apply_temporal=apply_temporal,
+        )
+        decoder = QwenImageDecoder3d(
+            dim=base_dim,
+            z_dim=z_dim,
+            dim_mult=dim_mult,
+            num_res_blocks=num_res_blocks,
+            attn_scales=attn_scales,
+            temperal_upsample=temperal_upsample,
+            dropout=dropout,
+            input_channels=input_channels,
+            module_path="decoder",
+            apply_temporal=apply_temporal,
+        )
+        quant_conv = QwenImageCausalConv3d(
+            z_dim * 2, kernel_size=1, padding=0, module_path="quant_conv"
+        )
+        post_quant_conv = QwenImageCausalConv3d(
+            z_dim, kernel_size=1, padding=0, module_path="post_quant_conv"
+        )
+
+        image_in = layers.Input(shape=(h_img, w_img, input_channels), name="image")
+        latent_in = layers.Input(shape=(h_lat, w_lat, z_dim), name="latent")
+
+        image_5d = ops.expand_dims(image_in, axis=1)
+        moments_5d = quant_conv(encoder(image_5d))
+        moments = ops.squeeze(moments_5d, axis=1)
+
+        latent_5d = ops.expand_dims(latent_in, axis=1)
+        decoded_5d = decoder(post_quant_conv(latent_5d))
+        decoded = ops.squeeze(decoded_5d, axis=1)
+        decoded = ops.clip(decoded, -1.0, 1.0)
+
+        super().__init__(
+            inputs={"image": image_in, "latent": latent_in},
+            outputs={"moments": moments, "sample": decoded},
+            name=name,
+            **kwargs,
+        )
+
+        self.base_dim = base_dim
+        self.z_dim = z_dim
+        self.dim_mult = dim_mult
+        self.num_res_blocks = num_res_blocks
+        self.attn_scales = attn_scales
+        self.temperal_downsample = temperal_downsample
+        self.temperal_upsample = temperal_upsample
+        self.dropout = dropout
+        self.input_channels = input_channels
+        self.latents_mean = latents_mean
+        self.latents_std = latents_std
+        self.sample_size = sample_size
+        self.apply_temporal = apply_temporal
+        self.spatial_compression_ratio = spatial_compression_ratio
+        self.vae_scale_factor = spatial_compression_ratio
+        self.encoder = encoder
+        self.decoder = decoder
+        self.quant_conv = quant_conv
+        self.post_quant_conv = post_quant_conv
+
+    def _to_ndhwc(self, x, is_latent=False):
+        """Normalize inputs to NDHWC ``(B, T, H, W, C)``."""
+        static_ndim = len(x.shape)
+        if static_ndim == 4:
+            return ops.expand_dims(x, axis=1)
+        if static_ndim == 5:
+            c1 = int(x.shape[1]) if x.shape[1] is not None else None
+            c_last = int(x.shape[-1]) if x.shape[-1] is not None else None
+            expect = self.z_dim if is_latent else self.input_channels
+            if c1 == expect and c_last != expect:
+                return ops.transpose(x, (0, 2, 3, 4, 1))
+            return x
+        raise ValueError(f"Expected 4D or 5D tensor, got shape {x.shape}")
+
+    def _maybe_squeeze_t(self, x, original_was_4d):
+        if original_was_4d:
+            return ops.squeeze(x, axis=1)
+        return x
+
+    def encode(self, x, sample=False, seed=None, return_ncdhw=False):
+        """Encode image(s) to latents (mean, or reparameterized sample).
+
+        Args:
+            x: ``(B, H, W, 3)`` HWC, ``(B, 1, H, W, 3)`` NDHWC, or
+                ``(B, 3, 1, H, W)`` Diffusers NCDHW.
+            sample: If True, draw ``z ~ N(mean, std)``; else return mean.
+            seed: RNG seed for sampling.
+            return_ncdhw: If True, return Diffusers layout ``(B, C, T, H, W)``.
+        """
+        was_4d = len(x.shape) == 4
+        x5 = self._to_ndhwc(x, is_latent=False)
+        moments = self.quant_conv(self.encoder(x5))
+        mean, logvar = ops.split(moments, 2, axis=-1)
+        if sample:
+            logvar = ops.clip(logvar, -30.0, 20.0)
+            std = ops.exp(0.5 * logvar)
+            noise = keras.random.normal(ops.shape(mean), dtype=mean.dtype, seed=seed)
+            z = mean + std * noise
+        else:
+            z = mean
+        if return_ncdhw:
+            return ops.transpose(z, (0, 4, 1, 2, 3))
+        return self._maybe_squeeze_t(z, was_4d)
+
+    def decode(self, z, return_ncdhw=False):
+        """Decode latents to RGB in ``[-1, 1]``.
+
+        Args:
+            z: ``(B, h, w, z_dim)``, ``(B, 1, h, w, z_dim)`` NDHWC, or
+                ``(B, z_dim, 1, h, w)`` NCDHW.
+            return_ncdhw: If True, return Diffusers layout.
+        """
+        was_4d = len(z.shape) == 4
+        z5 = self._to_ndhwc(z, is_latent=True)
+        x = self.decoder(self.post_quant_conv(z5))
+        x = ops.clip(x, -1.0, 1.0)
+        if return_ncdhw:
+            return ops.transpose(x, (0, 4, 1, 2, 3))
+        return self._maybe_squeeze_t(x, was_4d)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(self.config.constructor_kwargs())
+        config["apply_temporal"] = self.apply_temporal
+        return config
+
+    @classmethod
+    def from_diffusers_config(cls, config, sample_size=1024, **kwargs):
+        return cls(
+            base_dim=config.get("base_dim", 96),
+            z_dim=config.get("z_dim", 16),
+            dim_mult=tuple(config.get("dim_mult", (1, 2, 4, 4))),
+            num_res_blocks=config.get("num_res_blocks", 2),
+            attn_scales=tuple(config.get("attn_scales", ())),
+            temperal_downsample=tuple(
+                config.get("temperal_downsample", (False, True, True))
+            ),
+            dropout=config.get("dropout", 0.0),
+            input_channels=config.get("input_channels", 3),
+            latents_mean=tuple(config.get("latents_mean", DEFAULT_LATENTS_MEAN)),
+            latents_std=tuple(config.get("latents_std", DEFAULT_LATENTS_STD)),
+            sample_size=sample_size,
+            **kwargs,
+        )
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
@@ -594,17 +792,16 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
                 uncond = None
                 do_cfg = False
 
-            # Dynamic flow-match timesteps (mu from packed sequence length).
+            # Diffusers calculate_shift: resolution-dependent flow-match mu
             h, w = self._latent_side(height, width)
             image_seq_len = (h // 2) * (w // 2)
             sched_cfg = getattr(self.scheduler, "config_dict", None) or {}
-            mu = calculate_shift(
-                image_seq_len,
-                sched_cfg.get("base_image_seq_len", 256),
-                sched_cfg.get("max_image_seq_len", 4096),
-                sched_cfg.get("base_shift", 0.5),
-                sched_cfg.get("max_shift", 0.9),
-            )
+            base_seq_len = sched_cfg.get("base_image_seq_len", 256)
+            max_seq_len = sched_cfg.get("max_image_seq_len", 4096)
+            base_shift = sched_cfg.get("base_shift", 0.5)
+            max_shift = sched_cfg.get("max_shift", 0.9)
+            m = (max_shift - base_shift) / (max_seq_len - base_seq_len)
+            mu = image_seq_len * m + (base_shift - m * base_seq_len)
             sigmas = np.linspace(1.0, 1.0 / num_inference_steps, num_inference_steps)
             if hasattr(self.scheduler, "set_timesteps"):
                 try:
