@@ -256,6 +256,7 @@ Documentation sources are also available in [`docs/`](docs/).
     | Stable Diffusion XL (base + refiner 1.0, SDXL-Turbo) | [SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis](https://arxiv.org/abs/2307.01952) | `diffusers` |
     | Stable Diffusion 3 (medium) | [Scaling Rectified Flow Transformers for High-Resolution Image Synthesis](https://arxiv.org/abs/2403.03206) | `diffusers` |
     | Stable Diffusion 3.5 (large, large-turbo, medium) | [Scaling Rectified Flow Transformers for High-Resolution Image Synthesis](https://arxiv.org/abs/2403.03206) | `diffusers` |
+    | Qwen-Image | [Qwen-Image Technical Report](https://arxiv.org/abs/2508.02324) | `diffusers` |
 
 <br>
 
@@ -282,7 +283,7 @@ Documentation sources are also available in [`docs/`](docs/).
 
 ## 📜 License
 
-This project leverages [timm](https://github.com/huggingface/pytorch-image-models#licenses), [transformers](https://github.com/huggingface/transformers#license) and [diffusers](https://github.com/huggingface/diffusers#license) for converting pretrained weights from PyTorch to Keras. For licensing details, please refer to the respective repositories. Converted weights keep their upstream license (for example, the Stable Diffusion checkpoints are CreativeML OpenRAIL-M / OpenRAIL++-M, and SDXL-Turbo is non-commercial under the Stability AI Community License).
+This project leverages [timm](https://github.com/huggingface/pytorch-image-models#licenses), [transformers](https://github.com/huggingface/transformers#license) and [diffusers](https://github.com/huggingface/diffusers#license) for converting pretrained weights from PyTorch to Keras. For licensing details, please refer to the respective repositories. Converted weights keep their upstream license (for example, the Stable Diffusion checkpoints are CreativeML OpenRAIL-M / OpenRAIL++-M, SDXL-Turbo is non-commercial under the Stability AI Community License, and Qwen-Image is Apache-2.0).
 
 - 🔖 **zeromodels Code**: This repository is licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0).
 

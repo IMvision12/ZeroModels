@@ -323,10 +323,11 @@ Encoders and decoder LLMs, dense and mixture-of-experts.
 
 ### Multimodal
 
-Vision-language generation and grounding.
+Vision-language generation, grounding, and text-to-image diffusion.
 
 [Qwen3-VL](qwen3_vl.md) · [InternVL](internvl.md) ·
-[Kimi K2.5](kimi_k25.md) · [LocateAnything](locateanything.md)
+[Kimi K2.5](kimi_k25.md) · [LocateAnything](locateanything.md) ·
+[Stable Diffusion](stable_diffusion.md) · [Qwen-Image](qwen_image.md)
 
 </div>
 
