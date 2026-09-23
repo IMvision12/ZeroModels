@@ -111,3 +111,4 @@ Vision-language encoders, generative VLMs, grounding across detection, OCR, poin
 - [Stable Diffusion 3](stable_diffusion_3.md)
 - [Stable Diffusion 3.5](stable_diffusion_3_5.md)
 - [Qwen-Image](qwen_image.md)
+- [Qwen-Image-2.1](qwen_image_21.md)

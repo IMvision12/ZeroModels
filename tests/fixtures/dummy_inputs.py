@@ -264,6 +264,34 @@ def qwen_image_input(
     }
 
 
+def qwen_image_21_input(
+    batch_size=2,
+    img_seq=16,
+    in_channels=16,
+    image_size=64,
+    latent_size=16,
+    z_dim=8,
+    text_seq_len=8,
+    context_in_dim=32,
+    max_seq_len=16,
+):
+    """Dummy inputs for the Qwen-Image-2.1 container graph (unpatched latents)."""
+    return {
+        "sample": ops.ones((batch_size, img_seq, in_channels)),
+        "timestep": ops.ones((batch_size,)),
+        "encoder_hidden_states": ops.ones(
+            (batch_size, text_seq_len, context_in_dim)
+        ),
+        "encoder_hidden_states_mask": ops.ones(
+            (batch_size, text_seq_len), dtype="int32"
+        ),
+        "image": ops.ones((batch_size, image_size, image_size, 4)),
+        "latent": ops.ones((batch_size, latent_size, latent_size, z_dim)),
+        "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "padding_mask": ops.ones((batch_size, max_seq_len), dtype="int32"),
+    }
+
+
 def tips_v2_text_input(batch_size=2, max_seq_len=16):
     return {
         "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),

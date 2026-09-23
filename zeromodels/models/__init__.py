@@ -105,6 +105,7 @@ from zeromodels.models import (
     qwen3_vl,
     qwen3_vl_moe,
     qwen_image,
+    qwen_image_21,
     regnet,
     res2net,
     resmlp,

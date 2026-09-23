@@ -4846,6 +4846,63 @@ MODEL_TEST_CONFIGS["QwenImageTextToImage"] = {
     "expected_output_shape": dict(_qwen_image_outputs),
 }
 
+# Qwen-Image-2.1: unpatched single-stream DiT + residual RGBA VAE + Qwen3-VL text.
+# sample_size=4 → seq=16; VAE 64px → latent 4 with scale 16.
+_qwen_image_21_tiny = {
+    "transformer_sample_size": 4,
+    "transformer_patch_size": 1,
+    "transformer_in_channels": 16,
+    "transformer_out_channels": 16,
+    "transformer_num_layers": 1,
+    "transformer_attention_head_dim": 8,
+    "transformer_num_attention_heads": 2,
+    "transformer_context_in_dim": 32,
+    "transformer_mlp_ratio": 2,
+    "transformer_axes_dims_rope": (2, 2, 4),
+    "max_sequence_length": 8,
+    "vae_sample_size": 64,
+    "vae_base_dim": 16,
+    "vae_decoder_base_dim": 16,
+    "vae_z_dim": 8,
+    "vae_dim_mult": (1, 2, 2),
+    "vae_num_res_blocks": 1,
+    "vae_input_channels": 4,
+    "vae_out_channels": 4,
+    "vae_is_residual": True,
+    "vae_scale_factor_spatial": 4,
+    "text_embed_dim": 32,
+    "text_mlp_dim": 64,
+    "text_num_layers": 1,
+    "text_num_heads": 2,
+    "text_num_kv_heads": 1,
+    "max_seq_len": 16,
+    "vocab_size": 256,
+    "default_sample_size": 4,
+}
+
+_qwen_image_21_outputs = {
+    "noise_pred": (2, 16, 16),
+    "moments": (2, 16, 16, 16),
+    "image": (2, 64, 64, 4),
+    "prompt_embeds": (2, 16, 32),
+}
+MODEL_TEST_CONFIGS["QwenImage21Model"] = {
+    "module": "zeromodels.models.qwen_image_21",
+    "model_cls": "QwenImage21Model",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_qwen_image_21_tiny),
+    "input_factory": "qwen_image_21_input",
+    "expected_output_shape": dict(_qwen_image_21_outputs),
+}
+MODEL_TEST_CONFIGS["QwenImage21TextToImage"] = {
+    "module": "zeromodels.models.qwen_image_21",
+    "model_cls": "QwenImage21TextToImage",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_qwen_image_21_tiny),
+    "input_factory": "qwen_image_21_input",
+    "expected_output_shape": dict(_qwen_image_21_outputs),
+}
+
 
 def get_all_model_ids():
     return list(MODEL_TEST_CONFIGS.keys())
