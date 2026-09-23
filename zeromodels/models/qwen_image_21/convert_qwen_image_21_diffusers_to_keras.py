@@ -162,9 +162,7 @@ def transfer_qwen_image_21(
 
     # VAE RMSNorm checkpoints keep the name ``gamma`` (not ``weight``).
     vae_mapping = {
-        k: v
-        for k, v in WEIGHT_NAME_MAPPING.items()
-        if k not in ("/gamma", "gamma")
+        k: v for k, v in WEIGHT_NAME_MAPPING.items() if k not in ("/gamma", "gamma")
     }
     for step, (component, subfolder, mapping, index_name, filename) in enumerate(
         (
@@ -222,7 +220,8 @@ def transfer_qwen_image_21(
                 raise FileNotFoundError
         except Exception:
             path = hf_hub_download(
-                repo, filename or "diffusion_pytorch_model.safetensors",
+                repo,
+                filename or "diffusion_pytorch_model.safetensors",
                 subfolder=subfolder,
                 token=token,
             )
@@ -277,11 +276,7 @@ def transfer_qwen_image_21(
                 arr = np.transpose(arr, (2, 3, 4, 1, 0))
             elif len(kshape) == 4 and arr.ndim == 4:
                 arr = np.transpose(arr, (2, 3, 1, 0))
-            elif (
-                len(kshape) == 2
-                and arr.ndim == 4
-                and tuple(arr.shape[-2:]) == (1, 1)
-            ):
+            elif len(kshape) == 2 and arr.ndim == 4 and tuple(arr.shape[-2:]) == (1, 1):
                 arr = arr[:, :, 0, 0]
             elif (
                 arr.ndim > 1

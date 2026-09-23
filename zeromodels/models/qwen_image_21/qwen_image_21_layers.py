@@ -43,7 +43,10 @@ def build_qwenimage21_rope_angles(img_shapes, image_pad_mask, axes_dim, theta=10
     pos_index = np.arange(8192)
     neg_index = np.arange(1024)[::-1] * -1 - 1
     freqs = [
-        np.concatenate([rope_params(pos_index, dim, theta), rope_params(neg_index, dim, theta)], axis=0)
+        np.concatenate(
+            [rope_params(pos_index, dim, theta), rope_params(neg_index, dim, theta)],
+            axis=0,
+        )
         for dim in axes_dim
     ]
 
@@ -62,7 +65,11 @@ def build_qwenimage21_rope_angles(img_shapes, image_pad_mask, axes_dim, theta=10
         position += max(height, width)
 
         image_height_index.extend(
-            [h for h in range(-(height - height // 2), height // 2) for _ in range(width)]
+            [
+                h
+                for h in range(-(height - height // 2), height // 2)
+                for _ in range(width)
+            ]
         )
         image_width_index.extend(
             [w for _ in range(height) for w in range(-(width - width // 2), width // 2)]
@@ -220,7 +227,9 @@ class QwenImage21TimestepProjEmbeddings(layers.Layer):
 class QwenImage21TextProjection(layers.Layer):
     """Diffusers ``QwenImage21TextProjection``."""
 
-    def __init__(self, context_in_dim, hidden_size, eps=NORM_EPS, module_path="txt_in", **kwargs):
+    def __init__(
+        self, context_in_dim, hidden_size, eps=NORM_EPS, module_path="txt_in", **kwargs
+    ):
         kwargs.setdefault("name", safe_name(module_path))
         super().__init__(**kwargs)
         self.context_in_dim = context_in_dim
@@ -313,7 +322,14 @@ class QwenImage21SwiGLUFeedForward(layers.Layer):
 class QwenImage21AdaLayerNormContinuous(layers.Layer):
     """Final adaptive LayerNorm (scale only, no shift)."""
 
-    def __init__(self, embedding_dim, conditioning_embedding_dim, eps=NORM_EPS, module_path="norm_out", **kwargs):
+    def __init__(
+        self,
+        embedding_dim,
+        conditioning_embedding_dim,
+        eps=NORM_EPS,
+        module_path="norm_out",
+        **kwargs,
+    ):
         kwargs.setdefault("name", safe_name(module_path))
         super().__init__(**kwargs)
         self.embedding_dim = embedding_dim
@@ -324,7 +340,11 @@ class QwenImage21AdaLayerNormContinuous(layers.Layer):
             embedding_dim, use_bias=False, name=safe_name(f"{module_path}.linear")
         )
         self.norm = layers.LayerNormalization(
-            axis=-1, epsilon=eps, center=False, scale=False, name=safe_name(f"{module_path}.norm")
+            axis=-1,
+            epsilon=eps,
+            center=False,
+            scale=False,
+            name=safe_name(f"{module_path}.norm"),
         )
 
     def build(self, input_shapes):
@@ -384,7 +404,9 @@ class QwenImage21Attention(layers.Layer):
         self.to_q = layers.Dense(inner, use_bias=False, name=safe_name(f"{path}.to_q"))
         self.to_k = layers.Dense(inner, use_bias=False, name=safe_name(f"{path}.to_k"))
         self.to_v = layers.Dense(inner, use_bias=False, name=safe_name(f"{path}.to_v"))
-        self.to_out = layers.Dense(dim, use_bias=False, name=safe_name(f"{path}.to_out.0"))
+        self.to_out = layers.Dense(
+            dim, use_bias=False, name=safe_name(f"{path}.to_out.0")
+        )
         self.norm_q = QwenImageRMSNorm(eps=eps, module_path=f"{path}.norm_q")
         self.norm_k = QwenImageRMSNorm(eps=eps, module_path=f"{path}.norm_k")
 
@@ -470,13 +492,25 @@ class QwenImage21TransformerBlock(layers.Layer):
         self.module_path = module_path
         path = module_path or "block"
         self.img_norm1 = layers.LayerNormalization(
-            axis=-1, epsilon=eps, center=False, scale=False, name=safe_name(f"{path}.img_norm1")
+            axis=-1,
+            epsilon=eps,
+            center=False,
+            scale=False,
+            name=safe_name(f"{path}.img_norm1"),
         )
         self.attn = QwenImage21Attention(
-            dim, num_attention_heads, attention_head_dim, eps=eps, module_path=f"{path}.attn"
+            dim,
+            num_attention_heads,
+            attention_head_dim,
+            eps=eps,
+            module_path=f"{path}.attn",
         )
         self.img_norm2 = layers.LayerNormalization(
-            axis=-1, epsilon=eps, center=False, scale=False, name=safe_name(f"{path}.img_norm2")
+            axis=-1,
+            epsilon=eps,
+            center=False,
+            scale=False,
+            name=safe_name(f"{path}.img_norm2"),
         )
         self.img_mlp = QwenImage21SwiGLUFeedForward(
             dim, dim * mlp_ratio, module_path=f"{path}.img_mlp"
@@ -495,7 +529,14 @@ class QwenImage21TransformerBlock(layers.Layer):
         gate = select_modulation_rows(gate, target_token_mask)
         return hidden_states * (1.0 + scale), gate
 
-    def call(self, hidden_states, modulation, rotary_emb=None, attention_mask=None, target_token_mask=None):
+    def call(
+        self,
+        hidden_states,
+        modulation,
+        rotary_emb=None,
+        attention_mask=None,
+        target_token_mask=None,
+    ):
         mod1, mod2 = ops.split(modulation, 2, axis=-1)
         img_modulated, img_gate1 = self.modulate(
             self.img_norm1(hidden_states), mod1, target_token_mask
@@ -508,7 +549,9 @@ class QwenImage21TransformerBlock(layers.Layer):
         img_modulated2, img_gate2 = self.modulate(
             self.img_norm2(hidden_states), mod2, target_token_mask
         )
-        hidden_states = hidden_states + ops.tanh(img_gate2) * self.img_mlp(img_modulated2)
+        hidden_states = hidden_states + ops.tanh(img_gate2) * self.img_mlp(
+            img_modulated2
+        )
 
         if keras.backend.standardize_dtype(hidden_states.dtype) == "float16":
             hidden_states = ops.clip(hidden_states, -65504.0, 65504.0)

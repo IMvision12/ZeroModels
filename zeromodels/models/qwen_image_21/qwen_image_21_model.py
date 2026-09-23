@@ -10,7 +10,10 @@ from zeromodels.base.base_scheduler import (
     FlowMatchEulerDiscreteScheduler,
     get_scheduler,
 )
-from zeromodels.models.qwen3_vl.qwen3_vl_model import Qwen3VLTextModel, qwen3_text_cos_sin
+from zeromodels.models.qwen3_vl.qwen3_vl_model import (
+    Qwen3VLTextModel,
+    qwen3_text_cos_sin,
+)
 from zeromodels.models.qwen_image_21.qwen_image_21_config import (
     DEFAULT_LATENTS_MEAN,
     DEFAULT_LATENTS_STD,
@@ -37,9 +40,7 @@ from zeromodels.models.qwen_image_21.qwen_image_21_vae import (
 )
 from zeromodels.models.stable_diffusion.stable_diffusion_layers import safe_name
 
-QWEN_IMAGE_21_HUB_SIBLINGS = frozenset(
-    {"QwenImage21Model", "QwenImage21TextToImage"}
-)
+QWEN_IMAGE_21_HUB_SIBLINGS = frozenset({"QwenImage21Model", "QwenImage21TextToImage"})
 
 
 def pack_latents(latents, height, width):
@@ -103,7 +104,10 @@ class AutoencoderKLQwenImage21(BaseModel):
             else (sample_size, sample_size)
         )
         spatial_compression_ratio = int(scale_factor_spatial)
-        h_lat, w_lat = h_img // spatial_compression_ratio, w_img // spatial_compression_ratio
+        h_lat, w_lat = (
+            h_img // spatial_compression_ratio,
+            w_img // spatial_compression_ratio,
+        )
 
         encoder = QwenImage21Encoder3d(
             dim=base_dim,
@@ -303,9 +307,7 @@ class QwenImage21Transformer2DModel(BaseModel):
         txt_in = QwenImage21TextProjection(
             context_in_dim, inner_dim, eps=eps, module_path="txt_in"
         )
-        img_in = layers.Dense(
-            inner_dim, use_bias=False, name=safe_name("img_in")
-        )
+        img_in = layers.Dense(inner_dim, use_bias=False, name=safe_name("img_in"))
         modulation = layers.Dense(
             4 * inner_dim, use_bias=False, name=safe_name("modulation.1")
         )
@@ -590,9 +592,7 @@ class QwenImage21Model(BaseModel):
             "encoder_hidden_states_mask": layers.Input(
                 shape=(text_seq,), dtype="int32", name="encoder_hidden_states_mask"
             ),
-            "image": layers.Input(
-                shape=(img_h, img_w, v.input_channels), name="image"
-            ),
+            "image": layers.Input(shape=(img_h, img_w, v.input_channels), name="image"),
             "latent": layers.Input(shape=(lat_h, lat_w, v.z_dim), name="latent"),
             "token_ids": layers.Input(
                 shape=(t.max_seq_len,), dtype="int32", name="token_ids"

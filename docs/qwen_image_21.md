@@ -200,9 +200,7 @@ from zeromodels.models.qwen_image_21 import (
 model = QwenImage21TextToImage.from_weights("zeromodels/qwen-image-2.1")
 tokenizer = QwenImage21Tokenizer.from_weights("zeromodels/qwen-image-2.1")
 
-inputs = tokenizer(
-    "a photo of a capybara wearing a wizard hat, soft window light"
-)
+inputs = tokenizer("a photo of a capybara wearing a wizard hat, soft window light")
 images = model.generate(
     **inputs,
     height=1024,
@@ -255,9 +253,7 @@ model = QwenImage21TextToImage.from_weights(
     transformer_sample_size=32,
     vae_sample_size=512,
 )
-images = model.generate(
-    **tokenizer("a mountain lake at dawn"), height=512, width=512
-)
+images = model.generate(**tokenizer("a mountain lake at dawn"), height=512, width=512)
 ```
 
 ### Offline conversion

@@ -152,7 +152,13 @@ class QwenImage21AvgDown3D(layers.Layer):
             pad = (factor - size % factor) % factor
             return (size + pad) // factor
 
-        return (b, down(t, ft) if t is not None else None, down(h, fs), down(w, fs), self.out_channels)
+        return (
+            b,
+            down(t, ft) if t is not None else None,
+            down(h, fs),
+            down(w, fs),
+            self.out_channels,
+        )
 
     def get_config(self):
         config = super().get_config()
@@ -259,7 +265,9 @@ class QwenImage21Resample(layers.Layer):
         b, t, h, w, c = input_shape
         if self.spatial_conv is not None:
             if self._downsample:
-                self.spatial_conv.build((b, None if h is None else h + 1, None if w is None else w + 1, c))
+                self.spatial_conv.build(
+                    (b, None if h is None else h + 1, None if w is None else w + 1, c)
+                )
             else:
                 self.spatial_conv.build(
                     (b, None if h is None else h * 2, None if w is None else w * 2, c)
@@ -291,7 +299,13 @@ class QwenImage21Resample(layers.Layer):
     def compute_output_shape(self, input_shape):
         b, t, h, w, c = input_shape
         if self._upsample:
-            return (b, t, None if h is None else h * 2, None if w is None else w * 2, self.upsample_out_dim)
+            return (
+                b,
+                t,
+                None if h is None else h * 2,
+                None if w is None else w * 2,
+                self.upsample_out_dim,
+            )
         if self._downsample:
             return (
                 b,
@@ -326,10 +340,18 @@ class QwenImage21ResidualBlock(layers.Layer):
         self.out_dim = int(out_dim)
         self.module_path = module_path
         self.dropout_rate = float(dropout)
-        self.norm1 = QwenImageRMSNorm(in_dim, images=False, module_path=f"{module_path}.norm1")
-        self.conv1 = QwenImage21CausalConv(out_dim, 3, padding=1, module_path=f"{module_path}.conv1")
-        self.norm2 = QwenImageRMSNorm(out_dim, images=False, module_path=f"{module_path}.norm2")
-        self.conv2 = QwenImage21CausalConv(out_dim, 3, padding=1, module_path=f"{module_path}.conv2")
+        self.norm1 = QwenImageRMSNorm(
+            in_dim, images=False, module_path=f"{module_path}.norm1"
+        )
+        self.conv1 = QwenImage21CausalConv(
+            out_dim, 3, padding=1, module_path=f"{module_path}.conv1"
+        )
+        self.norm2 = QwenImageRMSNorm(
+            out_dim, images=False, module_path=f"{module_path}.norm2"
+        )
+        self.conv2 = QwenImage21CausalConv(
+            out_dim, 3, padding=1, module_path=f"{module_path}.conv2"
+        )
         self.conv_shortcut = None
         if in_dim != out_dim:
             self.conv_shortcut = QwenImage21CausalConv(
@@ -388,9 +410,15 @@ class QwenImage21AttentionBlock(layers.Layer):
         super().__init__(**kwargs)
         self.dim = int(dim)
         self.module_path = module_path
-        self.norm = QwenImageRMSNorm(dim, images=False, module_path=f"{module_path}.norm")
-        self.to_qkv = layers.Dense(dim * 3, use_bias=True, name=safe_name(f"{module_path}.to_qkv"))
-        self.proj = layers.Dense(dim, use_bias=True, name=safe_name(f"{module_path}.proj"))
+        self.norm = QwenImageRMSNorm(
+            dim, images=False, module_path=f"{module_path}.norm"
+        )
+        self.to_qkv = layers.Dense(
+            dim * 3, use_bias=True, name=safe_name(f"{module_path}.to_qkv")
+        )
+        self.proj = layers.Dense(
+            dim, use_bias=True, name=safe_name(f"{module_path}.proj")
+        )
 
     def build(self, input_shape):
         self.norm.build(input_shape)
@@ -435,7 +463,9 @@ class QwenImage21MidBlock(layers.Layer):
         self.dim = int(dim)
         self.module_path = module_path
         self.resnets = [
-            QwenImage21ResidualBlock(dim, dim, f"{module_path}.resnets.0", dropout=dropout)
+            QwenImage21ResidualBlock(
+                dim, dim, f"{module_path}.resnets.0", dropout=dropout
+            )
         ]
         self.attentions = []
         for i in range(num_layers):

@@ -279,9 +279,7 @@ def qwen_image_21_input(
     return {
         "sample": ops.ones((batch_size, img_seq, in_channels)),
         "timestep": ops.ones((batch_size,)),
-        "encoder_hidden_states": ops.ones(
-            (batch_size, text_seq_len, context_in_dim)
-        ),
+        "encoder_hidden_states": ops.ones((batch_size, text_seq_len, context_in_dim)),
         "encoder_hidden_states_mask": ops.ones(
             (batch_size, text_seq_len), dtype="int32"
         ),
