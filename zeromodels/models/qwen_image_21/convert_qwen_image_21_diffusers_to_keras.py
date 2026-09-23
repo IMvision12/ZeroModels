@@ -20,7 +20,7 @@ QWEN_IMAGE_21_SOURCES = {
     "qwen-image-2.1": "Qwen/Qwen-Image-2.1",
 }
 
-WEIGHT_NAME_MAPPING: Dict[str, str] = {
+DIT_VAE_NAME_MAPPING: Dict[str, str] = {
     "__": ".",
     "/kernel": ".weight",
     "/gamma": ".weight",
@@ -30,7 +30,10 @@ WEIGHT_NAME_MAPPING: Dict[str, str] = {
     "gamma": "weight",
     "beta": "bias",
     "kernel": "weight",
-    # Qwen3-VL text tower
+}
+
+TEXT_NAME_MAPPING: Dict[str, str] = {
+    **DIT_VAE_NAME_MAPPING,
     "token_embedding.embeddings": "model.embed_tokens.weight",
     "language_model.final_norm.weight": "model.norm.weight",
     "language_model.": "model.",
@@ -47,6 +50,9 @@ WEIGHT_NAME_MAPPING: Dict[str, str] = {
     "mlp.up": "mlp.up_proj",
     "mlp.down": "mlp.down_proj",
 }
+
+# Back-compat alias (text mapping includes the structural renames).
+WEIGHT_NAME_MAPPING = TEXT_NAME_MAPPING
 
 
 def config_from_diffusers(repo, token=None):
@@ -162,14 +168,14 @@ def transfer_qwen_image_21(
 
     # VAE RMSNorm checkpoints keep the name ``gamma`` (not ``weight``).
     vae_mapping = {
-        k: v for k, v in WEIGHT_NAME_MAPPING.items() if k not in ("/gamma", "gamma")
+        k: v for k, v in DIT_VAE_NAME_MAPPING.items() if k not in ("/gamma", "gamma")
     }
     for step, (component, subfolder, mapping, index_name, filename) in enumerate(
         (
             (
                 model.transformer,
                 "transformer",
-                WEIGHT_NAME_MAPPING,
+                DIT_VAE_NAME_MAPPING,
                 "diffusion_pytorch_model.safetensors.index.json",
                 None,
             ),
@@ -338,7 +344,7 @@ def transfer_qwen_image_21(
         name = weight.path.removeprefix(f"{text_encoder.name}/")
         if name.startswith("language_model/"):
             name = name[len("language_model/") :]
-        for old, new in WEIGHT_NAME_MAPPING.items():
+        for old, new in TEXT_NAME_MAPPING.items():
             name = name.replace(old, new)
         if name not in hf_keys and name.startswith("model."):
             alt = name[len("model.") :]
