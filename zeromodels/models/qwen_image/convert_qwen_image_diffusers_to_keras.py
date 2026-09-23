@@ -46,12 +46,10 @@ WEIGHT_NAME_MAPPING: Dict[str, str] = {
 
 
 def config_from_diffusers(repo, token=None):
+    """Build config from Hub JSON only (no diffusers / transformers import)."""
     import json
 
     from huggingface_hub import hf_hub_download
-    from diffusers import FlowMatchEulerDiscreteScheduler
-    from diffusers import QwenImageTransformer2DModel as DiffusersTransformer
-    from transformers import AutoConfig
 
     from zeromodels.models.qwen_image.qwen_image_config import (
         QwenImageConfig,
@@ -61,25 +59,20 @@ def config_from_diffusers(repo, token=None):
         QwenImageTransformer2DModel,
     )
 
-    transformer = dict(
-        DiffusersTransformer.load_config(repo, subfolder="transformer", token=token)
-    )
-    vae = json.load(
-        open(
-            hf_hub_download(repo, "config.json", subfolder="vae", token=token),
-            encoding="utf-8",
-        )
-    )
-    text = AutoConfig.from_pretrained(
-        repo, subfolder="text_encoder", token=token
-    ).to_dict()
+    def load_json(filename, subfolder=None):
+        path = hf_hub_download(repo, filename, subfolder=subfolder, token=token)
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
+    transformer = load_json("config.json", subfolder="transformer")
+    vae = load_json("config.json", subfolder="vae")
+    text = load_json("config.json", subfolder="text_encoder")
     text_inner = text.get("text_config") or text
+    raw_sched = load_json("scheduler_config.json", subfolder="scheduler")
     scheduler = {
         k: v
-        for k, v in FlowMatchEulerDiscreteScheduler.load_config(
-            repo, subfolder="scheduler", token=token
-        ).items()
-        if k == "_class_name" or not k.startswith("_")
+        for k, v in raw_sched.items()
+        if k == "_class_name" or not str(k).startswith("_")
     }
     temperal = tuple(vae.get("temperal_downsample", (False, True, True)))
     return QwenImageConfig(
@@ -124,6 +117,7 @@ def config_from_diffusers(repo, token=None):
     )
 
 
+
 def transfer_qwen_image(
     repo, token=None, dtype="float16", build_sample_size=16, config=None
 ):
@@ -145,8 +139,11 @@ def transfer_qwen_image(
     with build_dtype_scope(dtype), zeros_init():
         model = QwenImageModel(**flat)
 
-    # VAE RMSNorm uses /scale; drop /gamma so it cannot collide with other paths
-    vae_mapping = {k: v for k, v in WEIGHT_NAME_MAPPING.items() if "/gamma" not in k}
+    vae_mapping = {
+        k: v
+        for k, v in WEIGHT_NAME_MAPPING.items()
+        if k not in ("/gamma", "gamma")
+    }
     for step, (component, subfolder, mapping, index_name, filename) in enumerate(
         (
             (
