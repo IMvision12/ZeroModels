@@ -241,7 +241,7 @@ def qwen_image_input(
     packed_seq=16,
     in_channels=16,
     image_size=32,
-    latent_size=16,
+    latent_size=8,
     z_dim=4,
     text_seq_len=16,
     joint_attention_dim=32,

@@ -353,6 +353,11 @@ class QwenImageModel(BaseModel):
             "prompt_embeds": text_out["last_hidden_state"],
         }
 
+    def get_config(self):
+        config = super().get_config()
+        config.update(self.config.constructor_kwargs())
+        return config
+
     def from_hf(self, *args, **kwargs):
         raise NotImplementedError(
             "On-the-fly hf: conversion is not supported for Qwen-Image; "

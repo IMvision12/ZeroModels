@@ -386,6 +386,7 @@ class QwenImageDoubleStreamAttention(layers.Layer):
     ):
         kwargs.setdefault("name", safe_name(module_path))
         super().__init__(**kwargs)
+        self._convert_input_args = False
         self.dim = dim
         self.num_attention_heads = num_attention_heads
         self.attention_head_dim = attention_head_dim or (dim // num_attention_heads)
@@ -565,6 +566,7 @@ class QwenImageTransformerBlock(layers.Layer):
     ):
         kwargs.setdefault("name", safe_name(module_path))
         super().__init__(**kwargs)
+        self._convert_input_args = False
         self.dim = dim
         self.num_attention_heads = num_attention_heads
         self.attention_head_dim = attention_head_dim or (dim // num_attention_heads)
@@ -709,12 +711,11 @@ class QwenImageTransformerBlock(layers.Layer):
             + txt_gate2[:, None, :] * self.txt_mlp(txt_modulated2)
         )
 
-        # Diffusers clips fp16 dual-stream outputs to the fp16 finite range.
-        if str(encoder_hidden_states.dtype).endswith("float16"):
+        if keras.backend.standardize_dtype(encoder_hidden_states.dtype) == "float16":
             encoder_hidden_states = ops.clip(
                 encoder_hidden_states, -65504.0, 65504.0
             )
-        if str(hidden_states.dtype).endswith("float16"):
+        if keras.backend.standardize_dtype(hidden_states.dtype) == "float16":
             hidden_states = ops.clip(hidden_states, -65504.0, 65504.0)
 
         return encoder_hidden_states, hidden_states
