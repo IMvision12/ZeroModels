@@ -257,7 +257,7 @@ Documentation sources are also available in [`docs/`](docs/).
     | Stable Diffusion 3 (medium) | [Scaling Rectified Flow Transformers for High-Resolution Image Synthesis](https://arxiv.org/abs/2403.03206) | `diffusers` |
     | Stable Diffusion 3.5 (large, large-turbo, medium) | [Scaling Rectified Flow Transformers for High-Resolution Image Synthesis](https://arxiv.org/abs/2403.03206) | `diffusers` |
     | Qwen-Image | [Qwen-Image Technical Report](https://arxiv.org/abs/2508.02324) | `diffusers` |
-    | Qwen-Image-2.1 | [Qwen/Qwen-Image-2.1](https://huggingface.co/Qwen/Qwen-Image-2.1) | `diffusers` |
+    | Qwen-Image-2.1 | [Qwen/Qwen-Image-2.1](https://huggingface.co/Qwen/Qwen-Image-2.1) (single-stream DiT + Qwen3-VL) | `diffusers` |
 
 <br>
 

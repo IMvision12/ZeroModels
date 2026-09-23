@@ -45,6 +45,7 @@ Links:
 - License: [Apache-2.0](https://huggingface.co/Qwen/Qwen-Image/blob/main/LICENSE)
 
 See also [qwen2_5_vl.md](qwen2_5_vl.md) (the text tower),
+[qwen_image_21.md](qwen_image_21.md) (2.1 single-stream / unpatched),
 [stable_diffusion_3.md](stable_diffusion_3.md) (flow-match / MMDiT-style diffusion
 in ZeroModels).
 
