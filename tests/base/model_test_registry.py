@@ -4791,6 +4791,61 @@ MODEL_TEST_CONFIGS["StableDiffusion3_5TextToImage"] = {
     "expected_output_shape": dict(_sd3_outputs),
 }
 
+# Qwen-Image: packed-latent double-stream DiT + Wan-derived VAE + Qwen2.5-VL text.
+# sample_size=8 → packed_seq=(8/2)^2=16; VAE 32px → latent 4 with scale 8.
+_qwen_image_tiny = {
+    "transformer_sample_size": 8,
+    "transformer_patch_size": 2,
+    "transformer_in_channels": 16,
+    "transformer_out_channels": 4,
+    "transformer_num_layers": 2,
+    "transformer_attention_head_dim": 8,
+    "transformer_num_attention_heads": 2,
+    "transformer_joint_attention_dim": 32,
+    "transformer_axes_dims_rope": (2, 2, 4),
+    "max_sequence_length": 16,
+    "vae_sample_size": 32,
+    "vae_base_dim": 16,
+    "vae_z_dim": 4,
+    "vae_dim_mult": (1, 1),
+    "vae_num_res_blocks": 1,
+    "vae_temperal_downsample": (False, True),
+    "vae_latents_mean": (0.0, 0.0, 0.0, 0.0),
+    "vae_latents_std": (1.0, 1.0, 1.0, 1.0),
+    "text_embed_dim": 32,
+    "text_mlp_dim": 64,
+    "text_num_layers": 2,
+    "text_num_heads": 4,
+    "text_num_kv_heads": 2,
+    "text_mrope_section": (1, 1, 2),
+    "max_seq_len": 32,
+    "vocab_size": 128,
+    "default_sample_size": 4,
+}
+
+_qwen_image_outputs = {
+    "noise_pred": (2, 16, 16),
+    "moments": (2, 16, 16, 8),
+    "image": (2, 16, 16, 3),
+    "prompt_embeds": (2, 32, 32),
+}
+MODEL_TEST_CONFIGS["QwenImageModel"] = {
+    "module": "zeromodels.models.qwen_image",
+    "model_cls": "QwenImageModel",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_qwen_image_tiny),
+    "input_factory": "qwen_image_input",
+    "expected_output_shape": dict(_qwen_image_outputs),
+}
+MODEL_TEST_CONFIGS["QwenImageTextToImage"] = {
+    "module": "zeromodels.models.qwen_image",
+    "model_cls": "QwenImageTextToImage",
+    "model_type": "diffusion",
+    "init_kwargs": dict(_qwen_image_tiny),
+    "input_factory": "qwen_image_input",
+    "expected_output_shape": dict(_qwen_image_outputs),
+}
+
 
 def get_all_model_ids():
     return list(MODEL_TEST_CONFIGS.keys())

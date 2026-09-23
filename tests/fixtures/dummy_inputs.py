@@ -236,6 +236,34 @@ def stable_diffusion_3_input(
     }
 
 
+def qwen_image_input(
+    batch_size=2,
+    packed_seq=16,
+    in_channels=16,
+    image_size=32,
+    latent_size=8,
+    z_dim=4,
+    text_seq_len=16,
+    joint_attention_dim=32,
+    max_seq_len=32,
+):
+    """Dummy inputs for the Qwen-Image container graph (packed latents)."""
+    return {
+        "sample": ops.ones((batch_size, packed_seq, in_channels)),
+        "timestep": ops.ones((batch_size,)),
+        "encoder_hidden_states": ops.ones(
+            (batch_size, text_seq_len, joint_attention_dim)
+        ),
+        "encoder_hidden_states_mask": ops.ones(
+            (batch_size, text_seq_len), dtype="int32"
+        ),
+        "image": ops.ones((batch_size, image_size, image_size, 3)),
+        "latent": ops.ones((batch_size, latent_size, latent_size, z_dim)),
+        "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "padding_mask": ops.ones((batch_size, max_seq_len), dtype="int32"),
+    }
+
+
 def tips_v2_text_input(batch_size=2, max_seq_len=16):
     return {
         "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),
