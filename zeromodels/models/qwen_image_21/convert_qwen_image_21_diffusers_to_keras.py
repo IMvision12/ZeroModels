@@ -332,23 +332,35 @@ def transfer_qwen_image_21(
         # + final norm (Diffusers reads pre-norm hidden states).
         if key.startswith("model.visual.") or key.startswith("lm_head."):
             continue
-        if key in ("model.norm.weight",) or key.endswith(".norm.weight") and key.count(".") <= 2:
-            if key == "model.norm.weight":
-                continue
+        if key == "model.norm.weight":
+            continue
         if key.startswith("model.language_model."):
-            hf_keys["model." + key[len("model.language_model.") :]] = key
+            rest = key[len("model.language_model.") :]
+            hf_keys["model." + rest] = key
+            hf_keys[rest] = key
         elif key.startswith("model.") and not key.startswith("model.visual."):
             hf_keys[key] = key
-    # Drop final norm from the transferable set.
+            hf_keys[key[len("model.") :]] = key
+    # Drop final norm from the transferable set (pre-norm embeds for the DiT).
     hf_keys.pop("model.norm.weight", None)
+    hf_keys.pop("norm.weight", None)
     consumed = set()
     text_encoder = model.text_encoder
     for weight in tqdm(
         text_encoder.weights, desc="Transferring text_encoder weights to Keras"
     ):
         name = weight.path.removeprefix(f"{text_encoder.name}/")
+        # Also strip a nested language_model/ prefix if present.
+        if name.startswith("language_model/"):
+            name = name[len("language_model/") :]
         for old, new in TEXT_WEIGHT_NAME_MAPPING.items():
             name = name.replace(old, new)
+        # token_embedding.embeddings → model.embed_tokens.weight; without the
+        # language_model remap, bare embed_tokens.weight must also resolve.
+        if name not in hf_keys and name.startswith("model."):
+            alt = name[len("model.") :]
+            if alt in hf_keys:
+                name = alt
         if name not in hf_keys:
             raise WeightMappingError(weight.path, name)
         consumed.add(name)
