@@ -277,24 +277,24 @@ def transfer_qwen_image_21(
             raw = state[key]
             arr = np.asarray(raw)
             kshape = tuple(keras_weight.shape)
-        if len(kshape) == 5 and arr.ndim == 5:
-            arr = np.transpose(arr, (2, 3, 4, 1, 0))
-        elif len(kshape) == 4 and arr.ndim == 4:
-            arr = np.transpose(arr, (2, 3, 1, 0))
-        elif (
-            len(kshape) == 2
-            and arr.ndim == 4
-            and tuple(arr.shape[-2:]) == (1, 1)
-        ):
-            # Diffusers mid-block attention uses 1×1 Conv2d; Keras uses Dense.
-            # Keep torch (out, in) layout — transfer_weights will transpose.
-            arr = arr[:, :, 0, 0]
-        elif (
-            arr.ndim > 1
-            and len(kshape) == 1
-            and int(np.prod(arr.shape)) == kshape[0]
-        ):
-            arr = arr.reshape(kshape)
+            if len(kshape) == 5 and arr.ndim == 5:
+                arr = np.transpose(arr, (2, 3, 4, 1, 0))
+            elif len(kshape) == 4 and arr.ndim == 4:
+                arr = np.transpose(arr, (2, 3, 1, 0))
+            elif (
+                len(kshape) == 2
+                and arr.ndim == 4
+                and tuple(arr.shape[-2:]) == (1, 1)
+            ):
+                # Diffusers mid-block attention uses 1×1 Conv2d; Keras uses Dense.
+                # Keep torch (out, in) layout — transfer_weights will transpose.
+                arr = arr[:, :, 0, 0]
+            elif (
+                arr.ndim > 1
+                and len(kshape) == 1
+                and int(np.prod(arr.shape)) == kshape[0]
+            ):
+                arr = arr.reshape(kshape)
             if len(keras_weight.shape) in (4, 5):
                 if tuple(keras_weight.shape) != arr.shape:
                     raise WeightShapeMismatchError(
