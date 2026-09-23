@@ -1,11 +1,3 @@
-"""Qwen-Image-2.1 VAE: residual Wan-style KL autoencoder (Diffusers ``AutoencoderKLQwenImage21``).
-
-Diffusers' ``QwenImage21CausalConv3d`` is an image specialization of Wan's causal 3D
-conv: a spatial ``Conv2d`` that squeezes / unsqueezes the singleton temporal axis.
-Temporal resample paths are inactive for single-frame T2I (cold feat-cache), matching
-the existing Qwen-Image ``apply_temporal=False`` convention.
-"""
-
 from __future__ import annotations
 
 import keras
@@ -36,7 +28,6 @@ class QwenImage21CausalConv(layers.Layer):
         if isinstance(kernel_size, int):
             self.kernel_size = (kernel_size, kernel_size)
         else:
-            # Diffusers may pass (1, 1) or a 3-tuple; keep the spatial pair.
             ks = tuple(kernel_size)
             self.kernel_size = (ks[-2], ks[-1]) if len(ks) == 3 else (ks[0], ks[1])
         if isinstance(stride, int):
@@ -134,8 +125,6 @@ class QwenImage21AvgDown3D(layers.Layer):
         self.group_size = self.in_channels * self.factor // self.out_channels
 
     def call(self, x):
-        # x: (B, T, H, W, C) — pack order must match Diffusers NCHW AvgDown3D:
-        # channels outer, then (factor_t, factor_s, factor_s).
         ft, fs = self.factor_t, self.factor_s
         pad_t = (ft - (ops.shape(x)[1] % ft)) % ft
         x = ops.pad(x, ((0, 0), (pad_t, 0), (0, 0), (0, 0), (0, 0)))
@@ -145,7 +134,6 @@ class QwenImage21AvgDown3D(layers.Layer):
         w = ops.shape(x)[3]
         c = self.in_channels
         x = ops.reshape(x, (b, t // ft, ft, h // fs, fs, w // fs, fs, c))
-        # B,T',ft,H',fs,W',fs,C → B,T',H',W',C,ft,fs,fs
         x = ops.transpose(x, (0, 1, 3, 5, 7, 2, 4, 6))
         x = ops.reshape(x, (b, t // ft, h // fs, w // fs, c * self.factor))
         x = ops.reshape(
@@ -158,13 +146,13 @@ class QwenImage21AvgDown3D(layers.Layer):
         b, t, h, w, _ = input_shape
         ft, fs = self.factor_t, self.factor_s
 
-        def _down(size, factor):
+        def down(size, factor):
             if size is None:
                 return None
             pad = (factor - size % factor) % factor
             return (size + pad) // factor
 
-        return (b, _down(t, ft) if t is not None else None, _down(h, fs), _down(w, fs), self.out_channels)
+        return (b, down(t, ft) if t is not None else None, down(h, fs), down(w, fs), self.out_channels)
 
     def get_config(self):
         config = super().get_config()
@@ -194,7 +182,6 @@ class QwenImage21DupUp3D(layers.Layer):
         self.repeats = self.out_channels * self.factor // self.in_channels
 
     def call(self, x, first_chunk=False):
-        # x: (B, T, H, W, C)
         x = ops.repeat(x, self.repeats, axis=-1)
         b = ops.shape(x)[0]
         t = ops.shape(x)[1]
@@ -412,7 +399,6 @@ class QwenImage21AttentionBlock(layers.Layer):
         self.built = True
 
     def call(self, x):
-        # x: (B, T, H, W, C)
         residual = x
         x = self.norm(x)
         b = ops.shape(x)[0]

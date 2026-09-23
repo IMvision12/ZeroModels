@@ -1,5 +1,3 @@
-"""Qwen-Image-2.1 tokenizer: ChatML template for prompt encoding."""
-
 import keras
 
 from zeromodels.models.qwen3.qwen3_tokenizer import Qwen3Tokenizer
@@ -10,7 +8,6 @@ PROMPT_TEMPLATE = (
     f"<|im_start|>user\n{{}}<|im_end|>\n"
     f"<|im_start|>assistant\n"
 )
-# Tokenized system message length (Diffusers derives this via apply_chat_template).
 PROMPT_TEMPLATE_START_IDX = 14
 
 

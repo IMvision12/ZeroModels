@@ -1,5 +1,3 @@
-"""Qwen-Image-2.1 models: single-stream transformer, container, and T2I task."""
-
 from __future__ import annotations
 
 import keras
@@ -23,6 +21,7 @@ from zeromodels.models.qwen_image_21.qwen_image_21_config import (
 )
 from zeromodels.models.qwen_image_21.qwen_image_21_layers import (
     IMG_TOKENS_PER_SLOT,
+    MASK_NEG,
     QwenImage21AdaLayerNormContinuous,
     QwenImage21TextProjection,
     QwenImage21TimestepProjEmbeddings,
@@ -54,23 +53,6 @@ def unpack_latents(latents, height, width, channels):
     """Unflatten ``(B, H*W, C)`` → ``(B, H, W, C)``."""
     batch = ops.shape(latents)[0]
     return ops.reshape(latents, (batch, height, width, channels))
-
-
-def _t2i_image_pad_mask(text_seq_len, latent_h, latent_w):
-    """Bool mask over the VLM+target-slot sequence before 2×2 expansion."""
-    target_slots = (latent_h * latent_w) // IMG_TOKENS_PER_SLOT
-    return np.concatenate(
-        [
-            np.zeros(text_seq_len, dtype=bool),
-            np.ones(target_slots, dtype=bool),
-        ]
-    )
-
-
-def _expand_image_pad_mask(img_mask):
-    """Expand each VLM image slot to ``IMG_TOKENS_PER_SLOT`` latent tokens."""
-    repeats = np.where(img_mask, IMG_TOKENS_PER_SLOT, 1)
-    return np.repeat(img_mask, repeats)
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
@@ -195,7 +177,7 @@ class AutoencoderKLQwenImage21(BaseModel):
         self.quant_conv = quant_conv
         self.post_quant_conv = post_quant_conv
 
-    def _to_ndhwc(self, x, is_latent=False):
+    def to_ndhwc(self, x, is_latent=False):
         static_ndim = len(x.shape)
         if static_ndim == 4:
             return ops.expand_dims(x, axis=1)
@@ -210,7 +192,7 @@ class AutoencoderKLQwenImage21(BaseModel):
 
     def encode(self, x, sample=False, seed=None):
         was_4d = len(x.shape) == 4
-        x5 = self._to_ndhwc(x, is_latent=False)
+        x5 = self.to_ndhwc(x, is_latent=False)
         moments = self.quant_conv(self.encoder(x5))
         mean, logvar = ops.split(moments, 2, axis=-1)
         if sample:
@@ -226,7 +208,7 @@ class AutoencoderKLQwenImage21(BaseModel):
 
     def decode(self, z):
         was_4d = len(z.shape) == 4
-        z5 = self._to_ndhwc(z, is_latent=True)
+        z5 = self.to_ndhwc(z, is_latent=True)
         out = self.decoder(self.post_quant_conv(z5))
         out = ops.clip(out, -1.0, 1.0)
         if was_4d:
@@ -298,9 +280,16 @@ class QwenImage21Transformer2DModel(BaseModel):
         img_seq = sample_h * sample_w
         img_shapes = [(1, sample_h, sample_w)]
 
-        # Prefill T2I joint layout (text + target image, no condition images).
-        slot_mask = _t2i_image_pad_mask(text_seq_len, sample_h, sample_w)
-        image_pad_mask = _expand_image_pad_mask(slot_mask)
+        target_slots = (sample_h * sample_w) // IMG_TOKENS_PER_SLOT
+        slot_mask = np.concatenate(
+            [
+                np.zeros(text_seq_len, dtype=bool),
+                np.ones(target_slots, dtype=bool),
+            ]
+        )
+        image_pad_mask = np.repeat(
+            slot_mask, np.where(slot_mask, IMG_TOKENS_PER_SLOT, 1)
+        )
         joint_seq = int(image_pad_mask.shape[0])
         image_ids, target_token_mask = build_token_metadata(image_pad_mask, img_shapes)
         rope_angles = build_qwenimage21_rope_angles(
@@ -352,18 +341,12 @@ class QwenImage21Transformer2DModel(BaseModel):
         hidden = img_in(sample_in)
         encoder = txt_in(enc_in)
 
-        # Pure T2I layout: text tokens then target-image tokens (no condition images).
-        # Equivalent to Diffusers' expand/scatter path when img_mask is text-False +
-        # target-slot-True.
         joint = ops.concatenate([encoder, hidden], axis=1)
 
         rotary = ops.convert_to_tensor(rope_angles)
         attn_mask = ops.convert_to_tensor(attn_mask_np)
         target_mask_t = ops.convert_to_tensor(target_token_mask)
         text_pos = np.flatnonzero(~image_pad_mask).astype(np.int32)
-
-        # Fold encoder padding into the block-causal key mask.
-        from zeromodels.models.qwen_image_21.qwen_image_21_layers import MASK_NEG
 
         text_scatter = np.zeros((joint_seq, text_seq_len), dtype=np.float32)
         for j, pos in enumerate(text_pos):
@@ -377,7 +360,6 @@ class QwenImage21Transformer2DModel(BaseModel):
         attn_mask = attn_mask + (1.0 - key_ok)[:, None, None, :] * MASK_NEG
 
         if causal_condition:
-            # Extra t=0 row: text tokens modulate from it; target uses the real step.
             t_all = ops.concatenate(
                 [timestep_in, ops.zeros((1,), dtype=timestep_in.dtype)], axis=0
             )
@@ -398,7 +380,6 @@ class QwenImage21Transformer2DModel(BaseModel):
             )
         joint = norm_out([joint, temb, mod_mask])
         output_full = proj_out(joint)
-        # Return only target-image tokens (Diffusers pipeline slices the same way).
         output = output_full[:, -img_seq:, :]
         super().__init__(
             inputs={
@@ -470,7 +451,6 @@ class QwenImage21TextEncoderModel(BaseModel):
         if "max_seq_len" in kwargs and not any(
             k in kwargs for k in ("embed_dim", "num_layers", "vocab_size")
         ):
-            # Allow ``QwenImage21TextEncoderModel(config)`` via from_dict path below.
             pass
         config = self.config_class.from_dict(kwargs) if kwargs else self.config_class()
         max_seq_len = int(getattr(config, "max_seq_len", 1024))
@@ -499,7 +479,6 @@ class QwenImage21TextEncoderModel(BaseModel):
             pos, config.head_dim, config.rope_theta, tuple(config.mrope_section)
         )
         mask = causal_mask(input_ids, attention_mask)
-        # Decoder layers only — skip final_norm (Diffusers forward hook).
         for layer in language_model.decoder_layers:
             hidden = layer(hidden, cos, sin, attention_mask=mask)
 
@@ -702,10 +681,10 @@ class QwenImage21TextToImage(QwenImage21Model, BaseDiffusion):
 
     @property
     def latent_shape(self):
-        h, w = self._latent_side()
+        h, w = self.latent_side()
         return (h * w, self.vae.z_dim)
 
-    def _latent_side(self, height=None, width=None):
+    def latent_side(self, height=None, width=None):
         scale = self.vae_scale_factor * 2
         if height is None or width is None:
             side = self.config.default_sample_size * self.vae_scale_factor
@@ -762,7 +741,7 @@ class QwenImage21TextToImage(QwenImage21Model, BaseDiffusion):
         )["sample"]
 
     def decode_latents(self, latents, height=None, width=None):
-        h, w = self._latent_side(height, width)
+        h, w = self.latent_side(height, width)
         latents = unpack_latents(latents, h, w, self.vae.z_dim)
         mean = ops.convert_to_tensor(self.vae.latents_mean, dtype="float32")
         std = ops.convert_to_tensor(self.vae.latents_std, dtype="float32")
@@ -770,13 +749,12 @@ class QwenImage21TextToImage(QwenImage21Model, BaseDiffusion):
         std = ops.reshape(std, (1, 1, 1, -1))
         latents = latents * std + mean
         image = self.vae.decode(latents)
-        # VAE emits RGBA; T2I postprocess uses RGB.
         if int(image.shape[-1]) == 4:
             image = image[..., :3]
         return image
 
     def prepare_latents(self, batch, seed=None, latents=None, dtype="float32"):
-        h, w = self._latent_side(
+        h, w = self.latent_side(
             getattr(self, "_gen_height", None), getattr(self, "_gen_width", None)
         )
         channels = self.vae.z_dim
@@ -836,7 +814,6 @@ class QwenImage21TextToImage(QwenImage21Model, BaseDiffusion):
         with inference_scope():
             embeddings = self.encode_prompt(input_ids, attention_mask, **conditioning)
             if guidance_scale > 1.0 and negative_input_ids is None:
-                # Diffusers only enables CFG when a negative prompt is provided.
                 do_cfg = False
                 uncond = None
             elif negative_input_ids is not None and guidance_scale > 1.0:
@@ -846,7 +823,7 @@ class QwenImage21TextToImage(QwenImage21Model, BaseDiffusion):
                 uncond = None
                 do_cfg = False
 
-            h, w = self._latent_side(height, width)
+            h, w = self.latent_side(height, width)
             image_seq_len = h * w
             sched_cfg = getattr(self.scheduler, "config_dict", None) or {}
             base_seq_len = sched_cfg.get("base_image_seq_len", 256)

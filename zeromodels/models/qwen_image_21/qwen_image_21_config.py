@@ -235,10 +235,8 @@ class QwenImage21Config(BaseConfig):
     vae_config: QwenImage21VAEConfig | dict | None = None
     text_config: QwenImage21TextConfig | dict | None = None
     scheduler_config: dict | None = None
-    # Length of the tokenized system message for Diffusers' template drop.
     prompt_template_encode_start_idx: int = 14
     max_sequence_length: int = 512
-    # Latent grid side when height/width omitted (64 → 1024px at VAE scale 16).
     default_sample_size: int = 64
     bos_token_id: int = 151643
     eos_token_id: int = 151645

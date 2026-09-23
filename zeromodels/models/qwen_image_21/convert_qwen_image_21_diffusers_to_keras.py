@@ -30,10 +30,7 @@ WEIGHT_NAME_MAPPING: Dict[str, str] = {
     "gamma": "weight",
     "beta": "bias",
     "kernel": "weight",
-}
-
-TEXT_WEIGHT_NAME_MAPPING: Dict[str, str] = {
-    **WEIGHT_NAME_MAPPING,
+    # Qwen3-VL text tower
     "token_embedding.embeddings": "model.embed_tokens.weight",
     "language_model.final_norm.weight": "model.norm.weight",
     "language_model.": "model.",
@@ -236,7 +233,6 @@ def transfer_qwen_image_21(
 
         consumed = set()
         trainable, non_trainable = split_model_weights(component)
-        # VAE / DiT nest safe_name prefixes; leaf-pair mapping matches Qwen-Image 1.x.
         prefer_leaf = subfolder in ("vae", "transformer")
         for keras_weight, _ in tqdm(
             trainable + non_trainable,
@@ -286,8 +282,6 @@ def transfer_qwen_image_21(
                 and arr.ndim == 4
                 and tuple(arr.shape[-2:]) == (1, 1)
             ):
-                # Diffusers mid-block attention uses 1×1 Conv2d; Keras uses Dense.
-                # Keep torch (out, in) layout — transfer_weights will transpose.
                 arr = arr[:, :, 0, 0]
             elif (
                 arr.ndim > 1
@@ -328,8 +322,6 @@ def transfer_qwen_image_21(
     }
     hf_keys = {}
     for key in weight_map:
-        # Text-only tower: keep language_model / embed_tokens; drop vision + lm_head
-        # + final norm (Diffusers reads pre-norm hidden states).
         if key.startswith("model.visual.") or key.startswith("lm_head."):
             continue
         if key == "model.norm.weight":
@@ -341,7 +333,6 @@ def transfer_qwen_image_21(
         elif key.startswith("model.") and not key.startswith("model.visual."):
             hf_keys[key] = key
             hf_keys[key[len("model.") :]] = key
-    # Drop final norm from the transferable set (pre-norm embeds for the DiT).
     hf_keys.pop("model.norm.weight", None)
     hf_keys.pop("norm.weight", None)
     consumed = set()
@@ -350,13 +341,10 @@ def transfer_qwen_image_21(
         text_encoder.weights, desc="Transferring text_encoder weights to Keras"
     ):
         name = weight.path.removeprefix(f"{text_encoder.name}/")
-        # Also strip a nested language_model/ prefix if present.
         if name.startswith("language_model/"):
             name = name[len("language_model/") :]
-        for old, new in TEXT_WEIGHT_NAME_MAPPING.items():
+        for old, new in WEIGHT_NAME_MAPPING.items():
             name = name.replace(old, new)
-        # token_embedding.embeddings → model.embed_tokens.weight; without the
-        # language_model remap, bare embed_tokens.weight must also resolve.
         if name not in hf_keys and name.startswith("model."):
             alt = name[len("model.") :]
             if alt in hf_keys:

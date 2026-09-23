@@ -21,7 +21,7 @@ MASK_NEG = -1e4
 IMG_TOKENS_PER_SLOT = 4
 
 
-def _rope_params(index, dim, theta):
+def rope_params(index, dim, theta):
     freqs = np.outer(
         np.asarray(index, dtype=np.float64),
         1.0 / np.power(float(theta), np.arange(0, dim, 2, dtype=np.float64) / dim),
@@ -43,7 +43,7 @@ def build_qwenimage21_rope_angles(img_shapes, image_pad_mask, axes_dim, theta=10
     pos_index = np.arange(8192)
     neg_index = np.arange(1024)[::-1] * -1 - 1
     freqs = [
-        np.concatenate([_rope_params(pos_index, dim, theta), _rope_params(neg_index, dim, theta)], axis=0)
+        np.concatenate([rope_params(pos_index, dim, theta), rope_params(neg_index, dim, theta)], axis=0)
         for dim in axes_dim
     ]
 
@@ -337,7 +337,7 @@ class QwenImage21AdaLayerNormContinuous(layers.Layer):
     def call(self, inputs):
         hidden_states, conditioning, target_token_mask = inputs
         scale = self.linear(ops.silu(ops.cast(conditioning, hidden_states.dtype)))
-        scale = _select_modulation_rows(scale, target_token_mask)
+        scale = select_modulation_rows(scale, target_token_mask)
         return self.norm(hidden_states) * (1.0 + scale)
 
     def compute_output_shape(self, input_shapes):
@@ -356,11 +356,10 @@ class QwenImage21AdaLayerNormContinuous(layers.Layer):
         return config
 
 
-def _select_modulation_rows(params, target_token_mask):
+def select_modulation_rows(params, target_token_mask):
     """Broadcast per-sample modulation over tokens (causal_condition aware)."""
     if target_token_mask is None:
         return ops.expand_dims(params, 1)
-    # params: (B+1, D) — last row is t=0; first B rows are the real timestep.
     real = ops.expand_dims(params[:-1], 1)
     zero = ops.expand_dims(params[-1:], 0)
     mask = ops.reshape(ops.cast(target_token_mask, "bool"), (1, -1, 1))
@@ -404,19 +403,18 @@ class QwenImage21Attention(layers.Layer):
         key = self.to_k(hidden_states)
         value = self.to_v(hidden_states)
 
-        def _unflatten(x):
+        def unflatten(x):
             shape = ops.shape(x)
             return ops.reshape(x, (shape[0], shape[1], self.heads, self.dim_head))
 
-        query = self.norm_q(_unflatten(query))
-        key = self.norm_k(_unflatten(key))
-        value = _unflatten(value)
+        query = self.norm_q(unflatten(query))
+        key = self.norm_k(unflatten(key))
+        value = unflatten(value)
 
         if rotary_emb is not None:
             query = apply_rotary_emb_qwen(query, rotary_emb, use_real=True)
             key = apply_rotary_emb_qwen(key, rotary_emb, use_real=True)
 
-        # fused_attention expects (B, H, S, D)
         query = ops.transpose(query, (0, 2, 1, 3))
         key = ops.transpose(key, (0, 2, 1, 3))
         value = ops.transpose(value, (0, 2, 1, 3))
@@ -431,7 +429,6 @@ class QwenImage21Attention(layers.Layer):
         return tuple(input_shape)
 
     def compute_output_spec(self, hidden_states, rotary_emb=None, attention_mask=None):
-        # Avoid seq² attention temps while tracing the Functional graph on GPU.
         return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
 
     def get_config(self):
@@ -492,15 +489,15 @@ class QwenImage21TransformerBlock(layers.Layer):
         self.img_mlp.build(input_shape)
         self.built = True
 
-    def _modulate(self, hidden_states, mod_params, target_token_mask):
+    def modulate(self, hidden_states, mod_params, target_token_mask):
         scale, gate = ops.split(mod_params, 2, axis=-1)
-        scale = _select_modulation_rows(scale, target_token_mask)
-        gate = _select_modulation_rows(gate, target_token_mask)
+        scale = select_modulation_rows(scale, target_token_mask)
+        gate = select_modulation_rows(gate, target_token_mask)
         return hidden_states * (1.0 + scale), gate
 
     def call(self, hidden_states, modulation, rotary_emb=None, attention_mask=None, target_token_mask=None):
         mod1, mod2 = ops.split(modulation, 2, axis=-1)
-        img_modulated, img_gate1 = self._modulate(
+        img_modulated, img_gate1 = self.modulate(
             self.img_norm1(hidden_states), mod1, target_token_mask
         )
         attn_output = self.attn(
@@ -508,12 +505,11 @@ class QwenImage21TransformerBlock(layers.Layer):
         )
         hidden_states = hidden_states + ops.tanh(img_gate1) * attn_output
 
-        img_modulated2, img_gate2 = self._modulate(
+        img_modulated2, img_gate2 = self.modulate(
             self.img_norm2(hidden_states), mod2, target_token_mask
         )
         hidden_states = hidden_states + ops.tanh(img_gate2) * self.img_mlp(img_modulated2)
 
-        # Diffusers clips only under float16 (not bfloat16).
         if keras.backend.standardize_dtype(hidden_states.dtype) == "float16":
             hidden_states = ops.clip(hidden_states, -65504.0, 65504.0)
         return hidden_states
