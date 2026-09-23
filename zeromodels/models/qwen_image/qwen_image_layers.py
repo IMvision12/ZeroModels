@@ -257,17 +257,22 @@ class QwenImageEmbedRope(layers.Layer):
         self._neg_freqs_np = neg_freqs
 
     def build(self, input_shape=None):
+        # angles reach ~4096 rad: 16-bit storage would wreck the rotation
         self.pos_freqs = self.add_weight(
             name="pos_freqs",
             shape=(ROPE_MAX_INDEX, self.rope_dim),
             initializer=keras.initializers.Constant(self._pos_freqs_np),
             trainable=False,
+            dtype="float32",
+            autocast=False,
         )
         self.neg_freqs = self.add_weight(
             name="neg_freqs",
             shape=(ROPE_MAX_INDEX, self.rope_dim),
             initializer=keras.initializers.Constant(self._neg_freqs_np),
             trainable=False,
+            dtype="float32",
+            autocast=False,
         )
         self.built = True
 

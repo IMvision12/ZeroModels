@@ -18,10 +18,8 @@ Qwen-Image text-to-image, ported to pure Keras 3 from
 - **Text encoder**: Qwen2.5-VL-7B Instruct text tower (ChatML prompt template)
 - **Scheduler**: `FlowMatchEulerDiscreteScheduler` with dynamic resolution shifting
 
-`QwenImageModel` is the hosted container (transformer + VAE). Like Stable
-Diffusion 3's T5-XXL, the ~7B text tower is hosted separately as
-`QwenImageTextEncoderModel` (`zeromodels/qwen-image-text-encoder`) and attached
-with `from_weights(..., text_encoder=...)`.
+`QwenImageModel` is the hosted container (transformer + VAE + text tower),
+stored as one set of sharded weights (`model.weights.json`, ~53 GiB at 16-bit).
 `QwenImageTextToImage` adds `generate` via `BaseDiffusion`, with **true CFG**
 (separate cond/uncond forwards and prediction-norm renormalization, Diffusers
 `true_cfg_scale`).
@@ -43,10 +41,7 @@ with `from_weights(..., text_encoder=...)`.
 ```python
 from zeromodels.models.qwen_image import QwenImageTextToImage, QwenImageTokenizer
 
-model = QwenImageTextToImage.from_weights(
-    "zeromodels/qwen-image",
-    text_encoder="zeromodels/qwen-image-text-encoder",
-)
+model = QwenImageTextToImage.from_weights("zeromodels/qwen-image")
 tok = QwenImageTokenizer.from_weights("zeromodels/qwen-image")
 image = model.generate(
     **tok("a coffee shop entrance with a chalkboard sign"),
@@ -62,7 +57,5 @@ image = model.generate(
 | Variant | Hub (planned) | Source |
 |---|---|---|
 | `qwen-image` | `zeromodels/qwen-image` | [`Qwen/Qwen-Image`](https://huggingface.co/Qwen/Qwen-Image) |
-| `qwen-image-text-encoder` | `zeromodels/qwen-image-text-encoder` | [`Qwen/Qwen-Image`](https://huggingface.co/Qwen/Qwen-Image) `text_encoder/` |
-
 Paper / model card: [Qwen-Image](https://huggingface.co/Qwen/Qwen-Image).
 License: Apache-2.0.

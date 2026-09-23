@@ -4827,6 +4827,7 @@ _qwen_image_outputs = {
     "noise_pred": (2, 16, 16),
     "moments": (2, 16, 16, 8),
     "image": (2, 16, 16, 3),
+    "prompt_embeds": (2, 32, 32),
 }
 MODEL_TEST_CONFIGS["QwenImageModel"] = {
     "module": "zeromodels.models.qwen_image",

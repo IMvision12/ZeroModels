@@ -245,6 +245,7 @@ def qwen_image_input(
     z_dim=4,
     text_seq_len=16,
     joint_attention_dim=32,
+    max_seq_len=32,
 ):
     """Dummy inputs for the Qwen-Image container graph (packed latents)."""
     return {
@@ -258,6 +259,8 @@ def qwen_image_input(
         ),
         "image": ops.ones((batch_size, image_size, image_size, 3)),
         "latent": ops.ones((batch_size, latent_size, latent_size, z_dim)),
+        "token_ids": ops.ones((batch_size, max_seq_len), dtype="int32"),
+        "padding_mask": ops.ones((batch_size, max_seq_len), dtype="int32"),
     }
 
 
