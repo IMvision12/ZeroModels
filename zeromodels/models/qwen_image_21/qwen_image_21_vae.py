@@ -134,7 +134,8 @@ class QwenImage21AvgDown3D(layers.Layer):
         self.group_size = self.in_channels * self.factor // self.out_channels
 
     def call(self, x):
-        # x: (B, T, H, W, C)
+        # x: (B, T, H, W, C) — pack order must match Diffusers NCHW AvgDown3D:
+        # channels outer, then (factor_t, factor_s, factor_s).
         ft, fs = self.factor_t, self.factor_s
         pad_t = (ft - (ops.shape(x)[1] % ft)) % ft
         x = ops.pad(x, ((0, 0), (pad_t, 0), (0, 0), (0, 0), (0, 0)))
@@ -144,7 +145,8 @@ class QwenImage21AvgDown3D(layers.Layer):
         w = ops.shape(x)[3]
         c = self.in_channels
         x = ops.reshape(x, (b, t // ft, ft, h // fs, fs, w // fs, fs, c))
-        x = ops.transpose(x, (0, 1, 3, 5, 2, 4, 6, 7))
+        # B,T',ft,H',fs,W',fs,C → B,T',H',W',C,ft,fs,fs
+        x = ops.transpose(x, (0, 1, 3, 5, 7, 2, 4, 6))
         x = ops.reshape(x, (b, t // ft, h // fs, w // fs, c * self.factor))
         x = ops.reshape(
             x,

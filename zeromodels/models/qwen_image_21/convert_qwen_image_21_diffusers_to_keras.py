@@ -1,18 +1,3 @@
-"""Offline Diffusers ``Qwen/Qwen-Image-2.1`` → ZeroModels Keras weight conversion.
-
-Converts the transformer, VAE, and Qwen3-VL text encoder into a hosted
-``zeromodels/qwen-image-2.1`` layout (``zm_config.json`` + sharded weights).
-
-Usage::
-
-    python -m zeromodels.models.qwen_image_21.convert_qwen_image_21_diffusers_to_keras
-
-Env:
-    ZM_OUT_DIR   output directory (default ``./qwen_image_21_weights``)
-    HF_TOKEN     optional Hub token
-    ZM_DTYPE     ``float16`` / ``bfloat16`` / ``float32`` (default ``bfloat16``)
-"""
-
 from __future__ import annotations
 
 from typing import Dict
@@ -42,25 +27,28 @@ WEIGHT_NAME_MAPPING: Dict[str, str] = {
     "/beta": ".bias",
     "/scale": ".weight",
     "/": ".",
-    # text encoder (Qwen3-VL language tower)
+    "gamma": "weight",
+    "beta": "bias",
+    "kernel": "weight",
+}
+
+TEXT_WEIGHT_NAME_MAPPING: Dict[str, str] = {
+    **WEIGHT_NAME_MAPPING,
     "token_embedding.embeddings": "model.embed_tokens.weight",
     "language_model.final_norm.weight": "model.norm.weight",
     "language_model.": "model.",
     "decoder_layer_": "layers.",
+    "attention.query_norm": "self_attn.q_norm",
+    "attention.key_norm": "self_attn.k_norm",
     "attention.query": "self_attn.q_proj",
     "attention.key": "self_attn.k_proj",
     "attention.value": "self_attn.v_proj",
     "attention.output_proj": "self_attn.o_proj",
-    "attention.query_norm": "self_attn.q_norm",
-    "attention.key_norm": "self_attn.k_norm",
     "attention_norm": "input_layernorm",
     "mlp_norm": "post_attention_layernorm",
     "mlp.gate": "mlp.gate_proj",
     "mlp.up": "mlp.up_proj",
     "mlp.down": "mlp.down_proj",
-    "gamma": "weight",
-    "beta": "bias",
-    "kernel": "weight",
 }
 
 
@@ -103,7 +91,7 @@ def config_from_diffusers(repo, token=None):
         if k == "_class_name" or not k.startswith("_")
     }
     temperal = tuple(vae.get("temperal_downsample", (False, True, True, True)))
-    rope = text_inner.get("rope_scaling") or {}
+    rope = text_inner.get("rope_parameters") or text_inner.get("rope_scaling") or {}
     return QwenImage21Config(
         transformer_config={
             **QwenImage21Transformer2DModel.kwargs_from_diffusers_config(transformer),
@@ -136,7 +124,9 @@ def config_from_diffusers(repo, token=None):
             "num_kv_heads": text_inner.get("num_key_value_heads", 8),
             "head_dim": text_inner.get("head_dim", 128),
             "norm_eps": text_inner.get("rms_norm_eps", 1e-6),
-            "rope_theta": text_inner.get("rope_theta", 5000000.0),
+            "rope_theta": float(
+                rope.get("rope_theta", text_inner.get("rope_theta", 5000000.0))
+            ),
             "mrope_section": tuple(rope.get("mrope_section", (24, 20, 20))),
             "tie_embeddings": text.get("tie_word_embeddings", False),
             "max_seq_len": 1024,
@@ -171,7 +161,12 @@ def transfer_qwen_image_21(
     with build_dtype_scope(dtype), zeros_init():
         model = QwenImage21Model(**flat)
 
-    vae_mapping = {k: v for k, v in WEIGHT_NAME_MAPPING.items() if "/gamma" not in k}
+    # VAE RMSNorm checkpoints keep the name ``gamma`` (not ``weight``).
+    vae_mapping = {
+        k: v
+        for k, v in WEIGHT_NAME_MAPPING.items()
+        if k not in ("/gamma", "gamma")
+    }
     for step, (component, subfolder, mapping, index_name, filename) in enumerate(
         (
             (
@@ -239,49 +234,65 @@ def transfer_qwen_image_21(
 
         consumed = set()
         trainable, non_trainable = split_model_weights(component)
+        # VAE / DiT nest safe_name prefixes; leaf-pair mapping matches Qwen-Image 1.x.
+        prefer_leaf = subfolder in ("vae", "transformer")
         for keras_weight, _ in tqdm(
             trainable + non_trainable,
             desc=f"Transferring {subfolder} weights to Keras",
         ):
-            key = "/".join(keras_weight.path.split("/")[-2:])
-            # Prefer full path remapping from the component root.
-            full = keras_weight.path
-            # Strip leading component name
-            parts = full.split("/")
-            if parts and parts[0] in (
-                component.name,
-                "transformer",
-                "vae",
-                "QwenImage21Transformer2DModel",
-                "AutoencoderKLQwenImage21",
-            ):
-                rel = "/".join(parts[1:])
+            leaf = "/".join(keras_weight.path.split("/")[-2:])
+            if prefer_leaf:
+                candidates = [leaf]
             else:
-                rel = "/".join(parts)
-            key = rel
-            for old, new in mapping.items():
-                key = key.replace(old, new)
-            if key not in state:
-                # Fall back to leaf-pair mapping used by Qwen-Image 1.0.
-                key = "/".join(keras_weight.path.split("/")[-2:])
+                parts = keras_weight.path.split("/")
+                if parts and parts[0] in (
+                    component.name,
+                    "transformer",
+                    "vae",
+                    "QwenImage21Transformer2DModel",
+                    "AutoencoderKLQwenImage21",
+                ):
+                    rel = "/".join(parts[1:])
+                else:
+                    rel = "/".join(parts)
+                candidates = [rel, leaf]
+            key = None
+            for cand in candidates:
+                mapped = cand
                 for old, new in mapping.items():
-                    key = key.replace(old, new)
-            if key not in state:
-                raise WeightMappingError(keras_weight.path, key)
+                    mapped = mapped.replace(old, new)
+                if mapped in state:
+                    key = mapped
+                    break
+            if key is None:
+                raise WeightMappingError(
+                    keras_weight.path,
+                    candidates[0]
+                    if prefer_leaf
+                    else "/".join(keras_weight.path.split("/")[-2:]),
+                )
             consumed.add(key)
             raw = state[key]
             arr = np.asarray(raw)
             kshape = tuple(keras_weight.shape)
-            if len(kshape) == 5 and arr.ndim == 5:
-                arr = np.transpose(arr, (2, 3, 4, 1, 0))
-            elif len(kshape) == 4 and arr.ndim == 4:
-                arr = np.transpose(arr, (2, 3, 1, 0))
-            elif (
-                arr.ndim > 1
-                and len(kshape) == 1
-                and int(np.prod(arr.shape)) == kshape[0]
-            ):
-                arr = arr.reshape(kshape)
+        if len(kshape) == 5 and arr.ndim == 5:
+            arr = np.transpose(arr, (2, 3, 4, 1, 0))
+        elif len(kshape) == 4 and arr.ndim == 4:
+            arr = np.transpose(arr, (2, 3, 1, 0))
+        elif (
+            len(kshape) == 2
+            and arr.ndim == 4
+            and tuple(arr.shape[-2:]) == (1, 1)
+        ):
+            # Diffusers mid-block attention uses 1×1 Conv2d; Keras uses Dense.
+            # Keep torch (out, in) layout — transfer_weights will transpose.
+            arr = arr[:, :, 0, 0]
+        elif (
+            arr.ndim > 1
+            and len(kshape) == 1
+            and int(np.prod(arr.shape)) == kshape[0]
+        ):
+            arr = arr.reshape(kshape)
             if len(keras_weight.shape) in (4, 5):
                 if tuple(keras_weight.shape) != arr.shape:
                     raise WeightShapeMismatchError(
@@ -334,7 +345,7 @@ def transfer_qwen_image_21(
         text_encoder.weights, desc="Transferring text_encoder weights to Keras"
     ):
         name = weight.path.removeprefix(f"{text_encoder.name}/")
-        for old, new in WEIGHT_NAME_MAPPING.items():
+        for old, new in TEXT_WEIGHT_NAME_MAPPING.items():
             name = name.replace(old, new)
         if name not in hf_keys:
             raise WeightMappingError(weight.path, name)
