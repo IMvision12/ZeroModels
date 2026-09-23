@@ -430,6 +430,10 @@ class QwenImage21Attention(layers.Layer):
     def compute_output_shape(self, input_shape):
         return tuple(input_shape)
 
+    def compute_output_spec(self, hidden_states, rotary_emb=None, attention_mask=None):
+        # Avoid seq² attention temps while tracing the Functional graph on GPU.
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -516,6 +520,16 @@ class QwenImage21TransformerBlock(layers.Layer):
 
     def compute_output_shape(self, input_shape):
         return tuple(input_shape)
+
+    def compute_output_spec(
+        self,
+        hidden_states,
+        modulation,
+        rotary_emb=None,
+        attention_mask=None,
+        target_token_mask=None,
+    ):
+        return keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
 
     def get_config(self):
         config = super().get_config()

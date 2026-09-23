@@ -43,6 +43,12 @@ class Qwen3VLMLP(layers.Layer):
         self.up = layers.Dense(mlp_dim, use_bias=False, name="up")
         self.down = layers.Dense(embed_dim, use_bias=False, name="down")
 
+    def build(self, input_shape):
+        self.gate.build(input_shape)
+        self.up.build(input_shape)
+        self.down.build((*tuple(input_shape)[:-1], self.mlp_dim))
+        self.built = True
+
     def call(self, x):
         return self.down(ops.silu(self.gate(x)) * self.up(x))
 
@@ -84,6 +90,17 @@ class Qwen3VLTextAttention(layers.Layer):
         self.output_proj = layers.Dense(embed_dim, use_bias=False, name="output_proj")
         self.query_norm = Qwen3VLRMSNorm(eps=norm_eps, name="query_norm")
         self.key_norm = Qwen3VLRMSNorm(eps=norm_eps, name="key_norm")
+
+    def build(self, input_shape):
+        self.query.build(input_shape)
+        self.key.build(input_shape)
+        self.value.build(input_shape)
+        self.output_proj.build(
+            (*tuple(input_shape)[:-1], self.num_heads * self.head_dim)
+        )
+        self.query_norm.build((self.head_dim,))
+        self.key_norm.build((self.head_dim,))
+        self.built = True
 
     def call(
         self,
@@ -139,6 +156,19 @@ class Qwen3VLTextAttention(layers.Layer):
         )
         out = self.output_proj(out)
         return (out, new_kv) if use_cache else out
+
+    def compute_output_spec(
+        self,
+        hidden_states,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_value=None,
+        use_cache=False,
+    ):
+        # Skip fused_attention during Functional shape tracing (seq² temps OOM on GPU).
+        out = keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+        return (out, None) if use_cache else out
 
     def decode_step(
         self, hidden_states, cos, sin, cache_k, cache_v, write_pos, key_mask
@@ -229,6 +259,13 @@ class Qwen3VLTextDecoderLayer(layers.Layer):
         self.mlp_norm = Qwen3VLRMSNorm(eps=norm_eps, name="mlp_norm")
         self.mlp = Qwen3VLMLP(embed_dim, mlp_dim, name="mlp")
 
+    def build(self, input_shape):
+        self.attention_norm.build(input_shape)
+        self.attention.build(input_shape)
+        self.mlp_norm.build(input_shape)
+        self.mlp.build(input_shape)
+        self.built = True
+
     def call(
         self,
         hidden_states,
@@ -256,6 +293,19 @@ class Qwen3VLTextDecoderLayer(layers.Layer):
         hidden_states = self.mlp_norm(hidden_states)
         hidden_states = residual + self.mlp(hidden_states)
         return (hidden_states, new_kv) if use_cache else hidden_states
+
+    def compute_output_spec(
+        self,
+        hidden_states,
+        cos,
+        sin,
+        attention_mask=None,
+        past_key_value=None,
+        use_cache=False,
+    ):
+        # Residual stream keeps its shape; skip attention softmax during graph build.
+        out = keras.KerasTensor(hidden_states.shape, dtype=self.compute_dtype)
+        return (out, None) if use_cache else out
 
     def decode_step(
         self, hidden_states, cos, sin, cache_k, cache_v, write_pos, key_mask
