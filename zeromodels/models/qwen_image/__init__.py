@@ -5,6 +5,7 @@ from .qwen_image_config import (
 )
 from .qwen_image_model import (
     QwenImageModel,
+    QwenImageTextEncoderModel,
     QwenImageTextToImage,
     QwenImageTransformer2DModel,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "QwenImageConfig",
     "QwenImageModel",
     "QwenImageTextConfig",
+    "QwenImageTextEncoderModel",
     "QwenImageTextToImage",
     "QwenImageTokenizer",
     "QwenImageTransformer2DModel",

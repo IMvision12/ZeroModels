@@ -15,6 +15,7 @@ from zeromodels.base.base_scheduler import (
 from zeromodels.models.qwen2_5_vl.qwen2_5_vl_model import Qwen2_5VLModel
 from zeromodels.models.qwen_image.qwen_image_config import (
     QwenImageConfig,
+    QwenImageTextConfig,
     QwenImageTransformerConfig,
 )
 from zeromodels.models.qwen_image.qwen_image_layers import (
@@ -27,7 +28,8 @@ from zeromodels.models.qwen_image.qwen_image_layers import (
 from zeromodels.models.qwen_image.qwen_image_vae import AutoencoderKLQwenImage
 from zeromodels.models.stable_diffusion.stable_diffusion_layers import safe_name
 
-QWEN_IMAGE_HUB_SIBLINGS = ("qwen-image",)
+QWEN_IMAGE_HUB_SIBLINGS = frozenset({"QwenImageModel", "QwenImageTextToImage"})
+QWEN_IMAGE_TEXT_ENCODER_REPO = "zeromodels/qwen-image-text-encoder"
 
 PROMPT_TEMPLATE = (
     "<|im_start|>system\nDescribe the image by detailing the color, shape, size, "
@@ -227,11 +229,32 @@ class QwenImageTransformer2DModel(BaseModel):
 
 
 @keras.saving.register_keras_serializable(package="zeromodels")
+class QwenImageTextEncoderModel(Qwen2_5VLModel):
+    """Qwen-Image prompt encoder: the Qwen2.5-VL-7B text tower, no vision / LM head.
+
+    Hosted once, separately from the diffusion container
+    (``zeromodels/qwen-image-text-encoder``), like SD3's T5-XXL: the ~7B tower
+    plus the ~20B DiT do not fit one build on a 40 GB GPU. Attach it with
+    ``QwenImageTextToImage.from_weights(repo, text_encoder=...)``.
+    Inputs ``input_ids`` / ``attention_mask``; output ``last_hidden_state``.
+    """
+
+    HF_MODEL_TYPE = None
+    config_class = QwenImageTextConfig
+
+    def __init__(self, max_seq_len=1024, name="text_encoder", **kwargs):
+        kwargs["build_vision"] = False
+        super().__init__(name=name, **kwargs)
+        self.max_seq_len = max_seq_len
+
+
+@keras.saving.register_keras_serializable(package="zeromodels")
 class QwenImageModel(BaseModel):
-    """Qwen-Image weights container: transformer + VAE + Qwen2.5-VL text tower.
+    """Qwen-Image weights container: transformer + VAE.
 
     One functional ``keras.Model`` with disconnected paths (Diffusers
-    ``QwenImagePipeline`` components). Hosted as ``zeromodels/qwen-image``.
+    ``QwenImagePipeline`` components). Hosted as ``zeromodels/qwen-image``; the
+    Qwen2.5-VL text tower is a separate :class:`QwenImageTextEncoderModel` repo.
     On-the-fly ``hf:`` conversion is not supported.
     """
 
@@ -251,7 +274,7 @@ class QwenImageModel(BaseModel):
             setattr(self, attr, component)
 
     def build_components(self, config):
-        d, v, t = config.transformer_config, config.vae_config, config.text_config
+        d, v = config.transformer_config, config.vae_config
         transformer = QwenImageTransformer2DModel(
             patch_size=d.patch_size,
             in_channels=d.in_channels,
@@ -278,33 +301,11 @@ class QwenImageModel(BaseModel):
             latents_std=v.latents_std,
             sample_size=v.sample_size,
         )
-        text_encoder = Qwen2_5VLModel(
-            vocab_size=t.vocab_size,
-            embed_dim=t.embed_dim,
-            mlp_dim=t.mlp_dim,
-            num_layers=t.num_layers,
-            num_heads=t.num_heads,
-            num_kv_heads=t.num_kv_heads,
-            norm_eps=t.norm_eps,
-            rope_theta=t.rope_theta,
-            mrope_section=t.mrope_section,
-            tie_embeddings=t.tie_embeddings,
-            build_vision=False,
-            name="text_encoder",
-        )
-        return {
-            "transformer": transformer,
-            "vae": vae,
-            "text_encoder": text_encoder,
-        }
+        return {"transformer": transformer, "vae": vae}
 
     def build_graph(self, config, components):
-        d, v, t = config.transformer_config, config.vae_config, config.text_config
-        transformer, vae, text_encoder = (
-            components["transformer"],
-            components["vae"],
-            components["text_encoder"],
-        )
+        d, v = config.transformer_config, config.vae_config
+        transformer, vae = components["transformer"], components["vae"]
         text_seq = config.max_sequence_length
         img_h = img_w = (
             v.sample_size
@@ -327,12 +328,6 @@ class QwenImageModel(BaseModel):
             ),
             "image": layers.Input(shape=(img_h, img_w, 3), name="image"),
             "latent": layers.Input(shape=(lat_h, lat_w, v.z_dim), name="latent"),
-            "token_ids": layers.Input(
-                shape=(t.max_seq_len,), dtype="int32", name="token_ids"
-            ),
-            "padding_mask": layers.Input(
-                shape=(t.max_seq_len,), dtype="int32", name="padding_mask"
-            ),
         }
         noise_pred = transformer(
             {
@@ -343,17 +338,10 @@ class QwenImageModel(BaseModel):
             }
         )["sample"]
         vae_out = vae({"image": inputs["image"], "latent": inputs["latent"]})
-        text_out = text_encoder(
-            {
-                "input_ids": inputs["token_ids"],
-                "attention_mask": inputs["padding_mask"],
-            }
-        )
         return inputs, {
             "noise_pred": noise_pred,
             "moments": vae_out["moments"],
             "image": vae_out["sample"],
-            "prompt_embeds": text_out["last_hidden_state"],
         }
 
     def from_hf(self, *args, **kwargs):
@@ -370,9 +358,16 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
 
     ::
 
-        model = QwenImageTextToImage.from_weights("zeromodels/qwen-image")
+        model = QwenImageTextToImage.from_weights(
+            "zeromodels/qwen-image",
+            text_encoder="zeromodels/qwen-image-text-encoder",
+        )
         tok = QwenImageTokenizer.from_weights("zeromodels/qwen-image")
         image = model.generate(**tok("a cat"), height=1024, width=1024)
+
+    The text encoder lives outside the container's weights (like SD3's T5):
+    pass ``text_encoder=`` (a repo id or a built
+    :class:`QwenImageTextEncoderModel`) or assign ``model.text_encoder``.
 
     Uses true CFG (``guidance_scale`` / Diffusers ``true_cfg_scale``) with
     dual forward passes and prediction-norm renormalization. Packed latents +
@@ -394,6 +389,32 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
                 else self.default_scheduler()
             )
         self.scheduler = scheduler
+
+    @classmethod
+    def from_weights(cls, identifier, text_encoder=None, **kwargs):
+        """``BaseModel.from_weights`` plus ``text_encoder``: a hosted
+        :class:`QwenImageTextEncoderModel` repo id (loaded with the same
+        ``load_dtype``) or a built model to attach."""
+        model = super().from_weights(identifier, **kwargs)
+        if text_encoder is not None:
+            if isinstance(text_encoder, str):
+                text_encoder = QwenImageTextEncoderModel.from_weights(
+                    text_encoder, load_dtype=kwargs.get("load_dtype")
+                )
+            model.text_encoder = text_encoder
+        return model
+
+    @property
+    def text_encoder(self):
+        return self.__dict__.get("_text_encoder")
+
+    def __setattr__(self, name, value):
+        # kept out of the tracked (saved / loaded / device-moved) sub-layers, so
+        # the container's weights stay transformer + VAE only
+        if name == "text_encoder":
+            self.__dict__["_text_encoder"] = value
+            return
+        super().__setattr__(name, value)
 
     def default_scheduler(self):
         return FlowMatchEulerDiscreteScheduler(
@@ -444,6 +465,12 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
         ``max_sequence_length``.
         """
         del conditioning
+        if self.text_encoder is None:
+            raise ValueError(
+                "QwenImageTextToImage has no text encoder attached. Load one with "
+                f"from_weights(..., text_encoder={QWEN_IMAGE_TEXT_ENCODER_REPO!r}) "
+                "or assign model.text_encoder = QwenImageTextEncoderModel(...)."
+            )
         input_ids = ops.cast(ops.convert_to_tensor(input_ids), "int32")
         if attention_mask is None:
             attention_mask = ops.ones_like(input_ids)

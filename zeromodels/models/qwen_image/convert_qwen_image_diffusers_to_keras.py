@@ -1,16 +1,27 @@
 """Offline Diffusers ``Qwen/Qwen-Image`` → ZeroModels Keras weight conversion.
 
-Converts the transformer, VAE, and Qwen2.5-VL text encoder into a hosted
-``zeromodels/qwen-image`` layout (``zm_config.json`` + sharded weights).
+Like SD3's T5-XXL, the ~7B Qwen2.5-VL text tower is converted in its own pass
+(``clear_session`` in between), so the ~20B DiT and the text tower never share
+memory:
+
+* ``<ZM_OUT_DIR>/qwen-image/``: ``QwenImageModel`` (transformer + VAE) +
+  tokenizer files
+* ``<ZM_OUT_DIR>/qwen-image-text-encoder/``: ``QwenImageTextEncoderModel``
+
+Each directory carries ``zm_config.json`` + ``model.weights.{h5,json}``.
 
 Usage::
 
     python -m zeromodels.models.qwen_image.convert_qwen_image_diffusers_to_keras
 
 Env:
-    ZM_OUT_DIR   output directory (default ``./qwen_image_weights``)
-    HF_TOKEN     optional Hub token
-    ZM_DTYPE     ``float16`` / ``bfloat16`` / ``float32`` (default ``float16``)
+    ZM_OUT_DIR    output root (default ``./qwen_image_weights``)
+    HF_TOKEN      optional Hub token
+    ZM_DTYPE      ``float16`` / ``bfloat16`` / ``float32`` (default ``float16``)
+    ZM_DEVICE     where weights are built (default ``cpu``; conversion is pure
+                  copying, and the fp16 DiT alone is ~38 GiB)
+    ZM_VARIANTS   comma list of ``qwen-image`` / ``qwen-image-text-encoder``
+                  (default: both)
 """
 
 from __future__ import annotations
@@ -32,8 +43,8 @@ from zeromodels.conversion.weight_transfer_util import (
     transfer_weights,
     zeros_init,
 )
-from zeromodels.models.qwen2_5_vl.convert_qwen2_5_vl_hf_to_keras import (
-    transfer_qwen2_5_vl_weights,
+from zeromodels.models.qwen2_vl.convert_qwen2_vl_hf_to_keras import (
+    WEIGHT_NAME_MAPPING as QWEN2_VL_WEIGHT_NAME_MAPPING,
 )
 from zeromodels.models.stable_diffusion.convert_stable_diffusion_diffusers_to_keras import (
     WEIGHT_NAME_MAPPING,
@@ -42,6 +53,7 @@ from zeromodels.models.stable_diffusion.convert_stable_diffusion_diffusers_to_ke
 QWEN_IMAGE_SOURCES = {
     "qwen-image": "Qwen/Qwen-Image",
 }
+TEXT_ENCODER_VARIANT = "qwen-image-text-encoder"
 
 # VAE Diffusers RMSNorm keeps the leaf name ``gamma`` (not ``weight``).
 VAE_WEIGHT_NAME_MAPPING = {
@@ -243,38 +255,29 @@ def transfer_component(component, state, mapping, desc, ignore=()):
         )
 
 
-def transfer_qwen_image(repo, token=None, dtype="float16", build_sample_size=16):
-    """Convert Diffusers Qwen-Image weights into a :class:`QwenImageModel`.
+def transfer_qwen_image(
+    repo, token=None, dtype="float16", build_sample_size=16, config=None
+):
+    """Convert the Diffusers transformer + VAE into a :class:`QwenImageModel`.
 
-    Builds the Keras container at a small ``transformer_sample_size`` (weights are
-    resolution-independent for the DiT) to keep the functional graph smaller,
-    transfers transformer / VAE / text-encoder weights, and returns ``(model, config)``.
+    Builds at a small ``transformer_sample_size`` (the DiT weights are
+    resolution-independent) to keep the functional graph small. The text tower
+    is converted separately by :func:`transfer_text_encoder`.
+    Returns ``(model, config)``.
     """
     from zeromodels.base.base_mixin import build_dtype_scope
     from zeromodels.models.qwen_image.qwen_image_model import QwenImageModel
 
-    config = config_from_diffusers(repo, token=token)
+    config = config or config_from_diffusers(repo, token=token)
     flat = config.constructor_kwargs()
-    # Smaller spatial graph for conversion; Dense DiT weights do not depend on it.
     flat["transformer_sample_size"] = build_sample_size
     flat["vae_sample_size"] = max(build_sample_size * 8, 64)
 
-    print(f"[1/4] Building Keras QwenImageModel (dtype={dtype})…", flush=True)
-    import sys
-    import time
-
-    t0 = time.time()
+    print(f"[1/3] Building QwenImageModel (dtype={dtype})…", flush=True)
     with build_dtype_scope(dtype), zeros_init():
-        print("  building components…", flush=True)
         model = QwenImageModel(**flat)
-    print(
-        f"  build done in {time.time() - t0:.1f}s  "
-        f"({len(model.weights)} weights)",
-        flush=True,
-    )
-    sys.stdout.flush()
 
-    print("[2/4] Transferring transformer…", flush=True)
+    print("[2/3] Transferring transformer…", flush=True)
     transformer_state = _load_safetensors_state(
         repo,
         "transformer",
@@ -290,7 +293,7 @@ def transfer_qwen_image(repo, token=None, dtype="float16", build_sample_size=16)
     del transformer_state
     gc.collect()
 
-    print("[3/4] Transferring VAE…")
+    print("[3/3] Transferring VAE…", flush=True)
     vae_state = _load_single_safetensors(
         repo, "vae", "diffusion_pytorch_model.safetensors", token=token
     )
@@ -302,52 +305,97 @@ def transfer_qwen_image(repo, token=None, dtype="float16", build_sample_size=16)
     )
     del vae_state
     gc.collect()
-
-    print("[4/4] Transferring text encoder (Qwen2.5-VL text tower)…")
-    text_state = _load_safetensors_state(
-        repo, "text_encoder", "model.safetensors.index.json", token=token
-    )
-    # Drop vision + LM head: our text-only tower does not carry them.
-    text_only = {
-        k: text_state[k]
-        for k in text_state.keys()
-        if k.startswith("model.") and not k.startswith("model.visual.")
-    }
-    # Materialize into a plain dict for the shared VL transfer helper.
-    text_np = {k: np.asarray(text_only[k]) for k in tqdm(text_only, desc="load text")}
-    del text_state, text_only
-    gc.collect()
-    transfer_qwen2_5_vl_weights(model.text_encoder, text_np)
-    del text_np
-    gc.collect()
-
     return model, config
 
 
-def save_converted(model, config, out_dir, variant="qwen-image", max_shard_gb=5.0):
-    """Write ``zm_config.json``, sharded weights, and copy the tokenizer files."""
+def transfer_text_encoder(repo, token=None, dtype="float16", config=None):
+    """Convert the Qwen2.5-VL text tower into a :class:`QwenImageTextEncoderModel`.
+
+    Streams tensors from the safetensors shards one at a time (never a full
+    in-memory state dict); the vision tower and LM head are skipped.
+    Returns ``(model, text_config)``.
+    """
+    from zeromodels.base.base_mixin import build_dtype_scope
+    from zeromodels.models.qwen_image.qwen_image_model import (
+        QwenImageTextEncoderModel,
+    )
+
+    config = config or config_from_diffusers(repo, token=token)
+    text_config = config.text_config
+
+    print(f"[1/2] Building QwenImageTextEncoderModel (dtype={dtype})…", flush=True)
+    with build_dtype_scope(dtype), zeros_init():
+        model = QwenImageTextEncoderModel(text_config)
+
+    print("[2/2] Transferring text encoder…", flush=True)
+    state = _load_safetensors_state(
+        repo, "text_encoder", "model.safetensors.index.json", token=token
+    )
+    # Both transformers layouts: ``model.layers.*`` and ``model.language_model.*``.
+    hf_keys = {}
+    for key in state.keys():
+        if key.startswith("model.language_model."):
+            hf_keys["model." + key[len("model.language_model.") :]] = key
+        elif key.startswith("model.") and not key.startswith("model.visual."):
+            hf_keys[key] = key
+
+    consumed = set()
+    for weight in tqdm(model.weights, desc="text_encoder"):
+        name = weight.path.replace("/", ".")
+        for old, new in QWEN2_VL_WEIGHT_NAME_MAPPING.items():
+            name = name.replace(old, new)
+        if name not in hf_keys:
+            raise WeightMappingError(weight.path, name)
+        consumed.add(name)
+        transfer_weights(weight.path, weight, state[hf_keys[name]])
+    unused = sorted(set(hf_keys) - consumed)
+    if unused:
+        raise ValueError(
+            f"text_encoder: {len(unused)} checkpoint tensors unused, e.g. {unused[:5]}."
+        )
+    del state
+    gc.collect()
+    return model, text_config
+
+
+def save_converted(
+    model, model_cls, config, out_dir, variant, dtype, max_shard_gb=5.0
+):
+    """Write ``model.weights.{h5,json}`` + ``zm_config.json`` into ``out_dir``."""
+    from zeromodels.conversion.zm_config import write_zm_config
+
+    os.makedirs(out_dir, exist_ok=True)
+    import keras
+
+    def itemsize(dtype):
+        # np.dtype() rejects "bfloat16"
+        return 2 if "16" in keras.backend.standardize_dtype(dtype) else 4
+
+    n_bytes = sum(int(np.prod(w.shape)) * itemsize(w.dtype) for w in model.weights)
+    if n_bytes > max_shard_gb * 1024**3:
+        weights_filename = "model.weights.json"
+        model.save_weights(
+            os.path.join(out_dir, weights_filename), max_shard_size=max_shard_gb
+        )
+    else:
+        weights_filename = "model.weights.h5"
+        model.save_weights(os.path.join(out_dir, weights_filename))
+    print(f"  saved {weights_filename}  ({n_bytes / 1024**3:.2f} GB)", flush=True)
+    write_zm_config(
+        out_dir,
+        model_cls,
+        variant,
+        config,
+        weights_filename=weights_filename,
+        weight_dtype=dtype,
+    )
+
+
+def copy_tokenizer_files(repo, out_dir, token=None):
     import shutil
 
     from huggingface_hub import hf_hub_download
 
-    os.makedirs(out_dir, exist_ok=True)
-    stem = os.path.join(out_dir, variant.replace("-", "_"))
-
-    config_path = os.path.join(out_dir, "zm_config.json")
-    with open(config_path, "w", encoding="utf-8") as f:
-        json.dump(config.to_dict(), f, indent=2)
-    print(f"  wrote {config_path}")
-
-    n_bytes = sum(int(np.prod(w.shape)) * 2 for w in model.weights)  # ~fp16
-    if n_bytes > max_shard_gb * 1024**3:
-        out = f"{stem}.weights.json"
-        model.save_weights(out, max_shard_size=max_shard_gb)
-    else:
-        out = f"{stem}.weights.h5"
-        model.save_weights(out)
-    print(f"  saved weights -> {out}  (~{n_bytes / 1024**3:.2f} GB fp16-est)")
-
-    source = QWEN_IMAGE_SOURCES[variant]
     for name in (
         "tokenizer.json",
         "tokenizer_config.json",
@@ -357,31 +405,61 @@ def save_converted(model, config, out_dir, variant="qwen-image", max_shard_gb=5.
         "added_tokens.json",
     ):
         try:
-            src = hf_hub_download(source, name, subfolder="tokenizer")
-            shutil.copy2(src, os.path.join(out_dir, name if name != "tokenizer.json" else "tokenizer.json"))
-        except Exception as exc:  # noqa: BLE001 — best-effort tokenizer copy
+            src = hf_hub_download(repo, name, subfolder="tokenizer", token=token)
+        except Exception as exc:  # noqa: BLE001 — not every repo ships every file
             print(f"  skip tokenizer file {name}: {exc}")
+            continue
+        shutil.copy2(src, os.path.join(out_dir, name))
 
 
 if __name__ == "__main__":
     import keras
 
-    OUT_DIR = os.environ.get(
-        "ZM_OUT_DIR",
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "qwen_image_weights"),
+    from zeromodels.models.qwen_image.qwen_image_model import (
+        QwenImageModel,
+        QwenImageTextEncoderModel,
     )
-    OUT_DIR = os.path.abspath(OUT_DIR)
-    os.makedirs(OUT_DIR, exist_ok=True)
+
+    OUT_DIR = os.path.abspath(
+        os.environ.get(
+            "ZM_OUT_DIR",
+            os.path.join(
+                os.path.dirname(__file__), "..", "..", "..", "qwen_image_weights"
+            ),
+        )
+    )
     token = os.environ.get("HF_TOKEN")
     dtype = os.environ.get("ZM_DTYPE", "float16")
-    selected = [v for v in os.environ.get("ZM_VARIANTS", "qwen-image").split(",") if v]
+    device = os.environ.get("ZM_DEVICE", "cpu")
+    default_variants = ",".join([*QWEN_IMAGE_SOURCES, TEXT_ENCODER_VARIANT])
+    selected = [
+        v for v in os.environ.get("ZM_VARIANTS", default_variants).split(",") if v
+    ]
+    source = QWEN_IMAGE_SOURCES["qwen-image"]
+    config = config_from_diffusers(source, token=token)
 
     for variant in selected:
-        source = QWEN_IMAGE_SOURCES[variant]
-        print(f"\n{'=' * 60}\nConverting: {variant}  <-  {source}\n{'=' * 60}")
-        model, config = transfer_qwen_image(source, token=token, dtype=dtype)
-        save_converted(model, config, OUT_DIR, variant=variant)
+        print(
+            f"\n{'=' * 60}\nConverting: {variant}  <-  {source}  "
+            f"(device={device})\n{'=' * 60}",
+            flush=True,
+        )
+        out_dir = os.path.join(OUT_DIR, variant)
+        with keras.device(device):
+            if variant == TEXT_ENCODER_VARIANT:
+                model, cfg = transfer_text_encoder(
+                    source, token=token, dtype=dtype, config=config
+                )
+                save_converted(
+                    model, QwenImageTextEncoderModel, cfg, out_dir, variant, dtype
+                )
+            else:
+                model, cfg = transfer_qwen_image(
+                    QWEN_IMAGE_SOURCES[variant], token=token, dtype=dtype, config=config
+                )
+                save_converted(model, QwenImageModel, cfg, out_dir, variant, dtype)
+                copy_tokenizer_files(QWEN_IMAGE_SOURCES[variant], out_dir, token=token)
         del model
         keras.backend.clear_session()
         gc.collect()
-        print(f"Done: {variant} -> {OUT_DIR}")
+        print(f"Done: {variant} -> {out_dir}", flush=True)
