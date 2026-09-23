@@ -156,6 +156,8 @@ def transfer_qwen_image_21(
     flat["transformer_sample_size"] = build_sample_size
     flat["vae_sample_size"] = max(build_sample_size * 16, 64)
     flat["max_sequence_length"] = min(int(flat.get("max_sequence_length", 512)), 64)
+    flat["transformer_text_seq_len"] = flat["max_sequence_length"]
+    flat["max_seq_len"] = min(int(flat.get("max_seq_len", 1024)), 64)
 
     print(f"[1/4] Building QwenImage21Model (dtype={dtype})…", flush=True)
     with build_dtype_scope(dtype), zeros_init():
