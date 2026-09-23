@@ -54,8 +54,6 @@ QWEN_IMAGE_SOURCES = {
     "qwen-image": "Qwen/Qwen-Image",
 }
 TEXT_ENCODER_VARIANT = "qwen-image-text-encoder"
-
-# VAE Diffusers RMSNorm keeps the leaf name ``gamma`` (not ``weight``).
 VAE_WEIGHT_NAME_MAPPING = {
     k: v for k, v in WEIGHT_NAME_MAPPING.items() if "/gamma" not in k
 }
@@ -147,12 +145,13 @@ def _keras_to_torch_key(keras_weight, mapping):
 
 
 def _prepare_torch_array(keras_weight, torch_weight):
-    """Transpose Conv3D / squeeze VAE RMSNorm gamma to match Keras shapes."""
+    """Transpose conv kernels / squeeze VAE RMSNorm gamma to match Keras shapes."""
     arr = np.asarray(torch_weight)
     kshape = tuple(keras_weight.shape)
     if len(kshape) == 5 and arr.ndim == 5:
-        # Diffusers Conv3d NCDHW ``(O, I, T, H, W)`` → Keras NDHWC ``(T, H, W, I, O)``.
         arr = np.transpose(arr, (2, 3, 4, 1, 0))
+    elif len(kshape) == 4 and arr.ndim == 4:
+        arr = np.transpose(arr, (2, 3, 1, 0))
     elif arr.ndim > 1 and len(kshape) == 1 and int(np.prod(arr.shape)) == kshape[0]:
         arr = arr.reshape(kshape)
     return arr
@@ -223,13 +222,15 @@ def transfer_component(component, state, mapping, desc, ignore=()):
         consumed.add(key)
         raw = state[key]
         torch_weight = _prepare_torch_array(keras_weight, raw)
+        if len(keras_weight.shape) in (4, 5):
+            if tuple(keras_weight.shape) != torch_weight.shape:
+                raise WeightShapeMismatchError(
+                    keras_weight.path, keras_weight.shape, key, np.shape(raw)
+                )
+            keras_weight.assign(torch_weight)
+            continue
         if tuple(keras_weight.shape) != tuple(np.asarray(torch_weight).shape):
-            # Dense / Conv2D still need the shared transpose inside transfer_weights;
-            # only enforce exact match after _prepare (Conv3D / squeezed gamma).
-            if len(keras_weight.shape) == 5 or (
-                len(keras_weight.shape) == 1
-                and np.asarray(raw).ndim > 1
-            ):
+            if len(keras_weight.shape) == 1 and np.asarray(raw).ndim > 1:
                 raise WeightShapeMismatchError(
                     keras_weight.path,
                     keras_weight.shape,
@@ -247,7 +248,6 @@ def transfer_component(component, state, mapping, desc, ignore=()):
                 )
         transfer_weights(keras_weight.path, keras_weight, torch_weight)
     unused = sorted(set(state) - consumed)
-    # RoPE tables / unused buffers on the torch side are fine to ignore when empty.
     if unused:
         raise ValueError(
             f"{type(component).__name__}: {len(unused)} checkpoint tensors "
@@ -331,7 +331,6 @@ def transfer_text_encoder(repo, token=None, dtype="float16", config=None):
     state = _load_safetensors_state(
         repo, "text_encoder", "model.safetensors.index.json", token=token
     )
-    # Both transformers layouts: ``model.layers.*`` and ``model.language_model.*``.
     hf_keys = {}
     for key in state.keys():
         if key.startswith("model.language_model."):
@@ -368,7 +367,6 @@ def save_converted(
     import keras
 
     def itemsize(dtype):
-        # np.dtype() rejects "bfloat16"
         return 2 if "16" in keras.backend.standardize_dtype(dtype) else 4
 
     n_bytes = sum(int(np.prod(w.shape)) * itemsize(w.dtype) for w in model.weights)

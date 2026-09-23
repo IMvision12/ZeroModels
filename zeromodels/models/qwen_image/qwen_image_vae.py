@@ -142,11 +142,12 @@ class QwenImageRMSNorm(layers.Layer):
         self.built = True
 
     def call(self, x):
-        # Normalize over channels (last axis for NDHWC / NHWC).
+        # Diffusers: F.normalize(x, dim=channels) * sqrt(dim) * gamma, i.e. an L2
+        # normalize (eps 1e-12 on the norm) over the last (channel) axis here.
         dtype = x.dtype
         x_f = ops.cast(x, "float32")
-        variance = ops.mean(ops.square(x_f), axis=-1, keepdims=True)
-        x_f = x_f * ops.rsqrt(variance + 1e-6)
+        norm = ops.sqrt(ops.sum(ops.square(x_f), axis=-1, keepdims=True))
+        x_f = x_f / ops.maximum(norm, 1e-12)
         x_f = x_f * self.scale * ops.cast(self.gamma, "float32")
         return ops.cast(x_f, dtype)
 
