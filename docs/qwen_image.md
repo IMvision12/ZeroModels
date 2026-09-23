@@ -224,7 +224,12 @@ inputs = tokenizer(
     "a coffee shop entrance with a chalkboard sign reading 'Open', warm afternoon light"
 )
 images = model.generate(
-    **inputs, height=1024, width=1024, num_inference_steps=50, guidance_scale=4.0, seed=1
+    **inputs,
+    height=1024,
+    width=1024,
+    num_inference_steps=50,
+    guidance_scale=4.0,
+    seed=1,
 )
 
 Image.fromarray(images[0]).save("coffee.png")  # (1024, 1024, 3) uint8

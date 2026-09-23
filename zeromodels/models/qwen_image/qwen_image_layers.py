@@ -47,9 +47,7 @@ def apply_rotary_emb_qwen(x, freqs_cis, use_real=True, use_real_unbind_dim=-1):
     if use_real_unbind_dim == -1:
         pair = ops.reshape(x_f, ops.shape(x)[:-1] + (-1, 2))
         x_real, x_imag = pair[..., 0], pair[..., 1]
-        x_rotated = ops.reshape(
-            ops.stack([-x_imag, x_real], axis=-1), ops.shape(x)
-        )
+        x_rotated = ops.reshape(ops.stack([-x_imag, x_real], axis=-1), ops.shape(x))
     elif use_real_unbind_dim == -2:
         pair = ops.reshape(x_f, ops.shape(x)[:-1] + (2, -1))
         x_real, x_imag = pair[..., 0, :], pair[..., 1, :]
@@ -280,9 +278,7 @@ class QwenImageEmbedRope(layers.Layer):
             freqs_height = freqs_pos[1][:height]
             freqs_width = freqs_pos[2][:width]
 
-        freqs_height = ops.reshape(
-            freqs_height, (1, height, 1, self._axis_halves[1])
-        )
+        freqs_height = ops.reshape(freqs_height, (1, height, 1, self._axis_halves[1]))
         freqs_height = ops.broadcast_to(
             freqs_height, (frame, height, width, self._axis_halves[1])
         )
@@ -291,9 +287,7 @@ class QwenImageEmbedRope(layers.Layer):
             freqs_width, (frame, height, width, self._axis_halves[2])
         )
 
-        freqs = ops.concatenate(
-            [freqs_frame, freqs_height, freqs_width], axis=-1
-        )
+        freqs = ops.concatenate([freqs_frame, freqs_height, freqs_width], axis=-1)
         return ops.reshape(freqs, (seq_lens, self.rope_dim))
 
     def call(self, img_h, img_w, txt_seq_len, frame=1):
@@ -461,10 +455,10 @@ class QwenImageDoubleStreamAttention(layers.Layer):
         if encoder_hidden_states_mask is not None:
             batch = ops.shape(hidden_states)[0]
             seq_img = ops.shape(hidden_states)[1]
-            img_mask = ops.ones((batch, seq_img), dtype=encoder_hidden_states_mask.dtype)
-            joint_mask = ops.concatenate(
-                [encoder_hidden_states_mask, img_mask], axis=1
+            img_mask = ops.ones(
+                (batch, seq_img), dtype=encoder_hidden_states_mask.dtype
             )
+            joint_mask = ops.concatenate([encoder_hidden_states_mask, img_mask], axis=1)
             keep = ops.cast(joint_mask, "float32")
             attention_mask = (1.0 - keep) * MASK_NEG
             attention_mask = attention_mask[:, None, None, :]
@@ -541,12 +535,8 @@ class QwenImageTransformerBlock(layers.Layer):
         self.eps = eps
         self.attn_implementation = attn_implementation
 
-        self.img_mod = layers.Dense(
-            6 * dim, name=safe_name(f"{module_path}.img_mod.1")
-        )
-        self.txt_mod = layers.Dense(
-            6 * dim, name=safe_name(f"{module_path}.txt_mod.1")
-        )
+        self.img_mod = layers.Dense(6 * dim, name=safe_name(f"{module_path}.img_mod.1"))
+        self.txt_mod = layers.Dense(6 * dim, name=safe_name(f"{module_path}.txt_mod.1"))
         self.img_norm1 = layers.LayerNormalization(
             epsilon=eps,
             center=False,
@@ -596,9 +586,8 @@ class QwenImageTransformerBlock(layers.Layer):
     ):
         del encoder_hidden_states_mask_shape, image_rotary_emb_shape
         if isinstance(hidden_states_shape, (list, tuple)) and temb_shape is None:
-            if (
-                len(hidden_states_shape) >= 3
-                and hasattr(hidden_states_shape[0], "__len__")
+            if len(hidden_states_shape) >= 3 and hasattr(
+                hidden_states_shape[0], "__len__"
             ):
                 (
                     hidden_states_shape,
@@ -656,9 +645,7 @@ class QwenImageTransformerBlock(layers.Layer):
             encoder_hidden_states_mask=encoder_hidden_states_mask,
         )
         hidden_states = hidden_states + img_gate1[:, None, :] * img_attn
-        encoder_hidden_states = (
-            encoder_hidden_states + txt_gate1[:, None, :] * txt_attn
-        )
+        encoder_hidden_states = encoder_hidden_states + txt_gate1[:, None, :] * txt_attn
 
         img_modulated2, img_gate2 = self._modulate(
             self.img_norm2(hidden_states), img_mod2
@@ -670,15 +657,12 @@ class QwenImageTransformerBlock(layers.Layer):
         txt_modulated2, txt_gate2 = self._modulate(
             self.txt_norm2(encoder_hidden_states), txt_mod2
         )
-        encoder_hidden_states = (
-            encoder_hidden_states
-            + txt_gate2[:, None, :] * self.txt_mlp(txt_modulated2)
-        )
+        encoder_hidden_states = encoder_hidden_states + txt_gate2[
+            :, None, :
+        ] * self.txt_mlp(txt_modulated2)
 
         if keras.backend.standardize_dtype(encoder_hidden_states.dtype) == "float16":
-            encoder_hidden_states = ops.clip(
-                encoder_hidden_states, -65504.0, 65504.0
-            )
+            encoder_hidden_states = ops.clip(encoder_hidden_states, -65504.0, 65504.0)
         if keras.backend.standardize_dtype(hidden_states.dtype) == "float16":
             hidden_states = ops.clip(hidden_states, -65504.0, 65504.0)
 
@@ -707,6 +691,7 @@ class QwenImageTransformerBlock(layers.Layer):
             }
         )
         return config
+
 
 QwenImageAdaLayerNormContinuous = StableDiffusion3AdaLayerNorm
 

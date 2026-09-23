@@ -45,21 +45,15 @@ def pack_latents(latents, height, width):
     """Pack ``(B, H, W, C)`` latents into ``(B, H/2 * W/2, C*4)`` (Diffusers)."""
     batch = ops.shape(latents)[0]
     channels = ops.shape(latents)[-1]
-    latents = ops.reshape(
-        latents, (batch, height // 2, 2, width // 2, 2, channels)
-    )
+    latents = ops.reshape(latents, (batch, height // 2, 2, width // 2, 2, channels))
     latents = ops.transpose(latents, (0, 1, 3, 5, 2, 4))
-    return ops.reshape(
-        latents, (batch, (height // 2) * (width // 2), channels * 4)
-    )
+    return ops.reshape(latents, (batch, (height // 2) * (width // 2), channels * 4))
 
 
 def unpack_latents(latents, height, width, channels):
     """Unpack ``(B, seq, C*4)`` to ``(B, H, W, C)``."""
     batch = ops.shape(latents)[0]
-    latents = ops.reshape(
-        latents, (batch, height // 2, width // 2, channels, 2, 2)
-    )
+    latents = ops.reshape(latents, (batch, height // 2, width // 2, channels, 2, 2))
     latents = ops.transpose(latents, (0, 1, 4, 2, 5, 3))
     return ops.reshape(latents, (batch, height, width, channels))
 
@@ -307,9 +301,7 @@ class QwenImageTransformer2DModel(BaseModel):
         axes_dims_rope = tuple(axes_dims_rope)
         inner_dim = num_attention_heads * attention_head_dim
         sample_h = (
-            sample_size[0]
-            if isinstance(sample_size, (tuple, list))
-            else sample_size
+            sample_size[0] if isinstance(sample_size, (tuple, list)) else sample_size
         )
         pack_h = pack_w = sample_h // patch_size
         packed_seq = pack_h * pack_w
@@ -682,9 +674,7 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
                 "sample": latents,
                 "timestep": timesteps,
                 "encoder_hidden_states": embeddings["encoder_hidden_states"],
-                "encoder_hidden_states_mask": embeddings[
-                    "encoder_hidden_states_mask"
-                ],
+                "encoder_hidden_states_mask": embeddings["encoder_hidden_states_mask"],
             }
         )["sample"]
 
@@ -706,9 +696,7 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
         channels = self.vae.z_dim
         if latents is None:
             # Spatial noise then pack (matches Diffusers prepare_latents).
-            noise = keras.random.normal(
-                (batch, h, w, channels), seed=seed, dtype=dtype
-            )
+            noise = keras.random.normal((batch, h, w, channels), seed=seed, dtype=dtype)
             latents = pack_latents(noise, h, w)
         else:
             latents = ops.cast(ops.convert_to_tensor(latents), dtype)
@@ -739,9 +727,7 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
                 cond_norm = ops.sqrt(
                     ops.sum(ops.square(noise_pred), axis=-1, keepdims=True)
                 )
-                comb_norm = ops.sqrt(
-                    ops.sum(ops.square(comb), axis=-1, keepdims=True)
-                )
+                comb_norm = ops.sqrt(ops.sum(ops.square(comb), axis=-1, keepdims=True))
                 noise_pred = comb * (cond_norm / (comb_norm + 1e-8))
             latents = scheduler.step(noise_pred, t, latents)
         return latents
@@ -784,9 +770,7 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
                 uncond = self.encode_prompt(neg_ids, neg_mask)
                 do_cfg = True
             elif negative_input_ids is not None:
-                uncond = self.encode_prompt(
-                    negative_input_ids, negative_attention_mask
-                )
+                uncond = self.encode_prompt(negative_input_ids, negative_attention_mask)
                 do_cfg = guidance_scale > 1.0
             else:
                 uncond = None

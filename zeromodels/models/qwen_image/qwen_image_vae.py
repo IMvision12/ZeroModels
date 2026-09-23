@@ -84,9 +84,7 @@ class QwenImageCausalConv3d(layers.Layer):
             (stride, stride, stride) if isinstance(stride, int) else tuple(stride)
         )
         pad = (
-            (padding, padding, padding)
-            if isinstance(padding, int)
-            else tuple(padding)
+            (padding, padding, padding) if isinstance(padding, int) else tuple(padding)
         )
         self.padding_t, self.padding_h, self.padding_w = pad
         self._pad_t_left = 2 * self.padding_t
@@ -106,11 +104,7 @@ class QwenImageCausalConv3d(layers.Layer):
 
     def _padded_shape(self, input_shape):
         b, t, h, w, c = input_shape
-        t2 = (
-            None
-            if t is None
-            else t + self._pad_t_left + self._pad_t_right
-        )
+        t2 = None if t is None else t + self._pad_t_left + self._pad_t_right
         h2 = None if h is None else h + 2 * self._pad_h
         w2 = None if w is None else w + 2 * self._pad_w
         return (b, t2, h2, w2, c)
@@ -337,7 +331,9 @@ class QwenImageResidualBlock(layers.Layer):
         self.norm2 = QwenImageRMSNorm(
             out_dim, images=False, module_path=f"{module_path}.norm2"
         )
-        self.dropout = layers.Dropout(self.dropout_rate, name=safe_name(f"{module_path}.dropout"))
+        self.dropout = layers.Dropout(
+            self.dropout_rate, name=safe_name(f"{module_path}.dropout")
+        )
         self.conv2 = QwenImageCausalConv3d(
             out_dim, 3, padding=1, module_path=f"{module_path}.conv2"
         )
@@ -397,7 +393,9 @@ class QwenImageAttentionBlock(layers.Layer):
         super().__init__(**kwargs)
         self.dim = int(dim)
         self.module_path = module_path
-        self.norm = QwenImageRMSNorm(dim, images=True, module_path=f"{module_path}.norm")
+        self.norm = QwenImageRMSNorm(
+            dim, images=True, module_path=f"{module_path}.norm"
+        )
         self.to_qkv = layers.Conv2D(
             dim * 3,
             1,
@@ -565,11 +563,7 @@ class QwenImageEncoder3d(layers.Layer):
                     idx += 1
                 in_dim = out_dim
             if i != len(self.dim_mult) - 1:
-                mode = (
-                    "downsample3d"
-                    if self.temperal_downsample[i]
-                    else "downsample2d"
-                )
+                mode = "downsample3d" if self.temperal_downsample[i] else "downsample2d"
                 self.down_blocks.append(
                     QwenImageResample(
                         out_dim,

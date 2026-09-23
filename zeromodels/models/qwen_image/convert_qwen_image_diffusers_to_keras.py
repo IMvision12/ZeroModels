@@ -199,9 +199,7 @@ def transfer_qwen_image(
 
             state = _State()
         else:
-            path = hf_hub_download(
-                repo, filename, subfolder=subfolder, token=token
-            )
+            path = hf_hub_download(repo, filename, subfolder=subfolder, token=token)
             state = {}
             with safe_open(path, framework="np") as shard:
                 for key in shard.keys():
@@ -298,8 +296,7 @@ def transfer_qwen_image(
     unused = sorted(set(hf_keys) - consumed)
     if unused:
         raise ValueError(
-            f"text_encoder: {len(unused)} checkpoint tensors unused, "
-            f"e.g. {unused[:5]}."
+            f"text_encoder: {len(unused)} checkpoint tensors unused, e.g. {unused[:5]}."
         )
     del weight_map, shard_paths, hf_keys
     gc.collect()
