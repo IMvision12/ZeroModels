@@ -327,7 +327,8 @@ Vision-language generation, grounding, and text-to-image diffusion.
 
 [Qwen3-VL](qwen3_vl.md) · [InternVL](internvl.md) ·
 [Kimi K2.5](kimi_k25.md) · [LocateAnything](locateanything.md) ·
-[Stable Diffusion](stable_diffusion.md) · [Qwen-Image](qwen_image.md)
+[Stable Diffusion](stable_diffusion.md) · [Qwen-Image](qwen_image.md) ·
+[Qwen-Image-2.1](qwen_image_21.md)
 
 </div>
 
