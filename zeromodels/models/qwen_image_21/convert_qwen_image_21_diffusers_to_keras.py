@@ -197,22 +197,26 @@ def transfer_qwen_image_21(
                 }
 
                 class _State:
+                    def __init__(self, weight_map, shard_paths):
+                        self.weight_map = weight_map
+                        self.shard_paths = shard_paths
+
                     def __contains__(self, key):
-                        return key in weight_map
+                        return key in self.weight_map
 
                     def __getitem__(self, key):
                         with safe_open(
-                            shard_paths[weight_map[key]], framework="np"
+                            self.shard_paths[self.weight_map[key]], framework="np"
                         ) as shard:
                             return shard.get_tensor(key)
 
                     def keys(self):
-                        return weight_map.keys()
+                        return self.weight_map.keys()
 
                     def __iter__(self):
-                        return iter(weight_map)
+                        return iter(self.weight_map)
 
-                state = _State()
+                state = _State(weight_map, shard_paths)
             else:
                 raise FileNotFoundError
         except Exception:
