@@ -5,6 +5,7 @@ import numpy as np
 from keras import layers, ops
 
 from zeromodels.base import BaseDiffusion, BaseModel, CausalMask
+from zeromodels.base.base_attention import with_model_attn_implementation
 from zeromodels.base.base_mixin import inference_scope
 from zeromodels.base.base_scheduler import (
     FlowMatchEulerDiscreteScheduler,
@@ -345,7 +346,34 @@ class QwenImage21Transformer2DModel(BaseModel):
 
         joint = ops.concatenate([encoder, hidden], axis=1)
 
-        rotary = ops.convert_to_tensor(rope_angles)
+        # The graph reserves ``text_seq_len`` slots, but Diffusers places image
+        # tokens immediately after the actual (batch-padded) prompt. Only the
+        # frame axis of image RoPE depends on that starting position.
+        frame_dims = axes_dims_rope[0] // 2
+        frame_freqs = np.power(
+            10000.0,
+            -np.arange(0, axes_dims_rope[0], 2, dtype=np.float64) / axes_dims_rope[0],
+        ).astype(np.float32)
+        prompt_len = ops.max(ops.sum(enc_mask_in, axis=1))
+        frame_angles = ops.cast(prompt_len, "float32") * ops.convert_to_tensor(
+            frame_freqs, dtype="float32"
+        )
+        image_angles = ops.concatenate(
+            [
+                ops.broadcast_to(frame_angles, (img_seq, frame_dims)),
+                ops.convert_to_tensor(
+                    rope_angles[text_seq_len:, frame_dims:], dtype="float32"
+                ),
+            ],
+            axis=-1,
+        )
+        rotary = ops.concatenate(
+            [
+                ops.convert_to_tensor(rope_angles[:text_seq_len], dtype="float32"),
+                image_angles,
+            ],
+            axis=0,
+        )
         attn_mask = ops.convert_to_tensor(attn_mask_np)
         target_mask_t = ops.convert_to_tensor(target_token_mask)
         text_pos = np.flatnonzero(~image_pad_mask).astype(np.int32)
@@ -730,6 +758,7 @@ class QwenImage21TextToImage(QwenImage21Model, BaseDiffusion):
             "encoder_hidden_states_mask": ops.convert_to_tensor(out_mask),
         }
 
+    @with_model_attn_implementation
     def predict_noise(self, latents, timesteps, embeddings):
         return self.transformer(
             {

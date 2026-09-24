@@ -5,6 +5,7 @@ import numpy as np
 from keras import layers, ops
 
 from zeromodels.base import BaseDiffusion, BaseModel
+from zeromodels.base.base_attention import with_model_attn_implementation
 from zeromodels.base.base_mixin import inference_scope
 from zeromodels.base.base_scheduler import (
     FlowMatchEulerDiscreteScheduler,
@@ -620,12 +621,29 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
         w = 2 * (int(width) // scale)
         return h, w
 
+    def _negative_prompt_inputs(self, batch, prompt=None):
+        """Tokenize the templated negative prompt used for true CFG."""
+        from .qwen_image_tokenizer import QwenImageTokenizer
+
+        if prompt is None:
+            prompts = [" "] * batch
+        elif isinstance(prompt, str):
+            prompts = [prompt] * batch
+        else:
+            prompts = list(prompt)
+        if len(prompts) != batch:
+            raise ValueError("negative_prompt must have one entry per image")
+        tokenizer = getattr(self, "_negative_prompt_tokenizer", None)
+        if tokenizer is None:
+            tokenizer = QwenImageTokenizer.from_weights("zeromodels/qwen-image")
+            self._negative_prompt_tokenizer = tokenizer
+        return tokenizer(prompts)
+
     def unconditional_ids(self, batch):
-        # Empty / space negative prompt is encoded by the tokenizer template;
-        # here build a minimal pad row the task replaces via encode_negative_prompt.
-        length = self.config.text_config.max_seq_len
-        row = [self.config.pad_token_id] * length
-        return ops.convert_to_tensor([row] * batch, dtype="int32")
+        """Token IDs for a templated space prompt, matching Diffusers CFG."""
+        return ops.convert_to_tensor(
+            self._negative_prompt_inputs(batch)["input_ids"], dtype="int32"
+        )
 
     def encode_prompt(self, input_ids, attention_mask=None, **conditioning):
         """Encode ChatML-templated token ids → truncated prompt embeds + mask.
@@ -668,6 +686,7 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
             "encoder_hidden_states_mask": ops.convert_to_tensor(out_mask),
         }
 
+    @with_model_attn_implementation
     def predict_noise(self, latents, timesteps, embeddings):
         return self.transformer(
             {
@@ -757,24 +776,17 @@ class QwenImageTextToImage(QwenImageModel, BaseDiffusion):
 
         with inference_scope():
             embeddings = self.encode_prompt(input_ids, attention_mask, **conditioning)
-            do_cfg = guidance_scale > 1.0 and (
-                negative_input_ids is not None
-                or conditioning.get("negative_prompt") is not None
-            )
-            # Diffusers enables true CFG when a negative prompt is provided.
-            if guidance_scale > 1.0 and negative_input_ids is None:
-                # Encode empty/space negative via unconditional_ids path.
-                neg_ids = self.unconditional_ids(batch)
-                neg_mask = ops.ones_like(neg_ids)
-                # Prefer caller-supplied negative when present.
-                uncond = self.encode_prompt(neg_ids, neg_mask)
-                do_cfg = True
-            elif negative_input_ids is not None:
+            do_cfg = guidance_scale > 1.0
+            if do_cfg:
+                if negative_input_ids is None:
+                    negative_inputs = self._negative_prompt_inputs(
+                        batch, conditioning.get("negative_prompt")
+                    )
+                    negative_input_ids = negative_inputs["input_ids"]
+                    negative_attention_mask = negative_inputs["attention_mask"]
                 uncond = self.encode_prompt(negative_input_ids, negative_attention_mask)
-                do_cfg = guidance_scale > 1.0
             else:
                 uncond = None
-                do_cfg = False
 
             # Diffusers calculate_shift: resolution-dependent flow-match mu
             h, w = self._latent_side(height, width)
