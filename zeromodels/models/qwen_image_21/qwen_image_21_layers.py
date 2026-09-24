@@ -393,6 +393,7 @@ class QwenImage21Attention(layers.Layer):
     def __init__(self, dim, heads, dim_head, eps=NORM_EPS, module_path=None, **kwargs):
         if module_path is not None:
             kwargs.setdefault("name", safe_name(module_path))
+        kwargs.setdefault("autocast", False)
         super().__init__(**kwargs)
         self.dim = dim
         self.heads = heads
@@ -483,6 +484,8 @@ class QwenImage21TransformerBlock(layers.Layer):
     ):
         if module_path is not None:
             kwargs.setdefault("name", safe_name(module_path))
+        # Keep the float32 rotary argument intact on its way to attention.
+        kwargs.setdefault("autocast", False)
         super().__init__(**kwargs)
         self.dim = dim
         self.num_attention_heads = num_attention_heads

@@ -92,6 +92,7 @@ generate(
     height=None,
     width=None,
     output_type="image",
+    **conditioning,
 )
 ```
 
@@ -99,8 +100,9 @@ generate(
 |---|---|---|
 | `input_ids` | required | ChatML-templated token ids, `**tokenizer(prompts)` |
 | `attention_mask` | `None` | padding mask from the tokenizer |
-| `negative_input_ids` | `None` | tokenized negative prompt for true CFG; a space / empty prompt when unset |
+| `negative_input_ids` | `None` | tokenized negative prompt for true CFG; a templated space prompt when unset |
 | `negative_attention_mask` | `None` | mask for the negative ids |
+| `negative_prompt` | `None` | optional text (or one string per image) passed via `**conditioning`; tokenized when negative ids are unset |
 | `num_inference_steps` | `None` | scheduler steps; the repo's `generate_args` (50) when unset |
 | `guidance_scale` | `None` | true CFG strength; `generate_args` (4.0) when unset, `<= 1` disables it |
 | `seed` | `None` | seed for the initial latent, reproducible per backend |
