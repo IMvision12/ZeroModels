@@ -117,7 +117,6 @@ def config_from_diffusers(repo, token=None):
     )
 
 
-
 def transfer_qwen_image(
     repo, token=None, dtype="float16", build_sample_size=16, config=None
 ):
@@ -140,9 +139,7 @@ def transfer_qwen_image(
         model = QwenImageModel(**flat)
 
     vae_mapping = {
-        k: v
-        for k, v in WEIGHT_NAME_MAPPING.items()
-        if k not in ("/gamma", "gamma")
+        k: v for k, v in WEIGHT_NAME_MAPPING.items() if k not in ("/gamma", "gamma")
     }
     for step, (component, subfolder, mapping, index_name, filename) in enumerate(
         (

@@ -133,7 +133,6 @@ def config_from_diffusers(repo, token=None):
     )
 
 
-
 def transfer_qwen_image_21(
     repo, token=None, dtype="bfloat16", build_sample_size=8, config=None
 ):
