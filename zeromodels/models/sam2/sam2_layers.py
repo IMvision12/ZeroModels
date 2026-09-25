@@ -1587,16 +1587,32 @@ class SAM2HieraPositionEmbedding(layers.Layer):
 
     def _recompute_full_pos(self):
         h, w = self.spatial_size
-        pos = ops.image.resize(
-            ops.convert_to_tensor(self.pos_embed),
-            size=(h, w),
-            interpolation="bicubic",
-            antialias=False,
-            data_format="channels_last",
-        )
+        dtype = "float64" if self.pos_embed.dtype == "float64" else "float32"
+        matrices = []
+        for out_size, in_size in ((h, self.bg_size[0]), (w, self.bg_size[1])):
+            center = (ops.arange(out_size, dtype=dtype) + 0.5) * (in_size / out_size) - 0.5
+            start = ops.floor(center)
+            fraction = center - start
+            a = -0.75
+            d0, d1, d2, d3 = fraction + 1.0, fraction, 1.0 - fraction, 2.0 - fraction
+            taps = (
+                ((a * d0 - 5.0 * a) * d0 + 8.0 * a) * d0 - 4.0 * a,
+                ((a + 2.0) * d1 - (a + 3.0)) * d1 * d1 + 1.0,
+                ((a + 2.0) * d2 - (a + 3.0)) * d2 * d2 + 1.0,
+                ((a * d3 - 5.0 * a) * d3 + 8.0 * a) * d3 - 4.0 * a,
+            )
+            matrix = ops.zeros((out_size, in_size), dtype=dtype)
+            for offset, tap in zip((-1, 0, 1, 2), taps):
+                index = ops.clip(ops.cast(start, "int32") + offset, 0, in_size - 1)
+                # Accumulate duplicate taps when border indices are clamped.
+                matrix = matrix + ops.one_hot(index, in_size, dtype=dtype) * tap[:, None]
+            matrices.append(matrix)
+        pos = ops.cast(self.pos_embed, dtype)
+        pos = ops.einsum("wj,bijc->biwc", matrices[1], pos)
+        pos = ops.einsum("hi,biwc->bhwc", matrices[0], pos)
         tile_h = h // self.window_size
         tile_w = w // self.window_size
-        window_pos = ops.tile(self.pos_embed_window, (1, tile_h, tile_w, 1))
+        window_pos = ops.tile(ops.cast(self.pos_embed_window, dtype), (1, tile_h, tile_w, 1))
         self._full_pos.assign(pos + window_pos)
 
     def load_own_variables(self, store):
