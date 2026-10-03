@@ -38,8 +38,11 @@ Apache 2.0.
 |---|---|
 | `qwen3-vl-30b-a3b-instruct` | [`zeromodels/qwen3-vl-30b-a3b-instruct`](https://huggingface.co/zeromodels/qwen3-vl-30b-a3b-instruct) |
 | `qwen3-vl-30b-a3b-thinking` | [`zeromodels/qwen3-vl-30b-a3b-thinking`](https://huggingface.co/zeromodels/qwen3-vl-30b-a3b-thinking) |
-| `qwen3-vl-235b-a22b-instruct` | [`zeromodels/qwen3-vl-235b-a22b-instruct`](https://huggingface.co/zeromodels/qwen3-vl-235b-a22b-instruct) |
-| `qwen3-vl-235b-a22b-thinking` | [`zeromodels/qwen3-vl-235b-a22b-thinking`](https://huggingface.co/zeromodels/qwen3-vl-235b-a22b-thinking) |
+
+The 235B-A22B variants are not currently published as public ZeroModels weights.
+Their [Instruct](https://huggingface.co/Qwen/Qwen3-VL-235B-A22B-Instruct) and
+[Thinking](https://huggingface.co/Qwen/Qwen3-VL-235B-A22B-Thinking) checkpoints
+are available from upstream Qwen.
 
 Upstream Qwen safetensors also load directly via the `hf:` prefix, e.g.
 `from_weights("hf:Qwen/Qwen3-VL-30B-A3B-Instruct")`, which converts them in process (pass

@@ -7,8 +7,8 @@ so you never have to remember whether a checkpoint is a `BertModel` or a `DETRDe
 ```python
 from zeromodels import AutoZModel, AutoZMTokenizer
 
-model = AutoZModel.from_weights("zeromodels/bert-base-uncased")  # -> BertModel
-tok = AutoZMTokenizer.from_weights("zeromodels/bert-base-uncased")
+model = AutoZModel.from_weights("zeromodels/bert_base_uncased")  # -> BertModel
+tok = AutoZMTokenizer.from_weights("zeromodels/bert_base_uncased")
 ```
 
 This is the `transformers` `AutoModel` idea, ZeroModels flavored. The classes are named
@@ -89,7 +89,7 @@ task you want:
 ```python
 from zeromodels.auto import AutoZMImageClassify, AutoZMSemanticSegment
 
-clf = AutoZMImageClassify.from_weights("zeromodels/resnet-50")
+clf = AutoZMImageClassify.from_weights("zeromodels/resnet50_a1_in1k")
 seg = AutoZMSemanticSegment.from_weights("zeromodels/segformer_b0_ade_512")
 ```
 
