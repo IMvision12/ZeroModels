@@ -15,16 +15,16 @@ Unlike [OWL-ViT](owlvit.md) and [OWLv2](owlv2.md), which score each patch indepe
 
 ## API
 
-### GroundingDinoForObjectDetection
+### GroundingDinoDetect
 
 ```python
-GroundingDinoForObjectDetection(
+GroundingDinoDetect(
     ...,
     d_model=256,
     decoder_layers=6,
     num_queries=900,
     max_text_len=256,
-    name="GroundingDinoForObjectDetection",
+    name="GroundingDinoDetect",
 )
 ```
 
@@ -151,11 +151,11 @@ Both use the same BERT text encoder and a 6-layer decoder with 900 queries.
 import torch
 from PIL import Image
 from zeromodels.models.grounding_dino import (
-    GroundingDinoForObjectDetection,
+    GroundingDinoDetect,
     GroundingDinoProcessor,
 )
 
-model = GroundingDinoForObjectDetection.from_weights("zeromodels/grounding_dino_tiny")
+model = GroundingDinoDetect.from_weights("zeromodels/grounding_dino_tiny")
 processor = GroundingDinoProcessor.from_weights("zeromodels/grounding_dino_tiny")
 
 image = Image.open("assets/data/coco_paddleboard.jpg").convert("RGB")
@@ -204,11 +204,11 @@ across images:
 import torch
 from PIL import Image
 from zeromodels.models.grounding_dino import (
-    GroundingDinoForObjectDetection,
+    GroundingDinoDetect,
     GroundingDinoProcessor,
 )
 
-model = GroundingDinoForObjectDetection.from_weights("zeromodels/grounding_dino_tiny")
+model = GroundingDinoDetect.from_weights("zeromodels/grounding_dino_tiny")
 # Batching a portrait with a landscape pads to the union of both. At the default
 # 800/1333 that is ~29k tokens per image, enough to exhaust an 8 GB card.
 processor = GroundingDinoProcessor.from_weights(
@@ -309,7 +309,7 @@ import keras
 
 keras.config.set_image_data_format("channels_first")
 
-model = GroundingDinoForObjectDetection.from_weights("zeromodels/grounding_dino_tiny")
+model = GroundingDinoDetect.from_weights("zeromodels/grounding_dino_tiny")
 processor = GroundingDinoProcessor.from_weights("zeromodels/grounding_dino_tiny")
 ```
 
@@ -323,15 +323,15 @@ Any Hugging Face repo whose `model_type` is `"grounding-dino"` loads directly wi
 `hf:` prefix.
 
 ```python
-from zeromodels.models.grounding_dino import GroundingDinoForObjectDetection
+from zeromodels.models.grounding_dino import GroundingDinoDetect
 
 # The original IDEA-Research checkpoints
-model = GroundingDinoForObjectDetection.from_weights(
+model = GroundingDinoDetect.from_weights(
     "hf:IDEA-Research/grounding-dino-tiny"
 )
 
 # Somebody's fine-tune
-model = GroundingDinoForObjectDetection.from_weights(
+model = GroundingDinoDetect.from_weights(
     "hf:<user>/grounding-dino-finetune"
 )
 ```

@@ -275,9 +275,6 @@ _COVERAGE_EXEMPT = {
     # tower and vice versa), so neither is a table default; load them via the concrete class.
     "Gemma4MultimodalModel",
     "Qwen3_5VLModel",
-    # Redundant transformers-named alias whose model_type ("grounding-dino") already maps to
-    # the zeromodels-convention sibling GroundingDinoDetect.
-    "GroundingDinoForObjectDetection",
     # Components of the Stable Diffusion containers (loaded through the family's
     # XModel / XTextToImage), never hosted repos of their own; keep diffusers' names,
     # which carry no task suffix.
