@@ -11,6 +11,19 @@ distinct per family) OR a raw transformers ``config.json``; both spellings are i
 the zeromodels-repo and ``hf:`` load paths share one table.
 """
 
+# Public building blocks of full diffusion pipelines, not standalone Auto tasks.
+# Values name the Auto-loadable owner exposing vae/text_encoder/transformer.
+# Direct construction and serialization remain supported; a config model_type
+# alone does not promise an independent Auto checkpoint-loading route.
+COMPONENT_ONLY_MODEL_NAMES = {
+    "AutoencoderKLQwenImage": "QwenImageModel",
+    "QwenImageTextEncoderModel": "QwenImageModel",
+    "QwenImageTransformer2DModel": "QwenImageModel",
+    "AutoencoderKLQwenImage21": "QwenImage21Model",
+    "QwenImage21TextEncoderModel": "QwenImage21Model",
+    "QwenImage21Transformer2DModel": "QwenImage21Model",
+}
+
 # task suffix -> {model_type: ClassName}. AutoZModel is task 'Model';
 # AutoZM<Task> for the rest (AutoZMDetect = 'Detect', ...).
 MODEL_TASK_MAPPING_NAMES = {

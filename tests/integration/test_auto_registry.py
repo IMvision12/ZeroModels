@@ -297,20 +297,57 @@ def test_every_autodetectable_model_class_appears_in_a_table():
     """Every model class that carries a model_type is reachable through some AutoZM table
     (catches a new model added to the code but not to the hand-maintained tables). Bare
     backbones with no model_type are skipped: a repo has nothing to autodetect on, and they
-    load via a task sibling or the concrete class."""
+    load via a task sibling or the concrete class. Explicit component-only classes
+    are covered by their Auto-loadable pipeline owner rather than a task row."""
     mapped = set()
     for table in names.MODEL_TASK_MAPPING_NAMES.values():
         mapped.update(table.values())
     missing = sorted(
         name
         for name, cls in _iter_model_classes()
-        if _has_model_type(cls) and name not in mapped and name not in _COVERAGE_EXEMPT
+        if _has_model_type(cls)
+        and name not in mapped
+        and name not in _COVERAGE_EXEMPT
+        and name not in names.COMPONENT_ONLY_MODEL_NAMES
     )
     assert not missing, (
         "model class(es) with a model_type absent from "
         "zeromodels/auto/auto_mapping_names.py; add a row to the matching task table: "
         f"{missing}"
     )
+
+
+def test_component_only_contract_has_real_unmapped_components_and_mapped_owners():
+    """Keep the explicit exclusions narrow: no stale names or hidden task rows."""
+    exported = dict(_iter_model_classes())
+    mapped = {
+        name
+        for table in names.MODEL_TASK_MAPPING_NAMES.values()
+        for name in table.values()
+    }
+    for component, owner in names.COMPONENT_ONLY_MODEL_NAMES.items():
+        assert component in exported, f"Stale component-only entry: {component}"
+        assert _has_model_type(exported[component]), component
+        assert component not in mapped, f"Remove obsolete exclusion: {component}"
+        assert component not in _COVERAGE_EXEMPT, component
+        assert owner in exported and owner in mapped, owner
+        assert component != owner
+
+
+@pytest.mark.parametrize(
+    "model_type,model_name,pipeline_name",
+    [
+        ("qwen_image", "QwenImageModel", "QwenImageTextToImage"),
+        ("qwen_image_21", "QwenImage21Model", "QwenImage21TextToImage"),
+    ],
+)
+def test_qwen_image_pipeline_auto_routes_remain_registered(
+    model_type, model_name, pipeline_name
+):
+    assert names.MODEL_TASK_MAPPING_NAMES["Model"][model_type] == model_name
+    assert names.MODEL_TASK_MAPPING_NAMES["TextToImage"][model_type] == pipeline_name
+    assert model_name not in names.COMPONENT_ONLY_MODEL_NAMES
+    assert pipeline_name not in names.COMPONENT_ONLY_MODEL_NAMES
 
 
 # Classes whose zm config model_type DELIBERATELY differs from the HF checkpoint's

@@ -46,6 +46,25 @@ fine-tune of the same architecture loads exactly like the official weights.
 
 ## Task classes
 
+### Pipeline components
+
+Exported component classes are not necessarily standalone Auto tasks. For Qwen-Image
+and Qwen-Image 2.1, the VAE (`AutoencoderKLQwenImage`, `AutoencoderKLQwenImage21`),
+text encoder (`QwenImageTextEncoderModel`, `QwenImage21TextEncoderModel`), and
+transformer (`QwenImageTransformer2DModel`, `QwenImage21Transformer2DModel`) are
+pipeline components. Load the complete model with `AutoZModel` or the generation
+pipeline with `AutoZMTextToImage`, then access its `.vae`, `.text_encoder`, or
+`.transformer` attribute. Direct component construction and serialization remain
+available; component config types do not imply standalone Auto weight loading.
+
+These six classes are explicitly recorded with their pipeline owners in
+`COMPONENT_ONLY_MODEL_NAMES` in `zeromodels/auto/auto_mapping_names.py`. The registry
+coverage test still requires every other autodetectable model to have a task mapping
+or an existing documented exemption, and checks that component exclusions name real
+classes with Auto-loadable owners.
+
+### Available tasks
+
 Like `transformers`' `AutoModelForImageClassification` / `AutoModelForObjectDetection` /
 …, there is one Auto per task. `AutoZModel` loads the bare backbone; the task classes load
 the model **with its head**. Each is named after the ZeroModels task suffix:
