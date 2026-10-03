@@ -91,9 +91,10 @@ model.save("model.keras")
 model = keras.saving.load_model("model.keras")  # rebuilt quantized, weights loaded
 
 # Weights-only (.weights.h5) carries values, not structure, so the target must already
-# be quantized before load_weights. From a Hub repo that is automatic (zm_config's
-# quantization_config drives it):
-model = Qwen3TextGenerate.from_weights("zeromodels/qwen3-4b-int8")
+# be quantized before load_weights. If you publish a quantized Hub repo with a
+# quantization_config in zm_config.json, the loader applies it automatically.
+# Replace this illustrative repo ID with your published repo:
+model = Qwen3TextGenerate.from_weights("<your-org>/qwen3-4b-int8")
 
 # Into a hand-built model, apply the quantizer first, then load_weights. For a
 # functional model preprocess_model returns a NEW (cloned) quantized model, so use it:
