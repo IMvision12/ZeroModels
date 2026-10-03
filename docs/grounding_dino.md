@@ -326,14 +326,10 @@ Any Hugging Face repo whose `model_type` is `"grounding-dino"` loads directly wi
 from zeromodels.models.grounding_dino import GroundingDinoDetect
 
 # The original IDEA-Research checkpoints
-model = GroundingDinoDetect.from_weights(
-    "hf:IDEA-Research/grounding-dino-tiny"
-)
+model = GroundingDinoDetect.from_weights("hf:IDEA-Research/grounding-dino-tiny")
 
 # Somebody's fine-tune
-model = GroundingDinoDetect.from_weights(
-    "hf:<user>/grounding-dino-finetune"
-)
+model = GroundingDinoDetect.from_weights("hf:<user>/grounding-dino-finetune")
 ```
 
 No shape arguments are needed. The architecture is read from the repo's `config.json`.
