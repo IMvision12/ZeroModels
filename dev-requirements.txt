@@ -1,27 +1,14 @@
-tensorflow-cpu>=2.19.0
-
---extra-index-url https://download.pytorch.org/whl/cpu
-torch>=2.5.0
-torchvision>=0.20.0
-
-jax[cpu]
-
-keras>=3.15.0
-huggingface_hub
-safetensors
-numpy
-pillow
-matplotlib>=3.8.0
-tokenizers
-sentencepiece
+-r requirements.txt
 
 timm
 transformers>=5.0.0
 diffusers
 
+# tests
 pytest
 pytest-cov
 requests
 
+# lint / format
 pre-commit
 ruff==0.16.1
