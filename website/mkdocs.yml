@@ -174,8 +174,10 @@ nav:
       - Vision models:
           - BEiT: beit.md
           - Classification backbones: classification_backbones.md
+          - Conditional DETR: conditional_detr.md
           - D-FINE: dfine.md
           - DeepLabV3: deeplabv3.md
+          - Deformable DETR: deformable_detr.md
           - Depth Anything V1: depth_anything_v1.md
           - Depth Anything V2: depth_anything_v2.md
           - DETR: detr.md

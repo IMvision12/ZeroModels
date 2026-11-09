@@ -521,15 +521,21 @@ class BaseImageProcessor(PreprocessorMixin):
     def resize_shortest_longest(h, w, shortest_edge, longest_edge):
         """Aspect-preserving target ``(H, W)``: scale the short side to
         ``shortest_edge``, then cap so the long side does not exceed
-        ``longest_edge`` (the reference DETR ``get_size_with_aspect_ratio``).
-        The long side is derived from the rounded short side so a square input
-        stays square.
+        ``longest_edge``. Mirrors the reference ``get_size_with_aspect_ratio``
+        exactly: the long side is truncated (not rounded), a capped long side is
+        derived from the unrounded short side, and an image whose short side
+        already equals the target keeps its size. (Rounding instead makes e.g. a
+        640x480 image 1067 px wide where the reference gives 1066.)
         """
         short, long_ = min(h, w), max(h, w)
-        new_short = shortest_edge
-        if longest_edge is not None and long_ * (new_short / short) > longest_edge:
-            new_short = int(round(longest_edge * short / long_))
-        new_long = int(round(new_short * long_ / short))
+        new_short, raw_short = shortest_edge, None
+        if longest_edge is not None and long_ / short * new_short > longest_edge:
+            raw_short = longest_edge * short / long_
+            new_short = int(round(raw_short))
+        if short == new_short:
+            return h, w
+        scale = raw_short if raw_short is not None else new_short
+        new_long = int(scale * long_ / short)
         return (new_short, new_long) if h <= w else (new_long, new_short)
 
     @staticmethod
