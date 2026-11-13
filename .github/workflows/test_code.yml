@@ -1,6 +1,21 @@
 name: Tests
+
+# Every pull request runs Lint & Format automatically. The model, tokenizer and
+# processor tests are part of this same run but stay skipped until IMvision12 comments
+# /run-tests on the PR: run_tests_command.yml then marks the PR head commit as requested
+# (a `run-tests` commit status) and re-runs THIS run. The re-run sees the request and
+# runs the full suite inside the pull request's own run, on the pull request's code,
+# with every job listed in the PR's checks.
 on:
   pull_request:
+
+concurrency:
+  # a new push to the PR cancels the run for the previous commit
+  group: tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   lint-and-format:
@@ -8,9 +23,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install ruff==0.16.1
       - run: ruff check .
       - run: ruff format --check .
+
+  requested:
+    name: Check for /run-tests
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: read
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - name: Look for a /run-tests request on the PR head commit
+        id: check
+        uses: actions/github-script@v9
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            // Read live (not from the event payload, which a re-run keeps unchanged).
+            // Only the comment workflow's token can set this status: fork runs are
+            // read-only.
+            const statuses = await github.paginate(github.rest.repos.listCommitStatusesForRef, {
+              ...context.repo, ref: process.env.HEAD_SHA, per_page: 100,
+            });
+            const requested = statuses.some(s =>
+              s.context === 'run-tests' && s.state === 'success' &&
+              s.creator?.login === 'github-actions[bot]');
+            core.setOutput('run', String(requested));
+            core.info(requested
+              ? 'Requested with /run-tests: running the model, tokenizer and processor tests.'
+              : 'Not requested: IMvision12 can comment /run-tests to run the full suite.');
+
+  model-tests:
+    name: Model tests
+    needs: requested
+    if: needs.requested.outputs.run == 'true'
+    uses: ./.github/workflows/model_tests.yml
+    permissions:
+      contents: read

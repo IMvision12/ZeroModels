@@ -1,30 +1,15 @@
 name: Model tests
-run-name: >-
-  ${{ github.event_name == 'workflow_dispatch'
-      && format('Model tests for PR #{0}', inputs.pr_number)
-      || format('Model tests ({0})', github.event_name) }}
 
-# Runs on a release, and on a pull request when IMvision12 comments /run-tests:
-# run_tests_command.yml dispatches this workflow on the PR branch, so the run is
-# attached to the PR head commit and every job below is listed in the PR's checks.
+# The model, tokenizer and processor suite. It runs:
+# - on a pull request, inside the PR's own Tests run (test_code.yml calls this file)
+#   once IMvision12 comments /run-tests; see run_tests_command.yml;
+# - on a release, after lint;
+# - by hand from the Actions tab ("Run workflow"), on the chosen branch.
 on:
   release:
     types: [created]
   workflow_dispatch:
-    inputs:
-      pr_number:
-        description: "Pull request number (set by /run-tests)"
-        required: false
-        default: ""
-      pr_sha:
-        description: "Pull request head commit to test (set by /run-tests)"
-        required: false
-        default: ""
-
-concurrency:
-  # a new /run-tests on the same PR replaces the previous run
-  group: model-tests-${{ inputs.pr_number || github.ref }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions:
   contents: read
@@ -46,10 +31,8 @@ jobs:
   test-code:
     name: Test the code (${{ matrix.backend }} ${{ matrix.shard }})
     needs: [lint-and-format]
-    if: >-
-      always() && !cancelled() &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'release' && needs.lint-and-format.result == 'success'))
+    # lint runs here only on a release (pull requests lint in test_code.yml)
+    if: always() && !cancelled() && needs.lint-and-format.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -75,7 +58,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.pr_sha }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -125,10 +107,8 @@ jobs:
   test-tokenizers:
     name: Test tokenizers (vs HF)
     needs: [lint-and-format]
-    if: >-
-      always() && !cancelled() &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'release' && needs.lint-and-format.result == 'success'))
+    # lint runs here only on a release (pull requests lint in test_code.yml)
+    if: always() && !cancelled() && needs.lint-and-format.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -137,7 +117,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.pr_sha }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -165,10 +144,8 @@ jobs:
   test-image-processors:
     name: Test image processors (vs HF, ${{ matrix.backend }})
     needs: [lint-and-format]
-    if: >-
-      always() && !cancelled() &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'release' && needs.lint-and-format.result == 'success'))
+    # lint runs here only on a release (pull requests lint in test_code.yml)
+    if: always() && !cancelled() && needs.lint-and-format.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -181,7 +158,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.pr_sha }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -212,10 +188,8 @@ jobs:
   test-processors:
     name: Test processors (vs HF, ${{ matrix.backend }})
     needs: [lint-and-format]
-    if: >-
-      always() && !cancelled() &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'release' && needs.lint-and-format.result == 'success'))
+    # lint runs here only on a release (pull requests lint in test_code.yml)
+    if: always() && !cancelled() && needs.lint-and-format.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -228,7 +202,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.pr_sha }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -269,72 +242,3 @@ jobs:
         run: |
           echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           echo "$RESULTS" | jq -e 'all(.[]; .result == "success")' > /dev/null
-
-  # GitHub's PR checks box does not list the jobs of a workflow_dispatch run, but it
-  # always lists commit statuses. These two jobs mirror every test job of a /run-tests run
-  # as a commit status on the tested PR commit: pending when the run starts, then the
-  # job's result, each linking to its log. Neither job checks out or runs PR code.
-  publish-pending-statuses:
-    name: Publish pending PR statuses
-    if: github.event_name == 'workflow_dispatch' && inputs.pr_sha != ''
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      statuses: write
-    steps:
-      - name: Mark every test job pending on the PR commit
-        uses: actions/github-script@v9
-        env:
-          PR_SHA: ${{ inputs.pr_sha }}
-        with:
-          script: |
-            const internal = new Set([
-              'Lint & Format', 'Publish pending PR statuses', 'Publish PR statuses',
-            ]);
-            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
-              ...context.repo, run_id: context.runId, per_page: 100,
-            });
-            for (const job of jobs.filter(job => !internal.has(job.name))) {
-              await github.rest.repos.createCommitStatus({
-                ...context.repo,
-                sha: process.env.PR_SHA,
-                state: 'pending',
-                context: `Model tests / ${job.name}`,
-                description: 'Running',
-                target_url: job.html_url,
-              });
-            }
-
-  publish-statuses:
-    name: Publish PR statuses
-    needs: [test-code, test-tokenizers, test-image-processors, test-processors, all-tests]
-    if: always() && github.event_name == 'workflow_dispatch' && inputs.pr_sha != ''
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      statuses: write
-    steps:
-      - name: Publish every test job's result on the PR commit
-        uses: actions/github-script@v9
-        env:
-          PR_SHA: ${{ inputs.pr_sha }}
-        with:
-          script: |
-            const internal = new Set([
-              'Lint & Format', 'Publish pending PR statuses', 'Publish PR statuses',
-            ]);
-            const states = { success: 'success', failure: 'failure', timed_out: 'failure' };
-            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
-              ...context.repo, run_id: context.runId, per_page: 100,
-            });
-            for (const job of jobs.filter(job => !internal.has(job.name))) {
-              const conclusion = job.conclusion || 'cancelled';
-              await github.rest.repos.createCommitStatus({
-                ...context.repo,
-                sha: process.env.PR_SHA,
-                state: states[conclusion] || 'error',
-                context: `Model tests / ${job.name}`,
-                description: conclusion === 'success' ? 'Passed' : `Result: ${conclusion}`,
-                target_url: job.html_url,
-              });
-            }

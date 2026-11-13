@@ -1,10 +1,13 @@
 name: Run tests command
 
 # `/run-tests` from IMvision12 on a pull request starts the model, tokenizer and processor
-# tests: this workflow validates the request and dispatches model_tests.yml on the PR
-# branch (a fork's PR: on the default branch), pinned to the PR head commit. That run
-# publishes every test job as a commit status on the commit, which the PR's checks box
-# lists. This job never checks out or runs PR code.
+# tests INSIDE that pull request's own Tests run (test_code.yml), not in a separate run
+# on another branch. This job:
+#   1. validates the request and finds the PR's Tests run for its current head commit;
+#   2. marks that commit with a `run-tests` commit status (the request);
+#   3. re-runs that Tests run. Its "Check for /run-tests" job now sees the request, so
+#      the re-run runs the full suite on the PR's code, listed in the PR's checks.
+# This job never checks out or runs PR code.
 on:
   issue_comment:
     types: [created]
@@ -12,7 +15,7 @@ on:
 permissions: {}
 
 jobs:
-  dispatch:
+  start:
     name: Start requested PR tests
     if: >-
       github.event.issue.pull_request &&
@@ -20,13 +23,14 @@ jobs:
       github.triggering_actor == 'IMvision12' &&
       github.event.comment.body == '/run-tests'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
-      actions: write
-      contents: read
-      issues: write
+      actions: write        # cancel / re-run the PR's Tests run
+      statuses: write       # mark the PR head commit as requested
+      issues: write         # reply and react to the comment
       pull-requests: write
     steps:
-      - name: Validate the command and dispatch model_tests.yml
+      - name: Validate the command and re-run the PR's Tests run with the suite
         uses: actions/github-script@v9
         with:
           script: |
@@ -36,52 +40,83 @@ jobs:
                 comment.body.trim() !== '/run-tests') {
               throw new Error('Only IMvision12 can request PR tests with /run-tests.');
             }
+            const reply = body => github.rest.issues.createComment({
+              ...context.repo, issue_number: issue.number, body,
+            });
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
             const { data: pr } = await github.rest.pulls.get({
-              ...context.repo,
-              pull_number: issue.number,
+              ...context.repo, pull_number: issue.number,
             });
             if (pr.state !== 'open') {
               throw new Error('Tests can only be requested on an open pull request.');
             }
-            if (!/^[0-9a-f]{40}$/.test(pr.head.sha)) {
+            const sha = pr.head.sha;
+            if (!/^[0-9a-f]{40}$/.test(sha)) {
               throw new Error('GitHub returned an invalid PR head commit.');
             }
-            const repoName = `${context.repo.owner}/${context.repo.repo}`;
-            const sameRepo = pr.head.repo?.full_name === repoName;
-            // A branch of this repository is dispatched directly (its run is attached to
-            // the PR head and shows in the PR checks). A fork's branch cannot be
-            // dispatched, so its tests run from the default branch on the PR commit.
-            const ref = sameRepo ? pr.head.ref : pr.base.repo.default_branch;
-            const runsUrl = `${context.serverUrl}/${repoName}/actions/workflows/model_tests.yml`;
-            try {
-              await github.rest.actions.createWorkflowDispatch({
+
+            // The PR's own Tests run for its current head commit (newest first).
+            const findRun = async () => {
+              const { data } = await github.rest.actions.listWorkflowRuns({
                 ...context.repo,
-                workflow_id: 'model_tests.yml',
-                ref,
-                inputs: { pr_number: String(issue.number), pr_sha: pr.head.sha },
+                workflow_id: 'test_code.yml',
+                event: 'pull_request',
+                head_sha: sha,
+                per_page: 10,
               });
-            } catch (error) {
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: issue.number,
-                body: `Could not start the tests on \`${ref}\`: ${error.message}\n\n` +
-                      'The branch needs the current `.github/workflows/model_tests.yml` ' +
-                      '(with its `workflow_dispatch` trigger); merge or rebase `main` and ' +
-                      'comment `/run-tests` again.',
-              });
-              throw error;
+              return data.workflow_runs[0];
+            };
+
+            let run = await findRun();
+            for (let i = 0; !run && i < 8; i++) {  // the push may have just landed
+              await sleep(15000);
+              run = await findRun();
             }
+            if (!run) {
+              await reply(`Could not find this PR's **Tests** run for ${sha}, so no tests ` +
+                          'were started. Check that `test_code.yml` ran on this commit, ' +
+                          'then comment `/run-tests` again.');
+              throw new Error(`No Tests run for ${sha}.`);
+            }
+            if (run.status === 'action_required' || run.conclusion === 'action_required') {
+              await reply(`This PR's Tests run is waiting for approval (${run.html_url}). ` +
+                          'Approve it, then comment `/run-tests` again.');
+              throw new Error('The Tests run needs approval first.');
+            }
+
+            // A run can only be re-run once it has finished: stop the current attempt
+            // (lint still going, or an earlier /run-tests suite) and wait for it.
+            if (run.status !== 'completed') {
+              await github.rest.actions.cancelWorkflowRun({ ...context.repo, run_id: run.id });
+              for (let i = 0; i < 40 && run.status !== 'completed'; i++) {
+                await sleep(10000);
+                ({ data: run } = await github.rest.actions.getWorkflowRun({
+                  ...context.repo, run_id: run.id,
+                }));
+              }
+              if (run.status !== 'completed') {
+                throw new Error(`Tests run ${run.id} did not stop; try /run-tests again.`);
+              }
+            }
+
+            // The request, read by the run's "Check for /run-tests" job. Tied to this
+            // exact commit, so a later push is not tested until /run-tests is sent again.
+            await github.rest.repos.createCommitStatus({
+              ...context.repo,
+              sha,
+              state: 'success',
+              context: 'run-tests',
+              description: `Requested by @${comment.user.login} with /run-tests`,
+              target_url: comment.html_url,
+            });
+
+            await github.rest.actions.reRunWorkflow({ ...context.repo, run_id: run.id });
+
             await github.rest.reactions.createForIssueComment({
-              ...context.repo,
-              comment_id: comment.id,
-              content: 'rocket',
+              ...context.repo, comment_id: comment.id, content: 'rocket',
             });
-            const where = sameRepo
-              ? 'Every test job is listed in this PR\'s checks.'
-              : `Every test job is listed in this PR's checks (the run itself is at ${runsUrl}).`;
-            await github.rest.issues.createComment({
-              ...context.repo,
-              issue_number: issue.number,
-              body: `Started the model, tokenizer and processor tests on ${pr.head.sha}. ${where}\n\n` +
-                    'A later push is not tested automatically: comment `/run-tests` again.',
-            });
+            await reply(`Started the model, tokenizer and processor tests on ${sha} in this ` +
+                        `PR's **Tests** run: ${run.html_url}. Every job is listed in this ` +
+                        "PR's checks.\n\nA later push is not tested automatically: comment " +
+                        '`/run-tests` again.');
