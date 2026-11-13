@@ -85,6 +85,18 @@ jobs:
               throw new Error('The Tests run needs approval first.');
             }
 
+            // A branch made before /run-tests moved into the Tests run has no request
+            // check, so re-running its run would only repeat lint.
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              ...context.repo, run_id: run.id, per_page: 100,
+            });
+            if (!jobs.some(job => job.name === 'Check for /run-tests')) {
+              await reply('This branch has an older `.github/workflows/test_code.yml` that ' +
+                          'cannot run the requested tests. Merge or rebase `main`, then ' +
+                          'comment `/run-tests` again.');
+              throw new Error('The PR branch has an outdated test_code.yml.');
+            }
+
             // A run can only be re-run once it has finished: stop the current attempt
             // (lint still going, or an earlier /run-tests suite) and wait for it.
             if (run.status !== 'completed') {
