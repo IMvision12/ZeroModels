@@ -619,3 +619,62 @@ def test_image_processor_resize_actually_runs(name):
         f"{name}: a 32x40 and a 400x260 image produced identical output, so the "
         "input never reaches the resize"
     )
+
+
+@pytest.mark.parametrize(
+    "height,width",
+    [
+        (480, 640),  # rounding would give 1067, the reference truncates to 1066
+        (640, 480),
+        (427, 640),
+        (500, 375),
+        (800, 1200),  # short side already 800: kept as is
+        (300, 1500),  # very wide: the 1333 cap applies
+        (1500, 300),
+        (512, 512),
+        (333, 777),
+    ],
+)
+def test_shortest_longest_resize_matches_reference(height, width):
+    """The aspect-preserving resize target used by the DETR family processors
+    (DETR, Table Transformer, Conditional / Deformable DETR) must equal the
+    reference ``get_size_with_aspect_ratio`` exactly, including its truncation."""
+    from transformers.image_transforms import get_size_with_aspect_ratio
+
+    from zeromodels.base import BaseImageProcessor
+
+    expected = get_size_with_aspect_ratio((height, width), 800, 1333)
+    assert BaseImageProcessor.resize_shortest_longest(height, width, 800, 1333) == (
+        tuple(expected)
+    )
+
+
+@pytest.mark.parametrize(
+    "module,class_name,hf_repo",
+    [
+        (
+            "zeromodels.models.conditional_detr",
+            "ConditionalDETRImageProcessor",
+            "microsoft/conditional-detr-resnet-50",
+        ),
+        (
+            "zeromodels.models.deformable_detr",
+            "DeformableDETRImageProcessor",
+            "SenseTime/deformable-detr",
+        ),
+    ],
+)
+def test_sigmoid_detr_processor_matches_reference(module, class_name, hf_repo):
+    """Conditional / Deformable DETR: same resized size as the reference
+    processor and pixels within resize-interpolation noise."""
+    from transformers import AutoImageProcessor
+
+    ours = getattr(importlib.import_module(module), class_name)(
+        data_format="channels_last"
+    )(ASSET_PATH)["pixel_values"]
+    hf = AutoImageProcessor.from_pretrained(hf_repo)(
+        images=_pil_image(), return_tensors="np"
+    )["pixel_values"]
+    ours = np.transpose(_as_numpy(ours), (0, 3, 1, 2))
+    assert ours.shape == hf.shape, (ours.shape, hf.shape)
+    assert _max_diff(ours, hf) < 5e-2

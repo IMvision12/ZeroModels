@@ -185,6 +185,8 @@ Documentation sources are also available in [`docs/`](docs/).
     | D-FINE | [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/2410.13842) | `transformers` |
     | DETR | [End-to-End Object Detection with Transformers](https://arxiv.org/abs/2005.12872) | `transformers` |
     | Table Transformer | [PubTables-1M: Towards comprehensive table extraction from unstructured documents](https://arxiv.org/abs/2110.00061) | `transformers` |
+    | Conditional DETR | [Conditional DETR for Fast Training Convergence](https://arxiv.org/abs/2108.06152) | `transformers` |
+    | Deformable DETR | [Deformable DETR: Deformable Transformers for End-to-End Object Detection](https://arxiv.org/abs/2010.04159) | `transformers` |
     | EfficientDet | [EfficientDet: Scalable and Efficient Object Detection](https://arxiv.org/abs/1911.09070) | `automl` |
     | RT-DETR | [DETRs Beat YOLOs on Real-time Object Detection](https://arxiv.org/abs/2304.08069) | `transformers` |
     | RT-DETRv2 | [RT-DETRv2: Improved Baseline with Bag-of-Freebies for Real-Time Detection Transformers](https://arxiv.org/abs/2407.17140) | `transformers` |
