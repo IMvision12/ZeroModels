@@ -286,7 +286,12 @@ def _is_experts_skeleton(layer):
 
 
 def _expert_activation(layer):
-    return "gelu" if "gemma" in type(layer).__name__.lower() else "silu"
+    name = type(layer).__name__.lower()
+    if "gemma" in name:
+        return "gelu"
+    if "inkling" in name:
+        return "softcapped_swiglu"
+    return "silu"
 
 
 def _swap(parent, name, old, new):
@@ -447,7 +452,7 @@ def _is_functional(model):
         from zeromodels.base import BaseModel
 
         if isinstance(model, BaseModel):
-            return True
+            return getattr(model, "_functional", None) is not None
     except Exception:
         pass
     try:

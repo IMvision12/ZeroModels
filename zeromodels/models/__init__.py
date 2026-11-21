@@ -59,6 +59,7 @@ from zeromodels.models import (
     inception_resnetv2,
     inceptionv3,
     inceptionv4,
+    inkling2_loop,
     internvl,
     janus,
     kimi_k25,

@@ -510,24 +510,96 @@ class QuantizedExperts(layers.Layer):
         )
         self.built = True
 
-    def call(self, hidden_states, routing_weights):
-        gate_up_w = self.quantizer.dequantize(
-            self.gate_up_q, self.gate_up_scale, axis=-1, dtype=hidden_states.dtype
-        )
-        gate_up = ops.einsum("th,eoh->teo", hidden_states, gate_up_w)
-        gate = gate_up[..., : self.mlp_dim]
-        up = gate_up[..., self.mlp_dim :]
+    def _apply_activation(self, gate, up):
         # "gelu" here means Gemma's GeGLU, which is gelu_pytorch_tanh (the tanh
         # approximation), so it must pass approximate=True to match the float bank
         # (exact erf-GELU would diverge). All other banks use SiLU.
         if self.activation == "gelu":
-            gated = ops.gelu(gate, approximate=True) * up
-        else:
-            gated = ops.silu(gate) * up
+            return ops.gelu(gate, approximate=True) * up
+        if self.activation == "softcapped_swiglu":
+            g = ops.cast(gate, "float32")
+            u = ops.cast(up, "float32")
+            return ops.cast(
+                (ops.tanh(g / 4.0) * 4.0) * ops.sigmoid(g) * (ops.tanh(u / 25.0) * 25.0),
+                gate.dtype,
+            )
+        return ops.silu(gate) * up
+
+    def _eval_sparse_chunk(self, x_chunk, idx_chunk, w_chunk):
+        gu_q = ops.take(self.gate_up_q, idx_chunk, axis=0)
+        gu_s = ops.take(self.gate_up_scale, idx_chunk, axis=0)
+        gate_up_w = self.quantizer.dequantize(
+            gu_q, gu_s, axis=-1, dtype=x_chunk.dtype
+        )
+        gate_up = ops.einsum("th,tkoh->tko", x_chunk, gate_up_w)
+        gated = self._apply_activation(
+            gate_up[..., : self.mlp_dim], gate_up[..., self.mlp_dim :]
+        )
+        d_q = ops.take(self.down_q, idx_chunk, axis=0)
+        d_s = ops.take(self.down_scale, idx_chunk, axis=0)
+        down_w = self.quantizer.dequantize(d_q, d_s, axis=-1, dtype=x_chunk.dtype)
+        expert_out = ops.einsum("tki,tkhi->tkh", gated, down_w)
+        out = ops.einsum(
+            "tk,tkh->th",
+            ops.cast(w_chunk, "float32"),
+            ops.cast(expert_out, "float32"),
+        )
+        return ops.cast(out, x_chunk.dtype)
+
+    def call(
+        self,
+        hidden_states,
+        routing_weights=None,
+        top_k_indices=None,
+        top_k_weights=None,
+    ):
+        static_t = hidden_states.shape[0]
+        if top_k_indices is not None and top_k_weights is not None:
+            if static_t is not None and static_t <= 4:
+                return self._eval_sparse_chunk(
+                    hidden_states, top_k_indices, top_k_weights
+                )
+            # Token-by-token loop avoids XLA hoisting dequantized (E, 2I, H) banks.
+            t_len = ops.shape(hidden_states)[0]
+            out_init = ops.zeros_like(hidden_states)
+
+            def cond(i, _out):
+                return i < t_len
+
+            def body(i, out):
+                x_i = ops.slice(hidden_states, (i, 0), (1, self.embed_dim))
+                k_dim = top_k_indices.shape[1]
+                idx_i = ops.slice(top_k_indices, (i, 0), (1, k_dim))
+                w_i = ops.slice(top_k_weights, (i, 0), (1, k_dim))
+                y_i = self._eval_sparse_chunk(x_i, idx_i, w_i)
+                return i + 1, ops.slice_update(out, (i, 0), y_i)
+
+            _, out_final = ops.while_loop(cond, body, (0, out_init))
+            return out_final
+
+        if routing_weights is None:
+            one_hot = ops.one_hot(top_k_indices, self.num_experts, dtype="float32")
+            routing_weights = ops.sum(
+                one_hot * ops.cast(top_k_weights, "float32")[..., None], axis=1
+            )
+        gate_up_w = self.quantizer.dequantize(
+            self.gate_up_q, self.gate_up_scale, axis=-1, dtype=hidden_states.dtype
+        )
+        gate_up = ops.einsum("th,eoh->teo", hidden_states, gate_up_w)
+        gated = self._apply_activation(
+            gate_up[..., : self.mlp_dim], gate_up[..., self.mlp_dim :]
+        )
         down_w = self.quantizer.dequantize(
             self.down_q, self.down_scale, axis=-1, dtype=hidden_states.dtype
         )
         expert_out = ops.einsum("tei,ehi->teh", gated, down_w)
+        if self.activation == "softcapped_swiglu":
+            out = ops.einsum(
+                "te,teh->th",
+                ops.cast(routing_weights, "float32"),
+                ops.cast(expert_out, "float32"),
+            )
+            return ops.cast(out, hidden_states.dtype)
         return ops.einsum("te,teh->th", routing_weights, expert_out)
 
     def assign_gate_up(self, value):

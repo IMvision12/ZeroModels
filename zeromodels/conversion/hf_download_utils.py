@@ -54,7 +54,31 @@ class LazyStateDict(collections.abc.Mapping):
             path = self._paths[key]
         except KeyError:
             raise KeyError(key) from None
-        return self.handle(path).get_tensor(key)
+        try:
+            return self.handle(path).get_tensor(key)
+        except AttributeError:
+            # safetensors' numpy framework looks up `numpy.float8_e4m3fn` etc.,
+            # which live in ml_dtypes rather than as attributes on numpy.
+            # Read the raw slice directly from the safetensors file into ml_dtypes.
+            import struct
+
+            import ml_dtypes
+            import numpy as np
+
+            dtype_map = {
+                "F8_E4M3": ml_dtypes.float8_e4m3fn,
+                "F8_E5M2": ml_dtypes.float8_e5m2,
+                "BF16": ml_dtypes.bfloat16,
+            }
+            with open(path, "rb") as f:
+                header_len = struct.unpack("<Q", f.read(8))[0]
+                header = json.loads(f.read(header_len))
+                info = header[key]
+                start, end = info["data_offsets"]
+                f.seek(8 + header_len + start)
+                buf = f.read(end - start)
+            np_dtype = dtype_map[info["dtype"]]
+            return np.frombuffer(buf, dtype=np_dtype).reshape(info["shape"]).copy()
 
     def __contains__(self, key):
         # O(1) key check: must NOT read the tensor (see class docstring).
