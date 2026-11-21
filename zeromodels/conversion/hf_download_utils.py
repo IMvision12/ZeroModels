@@ -54,7 +54,20 @@ class LazyStateDict(collections.abc.Mapping):
             path = self._paths[key]
         except KeyError:
             raise KeyError(key) from None
-        return self.handle(path).get_tensor(key)
+        try:
+            return self.handle(path).get_tensor(key)
+        except AttributeError:
+            # safetensors' numpy framework looks up `numpy.float8_e4m3fn` etc.,
+            # which live in ml_dtypes rather than as attributes on numpy.
+            import numpy as np
+            from safetensors import safe_open
+
+            try:
+                with safe_open(path, framework="flax") as f:
+                    return np.asarray(f.get_tensor(key))
+            except Exception:
+                with safe_open(path, framework="pt") as f:
+                    return f.get_tensor(key).float().cpu().numpy()
 
     def __contains__(self, key):
         # O(1) key check: must NOT read the tensor (see class docstring).
